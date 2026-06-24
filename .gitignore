@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+tanner/log/
+*.log
+.claude/
