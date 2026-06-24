@@ -11,7 +11,7 @@ import lib.log as log
 import lib.overlay as overlay
 from lib.overlay import start as start_overlay
 import tanner.config as config
-from tanner.tanner import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, _wait_stopped
+from tanner.tanner import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover, _wait_stopped
 from tanner.config_editor import open_editor
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -68,8 +68,18 @@ while True:
     orient_west()
 
     run = 0
+    recovery_charges = [6]
     start_time = time.time()
     stats["start"] = start_time
+
+    def _try_recover(reason):
+        print(f"\n[RECOVERY] Triggered: {reason}")
+        if recovery_charges[0] <= 0:
+            print("[RECOVERY] No charges remaining — stopping.")
+            return False
+        print(f"[RECOVERY] Using charge ({recovery_charges[0]} remaining)...")
+        recovery_charges[0] -= 1
+        return recover()
 
     try:
         while True:
@@ -84,21 +94,39 @@ while True:
 
             stats["step"] = "walk → tanner"
             if not walk_to_tanner():
-                print("Walk to tanner failed — stopping.")
-                break
+                result = _try_recover("walk_to_tanner failed")
+                if result == "done":
+                    stats["step"] = "done"
+                    print("\nAll hides tanned. Session complete.")
+                    break
+                if not result:
+                    break
+                continue
 
             stats["step"] = "trading ellis"
             if not trade_ellis():
-                print("Trading Ellis failed — stopping.")
-                break
+                result = _try_recover("trade_ellis failed")
+                if result == "done":
+                    stats["step"] = "done"
+                    print("\nAll hides tanned. Session complete.")
+                    break
+                if not result:
+                    break
+                continue
 
             stats["step"] = "tanning..."
             _wait_stopped()
 
             stats["step"] = "walk → bank"
             if not walk_to_bank():
-                print("Walk to bank failed — stopping.")
-                break
+                result = _try_recover("walk_to_bank failed")
+                if result == "done":
+                    stats["step"] = "done"
+                    print("\nAll hides tanned. Session complete.")
+                    break
+                if not result:
+                    break
+                continue
 
             stats["step"] = "banking"
             result = do_bank()
@@ -107,8 +135,14 @@ while True:
                 print("\nAll hides tanned. Session complete.")
                 break
             if not result:
-                print("Banking failed — stopping.")
-                break
+                result = _try_recover("do_bank failed")
+                if result == "done":
+                    stats["step"] = "done"
+                    print("\nAll hides tanned. Session complete.")
+                    break
+                if not result:
+                    break
+                continue
 
             time.sleep(random.uniform(0.5, 1.2))
 

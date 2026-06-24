@@ -18,6 +18,9 @@ FIELDS = [
     ("Navigation",  "Character",        "CHARACTER",            "point"),
     ("Navigation",  "Tanner Area",      "TANNER_AREA",          "region"),
     ("Navigation",  "Ellis Region",     "ELLIS_REGION",         "region"),
+    ("Recovery",    "Amulet Slot",      "AMULET_SLOT",          "point"),
+    ("Recovery",    "Double Doors",     "DOUBLE_DOORS_REGION",  "region"),
+    ("Recovery",    "TP Bank Region",   "TP_BANK_REGION",       "region"),
     ("Bank",        "Bank Check",       "BANK_CHECK",           "point_color"),
     ("Bank",        "Inventory Check",  "INVENTORY_CHECK",      "point_color"),
     ("Bank",        "Deposit Button",   "DEPOSIT_BTN",          "point"),
@@ -33,10 +36,12 @@ FIELDS = [
 ]
 
 REGION_COLORS = {
-    "TANNER_AREA":    "#ff8800",
-    "ELLIS_REGION":   "#00ccff",
-    "BANK_REGION":    "#ff44cc",
-    "MOVEMENT_REGION":"#ffff00",
+    "TANNER_AREA":        "#ff8800",
+    "ELLIS_REGION":       "#00ccff",
+    "BANK_REGION":        "#ff44cc",
+    "MOVEMENT_REGION":    "#ffff00",
+    "DOUBLE_DOORS_REGION":"#44ff88",
+    "TP_BANK_REGION":     "#ff4444",
 }
 
 

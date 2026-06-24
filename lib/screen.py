@@ -50,8 +50,15 @@ def find_color(rgb, tol=10, outside_pad=0, region=None):
     ys_i, xs_i = np.where(mask)
     print(f"  spread x:{int(xs_i.min())+off_x}-{int(xs_i.max())+off_x} "
           f"y:{int(ys_i.min())+off_y}-{int(ys_i.max())+off_y} ({count}px)")
-    idx = random.randint(0, count - 1)
-    return (int(xs_i[idx]) + off_x, int(ys_i[idx]) + off_y), count
+    # Centroid of matched pixels = center of the outline shape.
+    # Triangular spread over ±25% of bounding box keeps clicks natural.
+    mx = float(np.mean(xs_i)) + off_x
+    my = float(np.mean(ys_i)) + off_y
+    sx = (int(xs_i.max()) - int(xs_i.min())) * 0.25
+    sy = (int(ys_i.max()) - int(ys_i.min())) * 0.25
+    cx = random.triangular(mx - sx, mx + sx, mx)
+    cy = random.triangular(my - sy, my + sy, my)
+    return (cx, cy), count
 
 
 def _poly_mask(h, w, vertices):

@@ -17,6 +17,7 @@ from tanner.config import (
     MOVEMENT_REGION, MOVEMENT_THRESH, MOVEMENT_STABLE, MOVEMENT_POLL, WALK_TIMEOUT,
     INTERFACE_BUTTONS, INTERFACE_TOL, TANNING_CHECK,
     MENU_ROW_H, MENU_HEADER, COMPASS, CHARACTER, TANNER_AREA, LOOK_WEST_ROW,
+    AMULET_SLOT, AMULET_MENU_ROW, DOUBLE_DOORS_REGION, TP_BANK_REGION,
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
     BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, HIDE_SLOT, BANK_SLOT_2,
@@ -127,6 +128,61 @@ def walk_to_bank():
         return True
     print("  Bank booth not found.")
     return False
+
+
+def recover():
+    """Teleport to Al Kharid via amulet, walk to bank, do_bank. Returns True on success."""
+    print("\n[RECOVERY] Escape...")
+    pyautogui.press("escape")
+    time.sleep(random.uniform(0.3, 0.5))
+
+    print("[RECOVERY] Opening worn equipment (F4)...")
+    pyautogui.press("f4")
+    time.sleep(random.uniform(0.6, 1.0))
+
+    print("[RECOVERY] Right-clicking amulet slot...")
+    ax, ay = jitter(*AMULET_SLOT, n=3)
+    ax, ay = human_right_click(ax, ay)
+    time.sleep(random.uniform(0.35, 0.55))
+    menu_click(ax + 5, ay + MENU_HEADER + AMULET_MENU_ROW * MENU_ROW_H + MENU_ROW_H // 2)
+
+    print("[RECOVERY] Waiting for teleport...")
+    time.sleep(random.uniform(2.5, 3.5))
+    _wait_stopped()
+
+    print("[RECOVERY] Orienting camera west...")
+    orient_west()
+
+    print("[RECOVERY] Clicking double doors...")
+    random_area_click(DOUBLE_DOORS_REGION)
+    time.sleep(random.uniform(0.5, 1.0))
+    _wait_stopped()
+
+    print("[RECOVERY] Looking for bank booth...")
+    for attempt in range(MAX_BOOTH_TRIES):
+        pause.wait()
+        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=TP_BANK_REGION)
+        if pos:
+            bx, by = pos
+            print(f"  [RECOVERY] Booth at ({bx:.0f}, {by:.0f})")
+            human_click(bx, by)
+            _wait_stopped()
+            break
+        print(f"  [RECOVERY] Booth not found (attempt {attempt+1})...")
+        time.sleep(1.0)
+    else:
+        print("[RECOVERY] Could not find bank booth — recovery failed.")
+        return False
+
+    result = do_bank()
+    if result == "done":
+        return "done"
+    if not result:
+        print("[RECOVERY] Banking failed — recovery failed.")
+        return False
+
+    print("[RECOVERY] Complete.")
+    return True
 
 
 def bank_is_open(timeout=5.0):

@@ -45,6 +45,11 @@ COMPASS       = (1729, 45)
 CHARACTER     = (944, 525)
 TANNER_AREA   = [(1618, 558), (1767, 834), (1888, 824), (1888, 778), (1757, 570)]
 LOOK_WEST_ROW = 3
+AMULET_SLOT   = (1786, 796)
+AMULET_MENU_ROW = 4          # 5th right-click option (0-indexed) → Al Kharid teleport
+
+DOUBLE_DOORS_REGION = [(1052, 496), (1062, 466), (1071, 526), (1056, 549)]
+TP_BANK_REGION      = (882, 24, 291, 138)
 
 # ── Retry limits ──────────────────────────────────────────────────────────────
 
