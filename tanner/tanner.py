@@ -63,8 +63,8 @@ def walk_to_tanner():
     random_area_click(TANNER_AREA)
     time.sleep(random.uniform(2.0, 4.0))
     human_move(
-        CHARACTER[0] + random.randint(-75, 75),
-        CHARACTER[1] + random.randint(-75, 75),
+        CHARACTER[0] + random.randint(-52, 52),
+        CHARACTER[1] + random.randint(-52, 52),
     )
     _wait_stopped()
     return True
