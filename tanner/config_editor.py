@@ -19,6 +19,7 @@ FIELDS = [
     ("Navigation",  "Tanner Area",      "TANNER_AREA",          "region"),
     ("Navigation",  "Ellis Region",     "ELLIS_REGION",         "region"),
     ("Bank",        "Bank Check",       "BANK_CHECK",           "point_color"),
+    ("Bank",        "Inventory Check",  "INVENTORY_CHECK",      "point_color"),
     ("Bank",        "Deposit Button",   "DEPOSIT_BTN",          "point"),
     ("Bank",        "Hide Slot",        "HIDE_SLOT",            "point"),
     ("Bank",        "Bank Slot 2",      "BANK_SLOT_2",          "point"),

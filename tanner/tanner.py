@@ -19,7 +19,7 @@ from tanner.config import (
     MENU_ROW_H, MENU_HEADER, COMPASS, CHARACTER, TANNER_AREA, LOOK_WEST_ROW,
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
-    BANK_CHECK, DEPOSIT_BTN, HIDE_SLOT, BANK_SLOT_2,
+    BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, HIDE_SLOT, BANK_SLOT_2,
 )
 
 
@@ -38,6 +38,11 @@ def orient_west():
     time.sleep(0.35)
     menu_click(ax + 5, ay + MENU_HEADER + LOOK_WEST_ROW * MENU_ROW_H + MENU_ROW_H // 2)
     time.sleep(0.5)
+
+
+def inventory_open():
+    ix, iy, icolor = INVENTORY_CHECK
+    return pixel_matches(ix, iy, icolor, tol=INTERFACE_TOL)
 
 
 def interface_open():
@@ -60,6 +65,12 @@ def click_tan_all(timeout=5.0):
 
 def walk_to_tanner():
     print("\n── Walk to tanner ──")
+    pyautogui.press("escape")
+    time.sleep(random.uniform(0.15, 0.3))
+    if inventory_open():
+        print("  Inventory open — closing...")
+        pyautogui.press("escape")
+        time.sleep(random.uniform(0.15, 0.25))
     random_area_click(TANNER_AREA)
     time.sleep(random.uniform(2.0, 4.0))
     human_move(

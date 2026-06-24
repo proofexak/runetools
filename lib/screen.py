@@ -48,13 +48,10 @@ def find_color(rgb, tol=10, outside_pad=0, region=None):
     if count == 0:
         return None, 0
     ys_i, xs_i = np.where(mask)
-    x0, x1 = int(xs_i.min()) + off_x, int(xs_i.max()) + off_x
-    y0, y1 = int(ys_i.min()) + off_y, int(ys_i.max()) + off_y
-    print(f"  spread x:{x0}-{x1} y:{y0}-{y1} ({count}px)")
-    pad = random.randint(0, outside_pad) if outside_pad > 0 else 0
-    cx = random.triangular(x0 - pad, x1 + pad, (x0 + x1) / 2)
-    cy = random.triangular(y0 - pad, y1 + pad, (y0 + y1) / 2)
-    return (cx, cy), count
+    print(f"  spread x:{int(xs_i.min())+off_x}-{int(xs_i.max())+off_x} "
+          f"y:{int(ys_i.min())+off_y}-{int(ys_i.max())+off_y} ({count}px)")
+    idx = random.randint(0, count - 1)
+    return (int(xs_i[idx]) + off_x, int(ys_i[idx]) + off_y), count
 
 
 def _poly_mask(h, w, vertices):

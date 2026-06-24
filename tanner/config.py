@@ -42,7 +42,7 @@ TANNING_CHECK = (1045, 317, (72, 62, 51))
 MENU_ROW_H    = 15
 MENU_HEADER   = 15
 COMPASS       = (1729, 45)
-CHARACTER     = (960, 540)   # centre of character — cursor rests here after tanner click
+CHARACTER     = (944, 525)
 TANNER_AREA   = [(1618, 558), (1767, 834), (1888, 824), (1888, 778), (1757, 570)]
 LOOK_WEST_ROW = 3
 
@@ -57,7 +57,8 @@ MAX_BOOTH_TRIES  = 6
 
 # ── Bank interface ────────────────────────────────────────────────────────────
 
-BANK_CHECK  = (721, 65, (72, 62, 51))
+BANK_CHECK      = (721, 65, (72, 62, 51))
+INVENTORY_CHECK = (1697, 741, (62, 53, 41))
 DEPOSIT_BTN = (1020, 825)
 HIDE_SLOT   = (665, 141)
 BANK_SLOT_2 = (714, 141)
