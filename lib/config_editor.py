@@ -436,6 +436,23 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
             tk.Button(row, text="✎", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5, command=_edit_number
                       ).pack(side="left", padx=4)
+        elif ftype == "bool":
+            bool_btn = tk.Button(row, text="", bg="#223366", fg="white", font=FONT,
+                                 relief="flat", padx=10)
+            bool_btn.pack(side="left", padx=4)
+            def _make_bool_toggle(a, v, btn):
+                def _toggle():
+                    new_val = not get_fn(a)
+                    _cb(new_val, a, v)
+                    btn.config(text="ON" if new_val else "OFF",
+                               bg="#1a4422" if new_val else "#442222",
+                               fg="#00ff88" if new_val else "#ff4444")
+                return _toggle
+            bool_btn.config(command=_make_bool_toggle(attr, var, bool_btn))
+            cur = get_fn(attr)
+            bool_btn.config(text="ON" if cur else "OFF",
+                            bg="#1a4422" if cur else "#442222",
+                            fg="#00ff88" if cur else "#ff4444")
         else:
             tk.Button(row, text="📍", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5,

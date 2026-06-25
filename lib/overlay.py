@@ -89,7 +89,10 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
 
         tk.Label(f, text=title, fg=FG, bg=BG, font=FONT_B).pack(pady=(4, 6))
 
-        for label, value, bg, hover in items:
+        for item in items:
+            label, value, bg, hover = item[0], item[1], item[2], item[3]
+            extra_btn = item[4] if len(item) > 4 else None  # (small_label, cmd)
+
             if isinstance(value, list):
                 cmd = lambda lbl=label, sub=value: _show_page(sub, lbl, back_fn=_show_main)
             elif callable(value):
@@ -100,10 +103,23 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
                     _clear()
                     _build_stats()
                     _hide_sel_ref[0].set()
-            tk.Button(f, text=label, bg=bg, fg="white",
-                      font=FONT, width=BTN_W, relief="flat", pady=4,
-                      activebackground=hover, activeforeground="white",
-                      command=cmd).pack(pady=2)
+
+            if extra_btn:
+                row = tk.Frame(f, bg=BG)
+                row.pack(fill="x", pady=2)
+                tk.Button(row, text=label, bg=bg, fg="white",
+                          font=FONT, relief="flat", pady=4,
+                          activebackground=hover, activeforeground="white",
+                          command=cmd).pack(side="left", fill="x", expand=True)
+                tk.Button(row, text=extra_btn[0], bg="#1a2a3a", fg="#88aacc",
+                          font=FONT_BTN, relief="flat", pady=4, padx=4,
+                          activebackground="#2a3a4a", activeforeground="white",
+                          command=extra_btn[1]).pack(side="left", padx=(2, 0))
+            else:
+                tk.Button(f, text=label, bg=bg, fg="white",
+                          font=FONT, width=BTN_W, relief="flat", pady=4,
+                          activebackground=hover, activeforeground="white",
+                          command=cmd).pack(pady=2)
 
         if back_fn:
             tk.Button(f, text="← Back", bg="#222222", fg="#888888",

@@ -29,17 +29,26 @@ _use_selector = _ap.parse_known_args()[0].select
 # ── Overlay ───────────────────────────────────────────────────────────────────
 
 stats = {"run": 0, "step": "starting", "start": None, "stop": False}
-_hide_selected = threading.Event()
+_hide_selected  = threading.Event()
+_start_from_ge  = [False]
 
 if not _use_selector:
     _hide_selected.set()
 
+def _select_from_ge(value):
+    config.HIDE_TYPE = value
+    _start_from_ge[0] = True
+    _hide_selected.set()
+
+def _ge_btn(value):
+    return ("GE", lambda v=value: _select_from_ge(v))
+
 MENU = [
     ("Tanning", [
-        ("Green Dragonhide", "green dragonhide", "#1a4a1a", "#2d7a2d"),
-        ("Blue Dragonhide",  "blue dragonhide",  "#0d2444", "#1a4a88"),
-        ("Red Dragonhide",   "red dragonhide",   "#440d0d", "#882020"),
-        ("Black Dragonhide", "black dragonhide", "#1a1a1a", "#333333"),
+        ("Green Dragonhide", "green dragonhide", "#1a4a1a", "#2d7a2d", _ge_btn("green dragonhide")),
+        ("Blue Dragonhide",  "blue dragonhide",  "#0d2444", "#1a4a88", _ge_btn("blue dragonhide")),
+        ("Red Dragonhide",   "red dragonhide",   "#440d0d", "#882020", _ge_btn("red dragonhide")),
+        ("Black Dragonhide", "black dragonhide", "#1a1a1a", "#333333", _ge_btn("black dragonhide")),
         ("⚙ Configure",      open_editor,        "#1a1a33", "#2a2a55"),
     ], "#1a3a1a", "#2d6a2d"),
     ("⚙ GE Config", open_ge_editor, "#1a1a33", "#2a2a55"),
@@ -69,6 +78,9 @@ while True:
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
     pause.reset()
     orient_west()
+    if _start_from_ge[0]:
+        _start_from_ge[0] = False
+        recover()
 
     run = 0
     recovery_charges = [6]
@@ -136,6 +148,9 @@ while True:
             result = do_bank(skip_restock_check=skip_restock)
             skip_restock = False
             if result == "restock":
+                if not config.RESTOCK_GE:
+                    print("\n[DONE] Hides depleted and restock disabled — stopping.")
+                    break
                 stats["step"] = "restocking"
                 print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
                 if not run_ge_flow(config.HIDE_TYPE, recover):

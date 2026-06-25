@@ -36,6 +36,7 @@ FIELDS = [
     ("Interface",   "Red Dragonhide",   "IB:red dragonhide",    "point_color"),
     ("Interface",   "Black Dragonhide", "IB:black dragonhide",  "point_color"),
     ("Movement",    "Movement Region",  "MOVEMENT_REGION",      "region"),
+    ("GE",          "Restock at GE",    "RESTOCK_GE",           "bool"),
     ("GE",          "Quantity",         "GE:GE_QUANTITY",       "number"),
     ("GE",          "Buy Price",        "GE:GE_BUY_PRICE",      "number"),
 ]

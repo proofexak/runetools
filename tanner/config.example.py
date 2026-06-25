@@ -66,3 +66,7 @@ INVENTORY_CHECK = (0, 0, (0, 0, 0))
 DEPOSIT_BTN  = (0, 0)
 BANK_SLOT_1  = (0, 0)
 BANK_SLOT_2  = (0, 0)
+
+# ── Behaviour ─────────────────────────────────────────────────────────────────
+
+RESTOCK_GE = True   # if False, bot stops when hides run out instead of restocking
