@@ -3,7 +3,7 @@ Tanner2 bot configuration.
 Edit this file to recalibrate positions or change behaviour.
 """
 
-HIDE_TYPE = "blue dragonhide"   # green / blue / red / black
+HIDE_TYPE = "green dragonhide"   # green / blue / red / black
 
 # ── RuneLite tile marker colours ──────────────────────────────────────────────
 
@@ -64,6 +64,6 @@ MAX_BOOTH_TRIES  = 6
 
 BANK_CHECK      = (721, 65, (72, 62, 51))
 INVENTORY_CHECK = (1697, 741, (62, 53, 41))
-DEPOSIT_BTN = (1020, 825)
-HIDE_SLOT   = (665, 141)
-BANK_SLOT_2 = (714, 141)
+DEPOSIT_BTN  = (1020, 825)
+BANK_SLOT_1  = (665, 141)
+BANK_SLOT_2  = (714, 141)

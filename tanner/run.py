@@ -13,6 +13,8 @@ from lib.overlay import start as start_overlay
 import tanner.config as config
 from tanner.tanner import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover, _wait_stopped
 from tanner.config_editor import open_editor
+from lib.ge import run_ge_flow
+from lib.ge_config_editor import open_ge_editor
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -40,6 +42,7 @@ MENU = [
         ("Black Dragonhide", "black dragonhide", "#1a1a1a", "#333333"),
         ("⚙ Configure",      open_editor,        "#1a1a33", "#2a2a55"),
     ], "#1a3a1a", "#2d6a2d"),
+    ("⚙ GE Config", open_ge_editor, "#1a1a33", "#2a2a55"),
     ("Exit", lambda: __import__('os')._exit(0), "#550000", "#881111"),
 ]
 
@@ -69,6 +72,7 @@ while True:
 
     run = 0
     recovery_charges = [6]
+    skip_restock = True   # skip on first bank run of session
     start_time = time.time()
     stats["start"] = start_time
 
@@ -129,19 +133,20 @@ while True:
                 continue
 
             stats["step"] = "banking"
-            result = do_bank()
-            if result == "done":
-                stats["step"] = "done"
-                print("\nAll hides tanned. Session complete.")
-                break
+            result = do_bank(skip_restock_check=skip_restock)
+            skip_restock = False
+            if result == "restock":
+                stats["step"] = "restocking"
+                print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
+                if not run_ge_flow(config.HIDE_TYPE, recover):
+                    break
+                skip_restock = True
+                continue
             if not result:
                 result = _try_recover("do_bank failed")
-                if result == "done":
-                    stats["step"] = "done"
-                    print("\nAll hides tanned. Session complete.")
-                    break
                 if not result:
                     break
+                skip_restock = True
                 continue
 
             time.sleep(random.uniform(0.5, 1.2))

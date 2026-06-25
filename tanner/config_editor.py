@@ -5,7 +5,10 @@ import threading, re, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as cfg
+import lib.ge_config as ge_cfg
 from lib.config_editor import run_editor
+
+_GE_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "lib", "ge_config.py")
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.py")
 
@@ -24,7 +27,7 @@ FIELDS = [
     ("Bank",        "Bank Check",       "BANK_CHECK",           "point_color"),
     ("Bank",        "Inventory Check",  "INVENTORY_CHECK",      "point_color"),
     ("Bank",        "Deposit Button",   "DEPOSIT_BTN",          "point"),
-    ("Bank",        "Hide Slot",        "HIDE_SLOT",            "point"),
+    ("Bank",        "Bank Slot 1",      "BANK_SLOT_1",          "point"),
     ("Bank",        "Bank Slot 2",      "BANK_SLOT_2",          "point"),
     ("Bank",        "Bank Region",      "BANK_REGION",          "region"),
     ("Tanning",     "Tanning Check",    "TANNING_CHECK",        "point_color"),
@@ -33,6 +36,8 @@ FIELDS = [
     ("Interface",   "Red Dragonhide",   "IB:red dragonhide",    "point_color"),
     ("Interface",   "Black Dragonhide", "IB:black dragonhide",  "point_color"),
     ("Movement",    "Movement Region",  "MOVEMENT_REGION",      "region"),
+    ("GE",          "Quantity",         "GE:GE_QUANTITY",       "number"),
+    ("GE",          "Buy Price",        "GE:GE_BUY_PRICE",      "number"),
 ]
 
 REGION_COLORS = {
@@ -48,19 +53,32 @@ REGION_COLORS = {
 # ── Value helpers ─────────────────────────────────────────────────────────────
 
 def _get(attr):
+    if attr.startswith("GE:"):
+        return getattr(ge_cfg, attr[3:], None)
     if attr.startswith("IB:"):
         return cfg.INTERFACE_BUTTONS.get(attr[3:])
     return getattr(cfg, attr, None)
 
 
 def _apply(attr, val):
-    if attr.startswith("IB:"):
+    if attr.startswith("GE:"):
+        setattr(ge_cfg, attr[3:], val)
+    elif attr.startswith("IB:"):
         cfg.INTERFACE_BUTTONS[attr[3:]] = val
     else:
         setattr(cfg, attr, val)
 
 
 def _save(attr, val):
+    if attr.startswith("GE:"):
+        with open(_GE_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            content = f.read()
+        pattern = rf'^({re.escape(attr[3:])}\s*=\s*).*$'
+        content = re.sub(pattern, rf'\g<1>{repr(val)}', content, flags=re.MULTILINE)
+        with open(_GE_CONFIG_PATH, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return
+
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
 

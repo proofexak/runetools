@@ -70,6 +70,77 @@ def human_right_click(x, y):
     return ax, ay
 
 
+def smart_right_click(x, y, menu_scan_region=None):
+    """Right-click and detect the actual menu position.
+    menu_scan_region: (left, top, width, height) — small region where the menu appears.
+    Scans that region for changed pixels after right-clicking.
+    Falls back to click coords if detection fails.
+    Returns (ax, ay, menu_x, menu_top_y).
+    """
+    import mss, numpy as np
+
+    ax = x + random.randint(-3, 3)
+    ay = y + random.randint(-3, 3)
+
+    if menu_scan_region is None:
+        # Default: area above and around the click
+        pad_x, pad_y = 60, 350
+        sl, st = max(0, ax - pad_x), max(0, ay - pad_y)
+        sw, sh = pad_x * 4, pad_y * 2
+    else:
+        sl, st, sw, sh = menu_scan_region
+
+    def _grab():
+        with mss.MSS() as sct:
+            mon = sct.monitors[1]
+            shot = sct.grab({"left": mon["left"]+sl, "top": mon["top"]+st,
+                             "width": sw, "height": sh})
+        return np.array(shot)[:, :, :3]
+
+    before = _grab()
+
+    time.sleep(random.uniform(0.1, 0.18))
+    _move(ax, ay)
+    time.sleep(random.uniform(0.08, 0.2))
+    pyautogui.rightClick()
+    time.sleep(0.18)
+
+    after = _grab()
+
+    diff = np.abs(before.astype(int) - after.astype(int)).sum(axis=2)
+    ys, xs = np.where(diff > 20)
+
+    if len(ys) > 20:
+        menu_top  = st + int(ys.min())
+        menu_left = sl + int(xs.min())
+    else:
+        print("  smart_right_click: menu not detected, using click coords as fallback")
+        menu_top, menu_left = ay, ax
+
+    return ax, ay, menu_left, menu_top
+
+
+def human_typewrite(text):
+    """Type text with random per-character delays for human-like input."""
+    for char in text:
+        if char == ' ':
+            pyautogui.press('space')
+        else:
+            pyautogui.typewrite(char, interval=0)
+        time.sleep(random.uniform(0.04, 0.12))
+
+
+def drag_and_drop(from_x, from_y, to_x, to_y):
+    """Click-hold-drag from one point to another."""
+    _move(from_x, from_y)
+    time.sleep(random.uniform(0.1, 0.2))
+    pyautogui.mouseDown()
+    time.sleep(random.uniform(0.1, 0.15))
+    _move(to_x, to_y)
+    time.sleep(random.uniform(0.1, 0.15))
+    pyautogui.mouseUp()
+
+
 def menu_click(x, y):
     """Click a context menu item with x-jitter and a hover pause."""
     tx = x + random.randint(-15, 15)

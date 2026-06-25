@@ -315,7 +315,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
     root = tk.Tk()
     root.title(title)
     root.configure(bg=BG)
-    root.geometry("560x600+150+80")
+    root.geometry("620x600+150+80")
     root.wm_attributes("-topmost", True)
     root.resizable(False, True)
 
@@ -384,7 +384,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
         row.pack(fill="x", padx=10, pady=2)
 
         tk.Label(row, text=label, bg=BG, fg=FG2, font=FONT,
-                 width=15, anchor="w").pack(side="left")
+                 width=22, anchor="w").pack(side="left")
 
         var = tk.StringVar(value=fmt_val(get_fn(attr)))
         tk.Label(row, textvariable=var, bg=BG, fg=FG, font=FONT,
@@ -412,6 +412,29 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_point(
                           root, True, lambda val, _a=a, _v=v: _cb(val, _a, _v))
+                      ).pack(side="left", padx=4)
+        elif ftype == "number":
+            def _edit_number(a=attr, v=var):
+                dlg = tk.Toplevel(root)
+                dlg.title("Enter value")
+                dlg.configure(bg=BG)
+                dlg.geometry("220x80+300+300")
+                dlg.wm_attributes("-topmost", True)
+                ent = tk.Entry(dlg, bg=BG2, fg=FG, font=FONT, insertbackground=FG)
+                ent.insert(0, str(get_fn(a) or ""))
+                ent.pack(padx=10, pady=(12, 4), fill="x")
+                def _submit():
+                    try:
+                        _cb(int(ent.get()), a, v)
+                        dlg.destroy()
+                    except ValueError:
+                        pass
+                ent.bind("<Return>", lambda e: _submit())
+                tk.Button(dlg, text="OK", command=_submit,
+                          bg=BG2, fg=FG, font=FONT, relief="flat", padx=12).pack()
+                ent.focus_set()
+            tk.Button(row, text="✎", bg="#223366", fg="white", font=FONT,
+                      relief="flat", padx=5, command=_edit_number
                       ).pack(side="left", padx=4)
         else:
             tk.Button(row, text="📍", bg="#223366", fg="white", font=FONT,

@@ -11,16 +11,17 @@ from lib.screen   import find_color, pixel_matches
 from lib.movement import wait_until_stopped
 import lib.pause as pause
 
+import tanner.config as _cfg
 from tanner.config import (
-    HIDE_TYPE, BLUE, BLUE_TOL, MAGENTA, MAGENTA_TOL,
+    BLUE, BLUE_TOL, MAGENTA, MAGENTA_TOL,
     ELLIS_REGION, BANK_REGION,
     MOVEMENT_REGION, MOVEMENT_THRESH, MOVEMENT_STABLE, MOVEMENT_POLL, WALK_TIMEOUT,
-    INTERFACE_BUTTONS, INTERFACE_TOL, TANNING_CHECK,
+    INTERFACE_TOL, TANNING_CHECK,
     MENU_ROW_H, MENU_HEADER, COMPASS, CHARACTER, TANNER_AREA, LOOK_WEST_ROW,
     AMULET_SLOT, AMULET_MENU_ROW, DOUBLE_DOORS_REGION, TP_BANK_REGION,
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
-    BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, HIDE_SLOT, BANK_SLOT_2,
+    BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, BANK_SLOT_1, BANK_SLOT_2,
 )
 
 
@@ -56,7 +57,7 @@ def click_tan_all(timeout=5.0):
     while time.time() < deadline:
         pause.wait()
         if interface_open():
-            bx, by, _ = INTERFACE_BUTTONS[HIDE_TYPE]
+            bx, by, _ = _cfg.INTERFACE_BUTTONS[_cfg.HIDE_TYPE]
             human_click(bx + random.randint(-12, 12), by + random.randint(-12, 12))
             return True
         time.sleep(0.2)
@@ -174,9 +175,7 @@ def recover():
         print("[RECOVERY] Could not find bank booth — recovery failed.")
         return False
 
-    result = do_bank()
-    if result == "done":
-        return "done"
+    result = do_bank(skip_restock_check=True)
     if not result:
         print("[RECOVERY] Banking failed — recovery failed.")
         return False
@@ -195,7 +194,7 @@ def bank_is_open(timeout=5.0):
     return False
 
 
-def do_bank():
+def do_bank(skip_restock_check=False):
     print("\n[BANK] Waiting for interface...")
     for retry in range(MAX_BANK_RETRIES):
         if bank_is_open():
@@ -212,14 +211,15 @@ def do_bank():
     human_click(*jitter(*DEPOSIT_BTN))
     time.sleep(0.6)
 
-    _, _, empty_color = BANK_CHECK
-    if pixel_matches(BANK_SLOT_2[0], BANK_SLOT_2[1], empty_color):
-        print("  Bank slot 2 empty — all hides tanned!")
-        pyautogui.press("escape")
-        return "done"
+    if not skip_restock_check:
+        _, _, empty_color = BANK_CHECK
+        if pixel_matches(BANK_SLOT_2[0], BANK_SLOT_2[1], empty_color):
+            print("  Bank slot 2 empty — restocking from GE...")
+            pyautogui.press("escape")
+            return "restock"
 
     print("  Withdrawing hides...")
-    human_click(*jitter(*HIDE_SLOT))
+    human_click(*jitter(*BANK_SLOT_1))
     time.sleep(0.4)
 
     pyautogui.press("escape")
