@@ -4,3 +4,5 @@ __pycache__/
 tanner/log/
 *.log
 .claude/
+tanner/config.py
+lib/ge_config.py

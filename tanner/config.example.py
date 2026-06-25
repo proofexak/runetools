@@ -1,6 +1,5 @@
 """
-Tanner2 bot configuration.
-Edit this file to recalibrate positions or change behaviour.
+Tanner bot configuration — copy to config.py and calibrate before use.
 """
 
 HIDE_TYPE = "green dragonhide"   # green / blue / red / black
@@ -14,12 +13,12 @@ MAGENTA_TOL = 10
 
 # ── Scan regions (left, top, width, height) ───────────────────────────────────
 
-ELLIS_REGION = (709, 294, 465, 521)
-BANK_REGION  = (75, 184, 501, 348)
+ELLIS_REGION = (0, 0, 0, 0)
+BANK_REGION  = (0, 0, 0, 0)
 
 # ── Movement detection ────────────────────────────────────────────────────────
 
-MOVEMENT_REGION = (257, 242, 1398, 543)
+MOVEMENT_REGION = (0, 0, 0, 0)
 MOVEMENT_THRESH = 3.0
 MOVEMENT_STABLE = 3
 MOVEMENT_POLL   = 0.15
@@ -28,28 +27,28 @@ WALK_TIMEOUT    = 20.0
 # ── Tanning interface ─────────────────────────────────────────────────────────
 
 INTERFACE_BUTTONS = {
-    "green dragonhide":  (671, 511, (3, 50, 3)),
-    "blue dragonhide":   (785, 510, (3, 5, 64)),
-    "red dragonhide":    (896, 510, (50, 5, 3)),
-    "black dragonhide":  (1008, 512, (22, 20, 20)),
+    "green dragonhide":  (0, 0, (0, 0, 0)),
+    "blue dragonhide":   (0, 0, (0, 0, 0)),
+    "red dragonhide":    (0, 0, (0, 0, 0)),
+    "black dragonhide":  (0, 0, (0, 0, 0)),
 }
 INTERFACE_TOL = 15
 
-TANNING_CHECK = (1045, 317, (72, 62, 51))
+TANNING_CHECK = (0, 0, (0, 0, 0))
 
 # ── Compass / right-click menu ────────────────────────────────────────────────
 
 MENU_ROW_H    = 15
 MENU_HEADER   = 15
-COMPASS       = (1729, 45)
-CHARACTER     = (944, 525)
-TANNER_AREA   = [(1618, 558), (1767, 834), (1888, 824), (1888, 778), (1757, 570)]
+COMPASS       = (0, 0)
+CHARACTER     = (0, 0)
+TANNER_AREA   = [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
 LOOK_WEST_ROW = 3
-AMULET_SLOT   = (1786, 796)
+AMULET_SLOT   = (0, 0)
 AMULET_MENU_ROW = 4          # 5th right-click option (0-indexed) → Al Kharid teleport
 
-DOUBLE_DOORS_REGION = [(1052, 496), (1062, 466), (1071, 526), (1056, 549)]
-TP_BANK_REGION      = (882, 24, 291, 138)
+DOUBLE_DOORS_REGION = [(0, 0), (0, 0), (0, 0), (0, 0)]
+TP_BANK_REGION      = (0, 0, 0, 0)
 
 # ── Retry limits ──────────────────────────────────────────────────────────────
 
@@ -62,8 +61,8 @@ MAX_BOOTH_TRIES  = 6
 
 # ── Bank interface ────────────────────────────────────────────────────────────
 
-BANK_CHECK      = (721, 65, (72, 62, 51))
-INVENTORY_CHECK = (1697, 741, (62, 53, 41))
-DEPOSIT_BTN  = (1020, 825)
-BANK_SLOT_1  = (665, 141)
-BANK_SLOT_2  = (714, 141)
+BANK_CHECK      = (0, 0, (0, 0, 0))
+INVENTORY_CHECK = (0, 0, (0, 0, 0))
+DEPOSIT_BTN  = (0, 0)
+BANK_SLOT_1  = (0, 0)
+BANK_SLOT_2  = (0, 0)
