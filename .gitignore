@@ -6,3 +6,5 @@ tanner/log/
 .claude/
 tanner/config.py
 lib/ge_config.py
+miner/config.py
+miner/log/

@@ -6,7 +6,7 @@ import numpy as np
 import mss
 
 
-def find_color(rgb, tol=10, outside_pad=0, region=None):
+def find_color(rgb, tol=10, outside_pad=0, region=None, jitter_pct=0.25):
     """
     Scan a screen region for pixels matching rgb (±tol).
     Returns (point, pixel_count) where point is a triangular-distributed random
@@ -54,8 +54,8 @@ def find_color(rgb, tol=10, outside_pad=0, region=None):
     # Triangular spread over ±25% of bounding box keeps clicks natural.
     mx = float(np.mean(xs_i)) + off_x
     my = float(np.mean(ys_i)) + off_y
-    sx = (int(xs_i.max()) - int(xs_i.min())) * 0.25
-    sy = (int(ys_i.max()) - int(ys_i.min())) * 0.25
+    sx = (int(xs_i.max()) - int(xs_i.min())) * jitter_pct
+    sy = (int(ys_i.max()) - int(ys_i.min())) * jitter_pct
     cx = random.triangular(mx - sx, mx + sx, mx)
     cy = random.triangular(my - sy, my + sy, my)
     return (cx, cy), count

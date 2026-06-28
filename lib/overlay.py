@@ -39,9 +39,10 @@ WIDTH     = 210
 BTN_W     = 18
 
 # Module-level refs so show_selector() can be called from outside the thread
-_root_ref      = [None]
-_show_main_ref = [None]
-_hide_sel_ref  = [None]   # mutable ref to current hide_selected event
+_root_ref        = [None]
+_show_main_ref   = [None]
+_build_stats_ref = [None]
+_hide_sel_ref    = [None]   # mutable ref to current hide_selected event
 
 
 def show_selector(new_hide_selected):
@@ -49,6 +50,12 @@ def show_selector(new_hide_selected):
     _hide_sel_ref[0] = new_hide_selected
     if _root_ref[0] and _show_main_ref[0]:
         _root_ref[0].after(0, _show_main_ref[0])
+
+
+def switch_to_stats():
+    """Switch overlay to the stats panel (used when a callable triggers the session)."""
+    if _root_ref[0] and _build_stats_ref[0]:
+        _root_ref[0].after(0, _build_stats_ref[0])
 
 
 def _btn_h(n_items):
@@ -133,6 +140,7 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
 
     # ── Stats panel ───────────────────────────────────────────────────────────
 
+
     def _build_stats():
         _clear()
         root.geometry(f"{WIDTH}x155+10+10")
@@ -186,6 +194,8 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
             root.after(500, _tick)
 
         _tick()
+
+    _build_stats_ref[0] = _build_stats
 
     # ── Start ─────────────────────────────────────────────────────────────────
 
