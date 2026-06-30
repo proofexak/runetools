@@ -35,8 +35,12 @@ _BORDER_T = 3
 
 # ── Value formatting ──────────────────────────────────────────────────────────
 
-def fmt_val(val):
+def fmt_val(val, ftype=None):
     if val is None:
+        return "—"
+    if ftype == "inv_anchor":
+        if isinstance(val, list) and len(val) == 3:
+            return "3 anchors set"
         return "—"
     if isinstance(val, list) and val and isinstance(val[0], (tuple, list)):
         return f"polygon ({len(val)} pts)"
@@ -212,6 +216,54 @@ def capture_polygon(root, callback):
     canvas.focus_force()
 
 
+def capture_3_points(root, callback):
+    """Capture 3 clicks in sequence for inventory anchor calibration."""
+    root.withdraw()
+    prompts = [
+        "(1/3)  Click centre of slot 1  (row 1, col 1)",
+        "(2/3)  Click centre of slot 4  (row 1, col 4)",
+        "(3/3)  Click centre of slot 5  (row 2, col 1)",
+    ]
+    points = []
+
+    def next_capture(idx):
+        if idx >= 3:
+            root.deiconify()
+            callback(points[:])
+            return
+
+        ov = tk.Toplevel()
+        ov.attributes('-fullscreen', True)
+        ov.attributes('-alpha', 0.18)
+        ov.attributes('-topmost', True)
+        ov.configure(bg='black', cursor='crosshair')
+
+        canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
+        canvas.place(relwidth=1, relheight=1)
+        for px, py in points:
+            canvas.create_oval(px-6, py-6, px+6, py+6, fill='#00ff88', outline='')
+
+        tk.Label(ov, text=prompts[idx] + "\n(ESC to cancel)",
+                 bg='#111133', fg='white', font=("Consolas", 13, "bold"),
+                 pady=12, padx=20).place(relx=0.5, rely=0.05, anchor='n')
+
+        def on_click(event):
+            x, y = ov.winfo_pointerx(), ov.winfo_pointery()
+            points.append((x, y))
+            ov.destroy()
+            next_capture(idx + 1)
+
+        def on_esc(event):
+            ov.destroy()
+            root.deiconify()
+
+        ov.bind('<Button-1>', on_click)
+        ov.bind('<Escape>', on_esc)
+        ov.focus_force()
+
+    next_capture(0)
+
+
 # ── Show overlay (small per-item windows) ─────────────────────────────────────
 
 def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=None):
@@ -251,6 +303,16 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
         w.geometry(f"+{lx}+{ly}")
         w.after(0, lambda _w=w, _lx=lx, _ly=ly: _w.geometry(f"+{_lx}+{_ly}"))
         wins.append(w)
+
+    if ftype == "inv_anchor":
+        if not (isinstance(val, list) and len(val) == 3):
+            return []
+        from lib.inventory import get_slots
+        slots = get_slots(val)
+        for slx, sly in slots:
+            _solid(slx - _DOT_SIZE // 2, sly - _DOT_SIZE // 2, _DOT_SIZE, _DOT_SIZE, "#ffcc00")
+        _labeled(val[0][0] + 5, val[0][1] - 18, label, "#ffcc00")
+        return wins
 
     if ftype == "region":
         color = region_colors.get(attr, DEFAULT_REGION_COLOR)
@@ -386,17 +448,23 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
         tk.Label(row, text=label, bg=BG, fg=FG2, font=FONT,
                  width=22, anchor="w").pack(side="left")
 
-        var = tk.StringVar(value=fmt_val(get_fn(attr)))
+        var = tk.StringVar(value=fmt_val(get_fn(attr), ftype))
         tk.Label(row, textvariable=var, bg=BG, fg=FG, font=FONT,
                  width=22, anchor="w").pack(side="left")
 
-        def _cb(val, a=attr, v=var):
+        def _cb(val, a=attr, v=var, ft=ftype):
             apply_fn(a, val)
             save_fn(a, val)
-            v.set(fmt_val(val))
+            v.set(fmt_val(val, ft))
             _refresh()
 
-        if ftype == "region":
+        if ftype == "inv_anchor":
+            tk.Button(row, text="📍×3", bg="#223366", fg="white", font=FONT,
+                      relief="flat", padx=5,
+                      command=lambda a=attr, v=var: capture_3_points(
+                          root, lambda val, _a=a, _v=v: _cb(val, _a, _v))
+                      ).pack(side="left", padx=4)
+        elif ftype == "region":
             tk.Button(row, text="▭", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_region(

@@ -6,5 +6,7 @@ tanner/log/
 .claude/
 tanner/config.py
 lib/ge_config.py
-miner/config.py
-miner/log/
+miner/varrock_exp/config.py
+miner/varrock_exp/log/
+miner/golden_nuggets/config.py
+miner/golden_nuggets/log/

@@ -21,8 +21,12 @@ def _open_tanner_editor():
     from tanner.config_editor import open_editor
     open_editor()
 
-def _open_miner_editor():
-    from miner.config_editor import open_editor
+def _open_varrock_exp_editor():
+    from miner.varrock_exp.config_editor import open_editor
+    open_editor()
+
+def _open_golden_nuggets_editor():
+    from miner.golden_nuggets.config_editor import open_editor
     open_editor()
 
 def _open_ge_editor():
@@ -53,8 +57,10 @@ MENU = [
         ("⚙ Configure",      _open_tanner_editor, "#1a1a33", "#2a2a55"),
     ], "#1a3a1a", "#2d6a2d"),
     ("Mining", [
-        ("Varrock Exp", "varrock exp", "#3a2a0a", "#6a4a15"),
-        ("⚙ Configure",   _open_miner_editor, "#1a1a33", "#2a2a55"),
+        ("Varrock Exp",      "varrock exp",              "#3a2a0a", "#6a4a15"),
+        ("⚙ Configure",     _open_varrock_exp_editor,   "#1a1a33", "#2a2a55"),
+        ("Golden Nuggets",   "golden nuggets",           "#4a3a00", "#7a6200"),
+        ("⚙ Configure",     _open_golden_nuggets_editor,"#1a1a33", "#2a2a55"),
     ], "#2a1a0a", "#4a3010"),
     ("⚙ GE Config", _open_ge_editor, "#1a1a33", "#2a2a55"),
     ("Exit", lambda: os._exit(0), "#550000", "#881111"),
@@ -68,7 +74,7 @@ def _on_select(value):
         tanner_cfg.HIDE_TYPE = value
         _pending["bot"]      = "tanner"
         _pending["from_ge"]  = False
-    elif value == "varrock exp":
+    elif value in {"varrock exp", "golden nuggets"}:
         import miner.config as miner_cfg
         miner_cfg.LOCATION = value
         _pending["bot"]    = "miner"
