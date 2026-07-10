@@ -17,6 +17,21 @@ lib/                    universal helpers used by all bots
   ge_config.py          calibrated GE positions — GITIGNORED, copy from ge_config.example.py
   ge_config.example.py  zeroed template for ge_config.py
   ge_config_editor.py   config editor wired to ge_config.py
+  digit_templates.py    template-matching digit reader for small in-game bitmap fonts —
+                         Tesseract OCR proved unreliable on this font (drops/misreads digits
+                         even on clean, correctly-segmented single-character crops), so this
+                         does exact pixel-template comparison instead. Templates are
+                         gitignored, per-user calibration data — build with
+                         calibrate_energy_digits.py (repo root).
+  energy.py             read_energy(), drink_stamina(), restock_stamina_at_bank() — reads
+                         run energy via digit_templates + ENERGY_REGION, drinks a whole
+                         stamina potion bottle (4 clicks, ~1.3s apart — potions have a
+                         per-dose action cooldown, faster clicks silently drop doses) when
+                         below DRINK_THRESHOLD. restock_stamina_at_bank() assumes the bank is
+                         already open; wired into tanner's do_bank().
+  energy_config.py      calibrated energy/stamina positions — GITIGNORED, copy from
+                         energy_config.example.py
+  energy_config_editor.py  config editor wired to energy_config.py
 
 tanner/                 Al Kharid leather tanning bot
   run.py                entry point — session loop, overlay menu, handles restock/recovery
@@ -41,8 +56,8 @@ Press **P** to pause/resume. Overlay menu: Tanning (hide type + Configure), GE C
 
 ## Config system
 
-- Calibrated positions are in `tanner/config.py` and `lib/ge_config.py` — both gitignored.
-- On fresh clone: copy `*.example.py` → remove `.example`, then calibrate via the in-game config editors.
+- Calibrated positions are in `tanner/config.py`, `lib/ge_config.py`, and `lib/energy_config.py` — all gitignored, as is `lib/digit_templates/` (per-user digit template bitmaps).
+- On fresh clone: copy `*.example.py` → remove `.example`, then calibrate via the in-game config editors. Energy/stamina needs an extra step first — see README's "Stamina potions" section (`calibrate_energy_digits.py`).
 - Config editors draw coloured overlays on screen (regions = rectangles, points = crosshairs).
 - `config_editor.py` supports ftypes: `point`, `point_color`, `region`, `number`.
 - In `tanner/config_editor.py`, prefix `GE:` routes reads/writes to `ge_config.py`; prefix `IB:` routes to `INTERFACE_BUTTONS` dict.
@@ -78,4 +93,6 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
 
 - Tanner bot: fully functional, recovery path + GE restock both tested and working.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
+- Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.
+- Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/tanner.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
 - Woodcutter: WIP, don't touch.
