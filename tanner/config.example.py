@@ -64,8 +64,13 @@ MAX_BOOTH_TRIES  = 6
 BANK_CHECK      = (0, 0, (0, 0, 0))
 INVENTORY_CHECK = (0, 0, (0, 0, 0))
 DEPOSIT_BTN  = (0, 0)
+HIDE_TAB     = (0, 0)
 BANK_SLOT_1  = (0, 0)
 BANK_SLOT_2  = (0, 0)
+
+# Dedicated pixel + colour for "is bank slot 2 empty" — calibrated directly
+# at that slot rather than reusing BANK_CHECK's background colour.
+EMPTY_SLOT_CHECK = (0, 0, (0, 0, 0))
 
 # ── Behaviour ─────────────────────────────────────────────────────────────────
 

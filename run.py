@@ -33,6 +33,10 @@ def _open_ge_editor():
     from lib.ge_config_editor import open_ge_editor
     open_ge_editor()
 
+def _open_energy_editor():
+    from lib.energy_config_editor import open_energy_editor
+    open_energy_editor()
+
 # ── GE button helpers ──────────────────────────────────────────────────────────
 
 def _select_from_ge(value):
@@ -63,6 +67,7 @@ MENU = [
         ("⚙ Configure",     _open_golden_nuggets_editor,"#1a1a33", "#2a2a55"),
     ], "#2a1a0a", "#4a3010"),
     ("⚙ GE Config", _open_ge_editor, "#1a1a33", "#2a2a55"),
+    ("⚙ Energy Config", _open_energy_editor, "#1a1a33", "#2a2a55"),
     ("Exit", lambda: os._exit(0), "#550000", "#881111"),
 ]
 

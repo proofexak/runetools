@@ -10,6 +10,7 @@ from lib.mouse    import human_click, human_move, human_right_click, menu_click,
 from lib.screen   import find_color, pixel_matches
 from lib.movement import wait_until_stopped
 import lib.pause as pause
+import lib.energy as energy
 
 import tanner.config as _cfg
 from tanner.config import (
@@ -21,7 +22,8 @@ from tanner.config import (
     AMULET_SLOT, AMULET_MENU_ROW, DOUBLE_DOORS_REGION, TP_BANK_REGION,
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
-    BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, BANK_SLOT_1, BANK_SLOT_2,
+    BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, HIDE_TAB, BANK_SLOT_1, BANK_SLOT_2,
+    EMPTY_SLOT_CHECK,
 )
 
 
@@ -207,13 +209,22 @@ def do_bank(skip_restock_check=False):
         return False
 
     time.sleep(0.5)
+    print("  Switching to hide tab...")
+    human_click(*jitter(*HIDE_TAB))
+    time.sleep(0.4)
     print("  Depositing inventory...")
     human_click(*jitter(*DEPOSIT_BTN))
     time.sleep(0.6)
 
+    if energy.restock_stamina_at_bank():
+        print("  Topped up stamina.")
+        print("  Switching back to hide tab...")
+        human_click(*jitter(*HIDE_TAB))
+        time.sleep(1.4)
+
     if not skip_restock_check:
-        _, _, empty_color = BANK_CHECK
-        if pixel_matches(BANK_SLOT_2[0], BANK_SLOT_2[1], empty_color):
+        ex, ey, empty_color = EMPTY_SLOT_CHECK
+        if pixel_matches(ex, ey, empty_color):
             print("  Bank slot 2 empty — restocking from GE...")
             pyautogui.press("escape")
             return "restock"
