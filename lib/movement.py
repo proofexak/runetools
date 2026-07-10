@@ -20,7 +20,7 @@ def wait_until_stopped(region, thresh=3.0, stable_count=3, poll=0.15,
     Returns True if stopped cleanly, False on timeout.
     """
     def _grab():
-        with mss.MSS() as sct:
+        with mss.mss() as sct:
             shot = sct.grab({"left": region[0], "top": region[1],
                              "width": region[2], "height": region[3]})
         return np.array(shot)[:, :, :3].mean(axis=2).astype(float)

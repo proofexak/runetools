@@ -18,6 +18,7 @@ choice = input("> ").strip()
 if choice in bots:
     name, script, args = bots[choice]
     print(f"Launching {name}...")
-    subprocess.Popen([sys.executable, script] + args, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    kwargs = {"creationflags": subprocess.CREATE_NEW_CONSOLE} if sys.platform == "win32" else {}
+    subprocess.Popen([sys.executable, script] + args, **kwargs)
 else:
     print("Invalid choice.")

@@ -4,8 +4,10 @@ __pycache__/
 tanner/log/
 *.log
 .claude/
+.venv/
 tanner/config.py
 lib/ge_config.py
+miner/config.py
 miner/varrock_exp/config.py
 miner/varrock_exp/log/
 miner/golden_nuggets/config.py

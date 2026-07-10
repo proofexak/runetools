@@ -92,7 +92,7 @@ def _deposit_and_relocate():
     l, t, w, h = cfg.GE_BANK_AREA
 
     def _screenshot():
-        with mss.MSS() as sct:
+        with mss.mss() as sct:
             mon = sct.monitors[1]
             shot = sct.grab({"left": mon["left"]+l, "top": mon["top"]+t,
                              "width": w, "height": h})

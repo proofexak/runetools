@@ -28,7 +28,7 @@ def find_color(rgb, tol=10, outside_pad=0, region=None, jitter_pct=0.25):
         l, t, w, h = region
         use_poly = False
 
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon   = sct.monitors[1]
         shot  = sct.grab({"left": mon["left"]+l, "top": mon["top"]+t, "width": w, "height": h})
         off_x = mon["left"] + l
@@ -68,7 +68,7 @@ def find_nearest_color(rgb, tol=10, region=None, near=(0, 0), cluster_radius=30,
     """
     r, g, b = rgb
     l, t, w, h = region
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon  = sct.monitors[1]
         shot = sct.grab({"left": mon["left"]+l, "top": mon["top"]+t, "width": w, "height": h})
         off_x = mon["left"] + l
@@ -129,7 +129,7 @@ def _poly_mask(h, w, vertices):
 
 def pixel_matches(x, y, expected_rgb, tol=15):
     """Check if a single screen pixel matches expected_rgb within tol."""
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         shot = sct.grab({"left": x, "top": y, "width": 1, "height": 1})
     px = np.array(shot)[0, 0]
     r, g, b = int(px[2]), int(px[1]), int(px[0])

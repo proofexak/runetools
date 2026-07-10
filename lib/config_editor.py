@@ -57,7 +57,7 @@ def fmt_val(val, ftype=None):
 # ── Screen capture helpers ────────────────────────────────────────────────────
 
 def grab_pixel(x, y):
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         shot = sct.grab({"left": x, "top": y, "width": 1, "height": 1})
     px = np.array(shot)[0, 0]
     return int(px[2]), int(px[1]), int(px[0])
@@ -65,13 +65,31 @@ def grab_pixel(x, y):
 
 # ── Capture overlays ──────────────────────────────────────────────────────────
 
-def capture_point(root, with_color, callback):
-    root.withdraw()
+def _fullscreen_overlay():
+    """Toplevel spanning the whole screen, without using real WM fullscreen —
+    compositors (e.g. mutter) unredirect true-fullscreen windows for
+    performance, which silently breaks the -alpha translucency below.
+
+    Withdrawn before overrideredirect/geometry are applied: doing that on an
+    already-mapped Toplevel lets the WM's own placement logic grab it first,
+    which on some WMs (e.g. mutter) leaves it positioned away from (0,0)
+    instead of covering the whole screen."""
     ov = tk.Toplevel()
-    ov.attributes('-fullscreen', True)
-    ov.attributes('-alpha', 0.18)
+    ov.withdraw()
+    ov.overrideredirect(True)
+    sw, sh = ov.winfo_screenwidth(), ov.winfo_screenheight()
+    ov.geometry(f"{sw}x{sh}+0+0")
     ov.attributes('-topmost', True)
     ov.configure(bg='black', cursor='crosshair')
+    ov.deiconify()
+    ov.update_idletasks()
+    return ov
+
+
+def capture_point(root, with_color, callback):
+    root.withdraw()
+    ov = _fullscreen_overlay()
+    ov.attributes('-alpha', 0.18)
 
     tk.Label(ov, text="Click the target position\n(ESC to cancel)",
              bg='#111133', fg='white', font=("Consolas", 13, "bold"),
@@ -98,11 +116,8 @@ def capture_point(root, with_color, callback):
 
 def capture_region(root, callback):
     root.withdraw()
-    ov = tk.Toplevel()
-    ov.attributes('-fullscreen', True)
+    ov = _fullscreen_overlay()
     ov.attributes('-alpha', 0.25)
-    ov.attributes('-topmost', True)
-    ov.configure(bg='black', cursor='crosshair')
 
     canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
     canvas.place(relwidth=1, relheight=1)
@@ -143,11 +158,8 @@ def capture_region(root, callback):
 
 def capture_polygon(root, callback):
     root.withdraw()
-    ov = tk.Toplevel()
-    ov.attributes('-fullscreen', True)
+    ov = _fullscreen_overlay()
     ov.attributes('-alpha', 0.3)
-    ov.attributes('-topmost', True)
-    ov.configure(bg='black', cursor='crosshair')
 
     canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
     canvas.place(relwidth=1, relheight=1)
@@ -232,11 +244,8 @@ def capture_3_points(root, callback):
             callback(points[:])
             return
 
-        ov = tk.Toplevel()
-        ov.attributes('-fullscreen', True)
+        ov = _fullscreen_overlay()
         ov.attributes('-alpha', 0.18)
-        ov.attributes('-topmost', True)
-        ov.configure(bg='black', cursor='crosshair')
 
         canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
         canvas.place(relwidth=1, relheight=1)
@@ -283,17 +292,20 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
         lx = round(px * sx);  ly = round(py * sy)
         lw = max(1, round(pw * sx));  lh = max(1, round(ph * sy))
         w = tk.Toplevel(root)
+        w.withdraw()
         w.overrideredirect(True)
         w.attributes('-topmost', True)
         w.configure(bg=bg)
         g = f"{lw}x{lh}+{lx}+{ly}"
         w.geometry(g)
+        w.deiconify()
         w.after(0, lambda _w=w, _g=g: _w.geometry(_g))
         wins.append(w)
 
     def _labeled(px, py, text, fg):
         lx = round(px * sx);  ly = round(py * sy)
         w = tk.Toplevel(root)
+        w.withdraw()
         w.overrideredirect(True)
         w.attributes('-topmost', True)
         w.configure(bg='#111111')
@@ -301,6 +313,7 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
                  font=('Consolas', 9, 'bold'), pady=1, padx=3).pack()
         w.update_idletasks()
         w.geometry(f"+{lx}+{ly}")
+        w.deiconify()
         w.after(0, lambda _w=w, _lx=lx, _ly=ly: _w.geometry(f"+{_lx}+{_ly}"))
         wins.append(w)
 
@@ -317,29 +330,24 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
     if ftype == "region":
         color = region_colors.get(attr, DEFAULT_REGION_COLOR)
         if isinstance(val, list) and val and isinstance(val[0], (tuple, list)):
+            # Trace the outline with small dot markers (like the rectangle
+            # case's border strips) instead of one big filled window — a
+            # filled window blocks clicks to whatever's underneath even at
+            # low alpha, since X11 alpha only affects rendering, not input.
+            pts = list(val) + [val[0]]
+            dot, step = 4, 8
+            for i in range(len(pts) - 1):
+                x1, y1 = pts[i]
+                x2, y2 = pts[i + 1]
+                dist = max(1.0, ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5)
+                n = max(1, int(dist // step))
+                for j in range(n + 1):
+                    t = j / n
+                    x = x1 + (x2 - x1) * t
+                    y = y1 + (y2 - y1) * t
+                    _solid(x - dot / 2, y - dot / 2, dot, dot, color)
             xs = [p[0] for p in val];  ys = [p[1] for p in val]
-            l, t = min(xs) - 2, min(ys) - 2
-            lw_ = max(1, round((max(xs) - l + 2) * sx))
-            lh_ = max(1, round((max(ys) - t + 2) * sy))
-            lx_ = round(l * sx);  ly_ = round(t * sy)
-            w = tk.Toplevel(root)
-            w.overrideredirect(True)
-            w.attributes('-topmost', True)
-            w.configure(bg='black')
-            cv_ = tk.Canvas(w, bg='black', highlightthickness=0, bd=0,
-                            width=lw_, height=lh_)
-            cv_.pack()
-            flat = [c for p in val
-                    for c in (round((p[0] - l) * sx), round((p[1] - t) * sy))]
-            cv_.create_polygon(flat, outline=color, fill='', width=2)
-            g_ = f"{lw_}x{lh_}+{lx_}+{ly_}"
-            w.geometry(g_)
-            w.update_idletasks()
-            w.wm_attributes('-transparentcolor', 'black')
-            w.after(0, lambda _w=w, _g=g_: (
-                _w.geometry(_g), _w.wm_attributes('-transparentcolor', 'black')))
-            wins.append(w)
-            _labeled(l + 6, t + 4, label, color)
+            _labeled(min(xs) + 6, min(ys) + 4, label, color)
         else:
             l, t, rw, rh = val
             T = _BORDER_T
@@ -381,7 +389,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
     root.wm_attributes("-topmost", True)
     root.resizable(False, True)
 
-    with mss.MSS() as _sct:
+    with mss.mss() as _sct:
         _mon = _sct.monitors[1]
         _sx = root.winfo_screenwidth()  / _mon['width']  if _mon['width']  else 1.0
         _sy = root.winfo_screenheight() / _mon['height'] if _mon['height'] else 1.0
@@ -459,7 +467,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
             _refresh()
 
         if ftype == "inv_anchor":
-            tk.Button(row, text="📍×3", bg="#223366", fg="white", font=FONT,
+            tk.Button(row, text="pt x3", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_3_points(
                           root, lambda val, _a=a, _v=v: _cb(val, _a, _v))
@@ -476,7 +484,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
                           root, lambda val, _a=a, _v=v: _cb(val, _a, _v))
                       ).pack(side="left", padx=(0, 4))
         elif ftype == "point_color":
-            tk.Button(row, text="📍+🎨", bg="#223366", fg="white", font=FONT,
+            tk.Button(row, text="pt+col", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_point(
                           root, True, lambda val, _a=a, _v=v: _cb(val, _a, _v))
@@ -522,7 +530,7 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
                             bg="#1a4422" if cur else "#442222",
                             fg="#00ff88" if cur else "#ff4444")
         else:
-            tk.Button(row, text="📍", bg="#223366", fg="white", font=FONT,
+            tk.Button(row, text="pt", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_point(
                           root, False, lambda val, _a=a, _v=v: _cb(val, _a, _v))

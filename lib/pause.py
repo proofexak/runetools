@@ -3,10 +3,11 @@ Global pause/stop state — import this from any bot module.
 Call setup() once at startup to register the hotkey.
 """
 import time
-import keyboard
+from pynput import keyboard
 
 _paused     = False
 _force_stop = False
+_listener   = None
 
 
 class ForceStop(Exception):
@@ -14,7 +15,14 @@ class ForceStop(Exception):
 
 
 def setup(hotkey="p"):
-    keyboard.add_hotkey(hotkey, toggle)
+    global _listener
+
+    def _on_press(key):
+        if getattr(key, "char", None) and key.char.lower() == hotkey.lower():
+            toggle()
+
+    _listener = keyboard.Listener(on_press=_on_press)
+    _listener.start()
 
 
 def toggle():

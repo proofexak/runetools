@@ -1,13 +1,13 @@
 """
 Human-like mouse input — bezier curves, jitter, randomized timing.
-Works on Windows (uses SetCursorPos for sub-pixel accuracy).
+Cross-platform (Windows/macOS/Linux) via pyautogui's cursor positioning.
 """
-import time, random, math, ctypes
+import time, random, math
 import pyautogui
 
 
 def _set_cursor(x, y):
-    ctypes.windll.user32.SetCursorPos(int(x), int(y))
+    pyautogui.moveTo(int(x), int(y), _pause=False)
 
 
 def _make_ease():
@@ -91,7 +91,7 @@ def smart_right_click(x, y, menu_scan_region=None):
         sl, st, sw, sh = menu_scan_region
 
     def _grab():
-        with mss.MSS() as sct:
+        with mss.mss() as sct:
             mon = sct.monitors[1]
             shot = sct.grab({"left": mon["left"]+sl, "top": mon["top"]+st,
                              "width": sw, "height": sh})

@@ -59,7 +59,7 @@ def _inv_patches():
     pad = 10
     l, t = min(xs) - pad, min(ys) - pad
     rw, rh = max(xs) - l + pad, max(ys) - t + pad
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon  = sct.monitors[1]
         shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
                          "width": rw, "height": rh})
@@ -131,7 +131,7 @@ def count_broken_struts(region):
     mr, mg, mb = config.MAGENTA
     tol = config.MAGENTA_TOL
 
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon  = sct.monitors[1]
         shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
                          "width": w, "height": h})
@@ -344,7 +344,7 @@ def character_in_any_vein():
     mr, mg, mb = config.MAGENTA
     tol = config.MAGENTA_TOL
 
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon  = sct.monitors[1]
         shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
                          "width": w, "height": h})
