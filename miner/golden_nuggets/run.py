@@ -9,7 +9,7 @@ import lib.log as log
 from miner.golden_nuggets.miner import (
     orient_south, orient_east, click_nearest_vein, wait_for_vein_depletion,
     count_filled_slots, deposit_to_hopper, process_full_sack,
-    check_and_fix_struts, wait_stopped, _log,
+    click_struts, wait_stopped, _log,
 )
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -45,16 +45,19 @@ def run(stats):
             stats["step"] = "depositing"
             transferred = deposit_to_hopper()
             if not transferred:
-                orient_south()
-                continue
+                _log("Hopper full — fixing struts then retrying")
+                orient_east()
+                click_struts()
+                deposit_to_hopper()
+
             hopper_deposits += 1
             stats["sack"] = hopper_deposits
-            _log(f"Hopper deposit #{hopper_deposits}/4")
+            _log(f"Hopper deposit #{hopper_deposits}/3")
 
             orient_east()
-            check_and_fix_struts()
+            click_struts()
 
-            if hopper_deposits >= 4:
+            if hopper_deposits >= 3:
                 stats["step"] = "processing sack"
                 process_full_sack(stats)
                 hopper_deposits = 0

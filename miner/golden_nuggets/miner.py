@@ -126,10 +126,10 @@ def deposit_to_hopper():
 
 
 def count_broken_struts(region):
-    """Count distinct broken-strut clusters (magenta) in region."""
+    """Count distinct broken-strut clusters in region."""
     l, t, w, h = region
-    mr, mg, mb = config.MAGENTA
-    tol = config.MAGENTA_TOL
+    mr, mg, mb = config.STRUT_COLOR
+    tol = config.STRUT_TOL
 
     with mss.mss() as sct:
         mon  = sct.monitors[1]
@@ -171,7 +171,7 @@ def check_and_fix_struts():
         return
     _log(f"{n} struts broken — machine stopped, fixing one")
     pos, _ = find_nearest_color(
-        config.MAGENTA, config.MAGENTA_TOL,
+        config.STRUT_COLOR, config.STRUT_TOL,
         region=config.STRUT_REGION, near=config.CHARACTER,
     )
     if pos is None:
@@ -187,10 +187,10 @@ def check_and_fix_struts():
 def click_struts():
     """
     1. Check STRUT_REGION (hopper view) — click if found, wait_stopped.
-    2. Loop STRUT_NEAR_REGION — click all remaining struts one by one.
+    2. Check STRUT_NEAR_REGION — click up to 2 remaining struts.
     """
     pos, _ = find_nearest_color(
-        config.MAGENTA, config.MAGENTA_TOL,
+        config.STRUT_COLOR, config.STRUT_TOL,
         region=config.STRUT_REGION, near=config.CHARACTER,
     )
     if pos is None:
@@ -202,9 +202,9 @@ def click_struts():
         human_click(ix, iy)
         wait_stopped()
 
-    while True:
+    for _ in range(2):
         pos, _ = find_nearest_color(
-            config.MAGENTA, config.MAGENTA_TOL,
+            config.STRUT_COLOR, config.STRUT_TOL,
             region=config.STRUT_NEAR_REGION, near=config.CHARACTER,
         )
         if pos is None:
@@ -290,7 +290,7 @@ def process_full_sack(stats):
     while True:
         time.sleep(3)
         pos, _ = find_nearest_color(
-            config.MAGENTA, config.MAGENTA_TOL,
+            config.STRUT_COLOR, config.STRUT_TOL,
             region=config.STRUT_NEAR_REGION, near=config.CHARACTER,
         )
         if pos is None:

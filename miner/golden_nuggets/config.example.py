@@ -4,9 +4,11 @@ Golden Nuggets miner configuration — copy to config.py and calibrate before us
 
 # ── RuneLite tile marker colours ──────────────────────────────────────────────
 
-MAGENTA     = (255, 0, 255)
-MAGENTA_TOL = 10
-RED         = (255, 0, 0)
+MAGENTA      = (0, 255, 255)   # cyan — pay-dirt veins
+MAGENTA_TOL  = 10
+STRUT_COLOR  = (255, 0, 255)   # magenta — broken struts
+STRUT_TOL    = 10
+RED          = (255, 0, 0)
 RED_TOL     = 10
 GREEN       = (0, 255, 0)
 GREEN_TOL   = 10
