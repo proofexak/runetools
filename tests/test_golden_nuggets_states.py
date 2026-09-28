@@ -3,7 +3,7 @@ import pytest
 import lib.pause as pause
 from lib.state_machine import run_machine
 from miner.golden_nuggets.states import (
-    build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK,
+    build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK, MAX_DEPOSIT_FAILS,
 )
 
 
@@ -27,6 +27,9 @@ def fake_handlers(session, script, visited):
         event = script.pop(0)
         if event == "ok":
             session.hopper_deposits += 1
+            session.deposit_fails = 0
+        else:
+            session.deposit_fails += 1
         return event
 
     def process_sack():
@@ -115,3 +118,20 @@ def test_soft_stop_at_seek_vein():
 
 def test_mining_event_mapping():
     assert [mining_event(r) for r in ("full", "depleted", "idle", None)] == ["full", "ok", "ok", "ok"]
+
+
+def test_repeated_deposit_failures_stop_the_bot():
+    # Hopper never found (highlight off / bad region) must not loop forever.
+    s = build_machine({})
+    final, visited = drive(s, ["full", "fail"] * MAX_DEPOSIT_FAILS + ["ok"])
+    assert MAX_DEPOSIT_FAILS == 3
+    assert final == "stopped"
+    assert visited.count("deposit") == MAX_DEPOSIT_FAILS
+
+
+def test_successful_deposit_resets_failure_count():
+    s = build_machine({})
+    script = ["full", "fail", "full", "fail", "full", "ok", "full", "fail", "full", "fail"]
+    final, visited = drive(s, script)
+    assert visited.count("deposit") == 5
+    assert s.deposit_fails == 2

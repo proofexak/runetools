@@ -131,6 +131,7 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).
 - Golden Nuggets miner: on the state machine; O-pause works between every step, P returns to the menu.
+  Stops after 3 failed hopper deposits in a row (MAX_DEPOSIT_FAILS) instead of looping forever.
 - Varrock Exp miner: menu entry crashes — `miner.varrock_exp` package doesn't exist (PRO-7, roadmap step 4).
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.

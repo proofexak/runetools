@@ -49,8 +49,13 @@ def _handlers(session, stats, session_start):
 
     def deposit():
         if not deposit_to_hopper():
-            orient_south()
+            session.deposit_fails += 1
+            if session.deposit_stuck():
+                _log(f"Hopper deposit failed {session.deposit_fails}x in a row — stopping")
+            else:
+                orient_south()
             return "fail"
+        session.deposit_fails = 0
         session.hopper_deposits += 1
         stats["sack"] = session.hopper_deposits
         _log(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
