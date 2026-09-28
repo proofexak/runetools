@@ -4,6 +4,7 @@ Cross-platform (Windows/macOS/Linux) via pyautogui's cursor positioning.
 """
 import time, random, math
 import pyautogui
+import lib.pause as pause
 
 
 def _set_cursor(x, y):
@@ -121,8 +122,10 @@ def smart_right_click(x, y, menu_scan_region=None):
 
 
 def human_typewrite(text):
-    """Type text with random per-character delays for human-like input."""
+    """Type text with random per-character delays for human-like input.
+    Pause/stop hotkeys are suppressed while typing (see pause.suppress_hotkeys)."""
     for char in text:
+        pause.suppress_hotkeys(0.5)   # covers listener lag after the last key
         if char == ' ':
             pyautogui.press('space')
         else:

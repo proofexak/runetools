@@ -5,10 +5,12 @@ Call setup() once at startup to register the hotkey.
 import time
 from pynput import keyboard
 
-_paused     = False
-_force_stop = False
-_listener   = None
-_pause_hotkey = "o"
+_paused         = False
+_force_stop     = False
+_listener       = None
+_pause_hotkey   = "o"
+_stop_hotkey    = "p"   # None: no character stop key
+_suppress_until = 0.0   # time.time() before which hotkeys are ignored
 
 
 class ForceStop(Exception):
@@ -22,8 +24,9 @@ def setup(pause_hotkey="o", stop_hotkey="p", stop_key=None):
     stop_key:     optional pynput special-key name (e.g. "end", "f12") that
                   also force-stops, even while paused.
     """
-    global _listener, _pause_hotkey
-    _pause_hotkey = pause_hotkey
+    global _listener, _pause_hotkey, _stop_hotkey
+    _pause_hotkey = pause_hotkey.lower()
+    _stop_hotkey  = stop_hotkey.lower() if stop_hotkey else None
 
     stop_vk = getattr(keyboard.Key, stop_key, None) if stop_key else None
 
@@ -33,17 +36,29 @@ def setup(pause_hotkey="o", stop_hotkey="p", stop_key=None):
             force_stop()
             return
         char = getattr(key, "char", None)
-        if not char:
-            return
-        char = char.lower()
-        if char == pause_hotkey.lower():
-            toggle()
-        elif stop_hotkey and char == stop_hotkey.lower():
-            force_stop()
-            print("\n[FORCE STOP] Stopping...")
+        if char:
+            _handle_char(char)
 
     _listener = keyboard.Listener(on_press=_on_press)
     _listener.start()
+
+
+def _handle_char(char):
+    if time.time() < _suppress_until:
+        return
+    char = char.lower()
+    if char == _pause_hotkey:
+        toggle()
+    elif _stop_hotkey and char == _stop_hotkey:
+        force_stop()
+        print("\n[FORCE STOP] Stopping...")
+
+
+def suppress_hotkeys(seconds):
+    """Ignore hotkeys for `seconds` — the listener also sees the bot's own
+    synthetic keystrokes, so typing e.g. "dragonhide" would press O."""
+    global _suppress_until
+    _suppress_until = max(_suppress_until, time.time() + seconds)
 
 
 def toggle():
