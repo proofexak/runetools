@@ -14,7 +14,8 @@ FINAL_STATES = {"done", "stopped"}
 STATES = ["start", "walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank",
           "banking", "restock", "recover", "done", "stopped"]
 
-_ACTIONS = ["walk_to_tanner", "trade_ellis", "walk_to_bank", "banking"]
+_WALK_TRADE = ["walk_to_tanner", "trade_ellis", "walk_to_bank"]
+_ACTIONS    = _WALK_TRADE + ["banking"]
 
 TRANSITIONS = [
     {"trigger": "begin",   "source": "start",          "dest": "recover", "conditions": "start_from_ge"},
@@ -28,11 +29,14 @@ TRANSITIONS = [
 
     {"trigger": "restock", "source": "banking",        "dest": "restock", "conditions": "restock_enabled"},
     {"trigger": "restock", "source": "banking",        "dest": "done"},
-    {"trigger": "ok",      "source": "restock",        "dest": "recover", "conditions": "has_charges"},
+    {"trigger": "ok",      "source": "restock",        "dest": "recover", "conditions": "has_charges",
+     "after": "set_skip_restock"},
     {"trigger": "ok",      "source": "restock",        "dest": "stopped"},
     {"trigger": "fail",    "source": "restock",        "dest": "stopped"},
 
-    {"trigger": "fail",    "source": _ACTIONS,         "dest": "recover", "conditions": "has_charges"},
+    {"trigger": "fail",    "source": _WALK_TRADE,      "dest": "recover", "conditions": "has_charges"},
+    {"trigger": "fail",    "source": "banking",        "dest": "recover", "conditions": "has_charges",
+     "after": "set_skip_restock"},
     {"trigger": "fail",    "source": _ACTIONS,         "dest": "stopped"},
     {"trigger": "ok",      "source": "recover",        "dest": "walk_to_tanner"},
     {"trigger": "fail",    "source": "recover",        "dest": "stopped"},
@@ -60,6 +64,9 @@ class TannerSession:
     def on_enter_recover(self):
         # Every glory teleport — failure recovery, post-GE return, Run-from-GE start.
         self.charges -= 1
+
+    def set_skip_restock(self):
+        # Only after a bank failure or GE restock (as the pre-state-machine loop did).
         self.skip_restock = True
 
     def clear_skip_restock(self):

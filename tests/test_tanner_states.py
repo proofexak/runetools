@@ -127,9 +127,18 @@ def test_skip_restock_lifecycle():
     assert s.skip_restock is True
     step(s, *TRIP)
     assert s.skip_restock is False
-    step(s, "fail")
+    step(s, "ok", "ok", "ok", "ok", "fail")   # banking fails -> recover
     assert s.skip_restock is True
     step(s, "ok", *TRIP)
+    assert s.skip_restock is False
+
+
+@pytest.mark.parametrize("before", [[], ["ok"], ["ok", "ok", "ok"]])
+def test_non_bank_failure_recovery_keeps_restock_check(before):
+    # Old loop only skipped the next restock check after a bank failure or GE restock.
+    s = build_machine({}, True, False)
+    step(s, *TRIP, *before, "fail")
+    assert s.state == "recover"
     assert s.skip_restock is False
 
 

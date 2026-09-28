@@ -116,7 +116,9 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
   needs its entry callback, start in a transient `start` state and fire `begin` in `build_machine`
   (see tanner/states.py).
 - Always `auto_transitions=False`. A declared event invalid from the current state raises
-  `MachineError`; an undeclared event name raises `AttributeError` — both mean a table bug.
+  `MachineError`; an undeclared event name raises `AttributeError`; an event whose rows all fail
+  their conditions raises `MachineError` from the runner (transitions alone would silently re-run
+  the handler) — always give guarded rows an unconditional fallback.
 - Test the table with stub handlers through the real `run_machine` (tests/test_tanner_states.py).
 
 **wait_until_stopped** polls a screen region for pixel diff. Returns when stable for N consecutive frames. Used after walking, not after teleports (teleports are instant).

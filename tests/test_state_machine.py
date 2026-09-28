@@ -106,3 +106,24 @@ def test_soft_stop_ignored_without_cycle_start(log):
     stats, calls = {"stop": True}, []
     run_machine(_machine(), _scripted(["ok", "quit"], calls), stats, FINAL)
     assert calls == ["a", "b"]
+
+
+def test_guarded_event_with_no_passing_row_raises(log):
+    m = _Model()
+    m.allowed = False
+    Machine(model=m, states=["a", "end"], initial="a", auto_transitions=False,
+            transitions=[{"trigger": "go", "source": "a", "dest": "end", "conditions": "allowed"}])
+    calls = []
+    with pytest.raises(MachineError):
+        run_machine(m, {"a": lambda: calls.append("a") or "go"}, {}, FINAL)
+    assert calls == ["a"]
+
+
+def test_stop_clicked_while_paused_at_cycle_start_runs_no_handler(monkeypatch):
+    stats, calls = {}, []
+
+    def wait():
+        stats["stop"] = True   # operator clicks Stop while the bot sits paused
+    monkeypatch.setattr(pause, "wait", wait)
+    assert run_machine(_machine(), _scripted(["ok"], calls), stats, FINAL, cycle_start="a") == "end"
+    assert calls == []

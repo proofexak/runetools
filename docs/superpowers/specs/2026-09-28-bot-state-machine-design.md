@@ -86,13 +86,15 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
 Loop, per iteration:
 
 1. If `model.state in final_states`: return `model.state`.
-2. If `model.state == cycle_start` and `stats.get("stop")`: `model.trigger("stop")`
+2. `pause.wait()` — blocks while O-paused; raises `pause.ForceStop` on P. (Before
+   the stop check, so Stop clicked while paused at trip start is honoured.)
+3. If `model.state == cycle_start` and `stats.get("stop")`: `model.trigger("stop")`
    (every bot's table has `stop` from `cycle_start` to its stop state), then continue.
-3. `pause.wait()` — blocks while O-paused; raises `pause.ForceStop` on P.
 4. `stats["step"] = model.state` (so on return it still names the last active
    state — `run.py` uses it in the summary line).
 5. `event = handlers[model.state]()`.
-6. `model.trigger(event)`.
+6. `model.trigger(event)`; if it returns `False` (every matching row's condition
+   failed — `transitions` would silently stay put), raise `MachineError`.
 
 Properties:
 
@@ -157,8 +159,9 @@ Same-trigger transitions are listed in evaluation order.
 ### Session model (`TannerSession`)
 
 - `charges` — glory charges remaining; starts at 6. Decremented `on_enter_recover`.
-- `skip_restock` — starts `True`; set `True` `on_enter_recover`; set `False` when
-  leaving `banking` via `ok`.
+- `skip_restock` — starts `True`; set `True` after `banking --fail--> recover` and
+  `restock --ok--> recover` (as the old loop did — not after walk/trade failures);
+  set `False` when leaving `banking` via `ok`.
 - `runs` — incremented `on_enter_walk_to_tanner`, which also writes it to
   `stats["run"]` (the session holds a reference to the `stats` dict, passed to
   `build_machine`).
