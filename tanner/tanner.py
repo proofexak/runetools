@@ -12,6 +12,8 @@ from lib.movement import wait_until_stopped
 import lib.pause as pause
 import lib.energy as energy
 
+_need_hide_tab = True
+
 import tanner.config as _cfg
 from tanner.config import (
     BLUE, BLUE_TOL, MAGENTA, MAGENTA_TOL,
@@ -69,8 +71,6 @@ def click_tan_all(timeout=5.0):
 
 def walk_to_tanner():
     print("\n── Walk to tanner ──")
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.15, 0.3))
     if inventory_open():
         print("  Inventory open — closing...")
         pyautogui.press("escape")
@@ -208,10 +208,13 @@ def do_bank(skip_restock_check=False):
         print("  Bank never opened.")
         return False
 
+    global _need_hide_tab
     time.sleep(0.5)
-    print("  Switching to hide tab...")
-    human_click(*jitter(*HIDE_TAB))
-    time.sleep(0.4)
+    if _need_hide_tab:
+        print("  Switching to hide tab...")
+        human_click(*jitter(*HIDE_TAB))
+        time.sleep(0.4)
+        _need_hide_tab = False
     print("  Depositing inventory...")
     human_click(*jitter(*DEPOSIT_BTN))
     time.sleep(0.6)
@@ -223,8 +226,11 @@ def do_bank(skip_restock_check=False):
         time.sleep(1.4)
 
     if not skip_restock_check:
-        ex, ey, empty_color = EMPTY_SLOT_CHECK
-        if pixel_matches(ex, ey, empty_color):
+        human_move(*jitter(*BANK_SLOT_1))
+        time.sleep(0.6)
+        _, _, empty_color = EMPTY_SLOT_CHECK
+        bsx, bsy = BANK_SLOT_2
+        if pixel_matches(bsx, bsy, empty_color):
             print("  Bank slot 2 empty — restocking from GE...")
             pyautogui.press("escape")
             return "restock"

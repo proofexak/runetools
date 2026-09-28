@@ -3,7 +3,7 @@ Run-energy reading and stamina-potion drinking.
 Calibrate via the overlay's "Energy Config" menu + calibrate_energy_digits.py
 before relying on this (see those tools' docstrings).
 """
-import time
+import time, random
 import pyautogui
 
 from lib.mouse import human_click, jitter
@@ -77,7 +77,7 @@ def restock_stamina_at_bank(force=False):
     time.sleep(0.6)
 
     pyautogui.press("escape")
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.4, 0.6))
 
     ix, iy, icolor = cfg.INVENTORY_CHECK
     if not pixel_matches(ix, iy, icolor):
