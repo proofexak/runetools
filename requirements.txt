@@ -3,3 +3,4 @@ mss
 numpy
 Pillow
 pynput
+transitions
