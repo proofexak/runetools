@@ -128,7 +128,8 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
 - Tanner bot: fully functional, recovery path + GE restock both tested and working. Now driven by the
   state machine (PRO-12). Every glory teleport — failure recovery, post-GE return, "Run from GE"
   start — goes through the `recover` state and uses one of the 6 charges; a failed "Run from GE"
-  start now stops the session.
+  start now stops the session. With 0 charges left it won't start a GE restock (no way back).
+  The session summary prints why it stopped (`TannerSession.stop_reason`).
 - Golden Nuggets miner: on the state machine; O-pause works between every step, P returns to the menu.
 - Varrock Exp miner: menu entry crashes — `miner.varrock_exp` package doesn't exist (PRO-7, roadmap step 4).
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.

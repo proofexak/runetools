@@ -110,10 +110,41 @@ def test_restock_disabled_goes_done():
     assert s.state == "done"
 
 
-def test_restock_ok_without_charges_stops():
+def test_restock_without_charges_stops_before_ge():
+    # No glory charge left for the trip back -> don't spend gold at the GE.
     s = build_machine({}, True, False, charges=0)
-    step(s, "ok", "ok", "ok", "ok", "restock", "ok")
+    step(s, "ok", "ok", "ok", "ok", "restock")
     assert s.state == "stopped"
+    assert s.stop_reason == "out of hides and no glory charges for the GE trip back"
+
+
+@pytest.mark.parametrize("events,charges,reason", [
+    (["fail"],                                  0, "no glory charges left to recover"),
+    (["fail", "fail"],                          6, "recovery failed"),
+    (["ok", "ok", "ok", "ok", "restock", "fail"], 6, "GE restock failed"),
+])
+def test_stop_reason(events, charges, reason):
+    s = build_machine({}, True, False, charges=charges)
+    step(s, *events)
+    assert s.state == "stopped" and s.stop_reason == reason
+
+
+def test_stop_reason_soft_stop():
+    s = build_machine({"stop": True}, True, False)
+    final, _ = drive(s, [])
+    assert final == "stopped" and s.stop_reason == "stopped via overlay"
+
+
+def test_done_reason():
+    s = build_machine({}, restock_enabled=False, start_from_ge=False)
+    step(s, "ok", "ok", "ok", "ok", "restock")
+    assert s.state == "done" and s.stop_reason == "out of hides, GE restock disabled"
+
+
+def test_restock_announced_on_entry(capsys):
+    s = build_machine({}, True, False)
+    step(s, "ok", "ok", "ok", "ok", "restock")
+    assert "[RESTOCK]" in capsys.readouterr().out
 
 
 def test_restock_fail_stops():

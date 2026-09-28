@@ -27,11 +27,6 @@ def _handlers(session):
         event = bank_event(do_bank(skip_restock_check=session.skip_restock))
         if event == "ok":
             time.sleep(random.uniform(0.5, 1.2))
-        elif event == "restock":
-            if session.restock_enabled:
-                print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
-            else:
-                print("\n[DONE] Hides depleted and restock disabled — stopping.")
         return event
 
     def restock():
@@ -72,12 +67,10 @@ def run(stats, start_from_ge=False):
         final = run_machine(session, _handlers(session), stats, FINAL_STATES, CYCLE_START)
     except pause.ForceStop:
         print("Force stopped via overlay.")
-        final = "stopped"
+        final, session.stop_reason = "stopped", "force-stopped (P)"
     last_step = stats["step"]
     stats["step"] = final
-
-    if final == "stopped" and session.charges <= 0:
-        print("[RECOVERY] No charges remaining.")
+    print(f"\n[{final.upper()}] {session.stop_reason}")
 
     elapsed = time.time() - start_time
     h, rem = divmod(int(elapsed), 3600)

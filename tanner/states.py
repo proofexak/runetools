@@ -27,21 +27,24 @@ TRANSITIONS = [
     {"trigger": "ok",      "source": "walk_to_bank",   "dest": "banking"},
     {"trigger": "ok",      "source": "banking",        "dest": "walk_to_tanner", "after": "clear_skip_restock"},
 
-    {"trigger": "restock", "source": "banking",        "dest": "restock", "conditions": "restock_enabled"},
+    {"trigger": "restock", "source": "banking",        "dest": "restock",
+     "conditions": ["restock_enabled", "has_charges"]},
+    {"trigger": "restock", "source": "banking",        "dest": "stopped", "conditions": "restock_enabled",
+     "after": "reason_no_charges_for_ge"},
     {"trigger": "restock", "source": "banking",        "dest": "done"},
     {"trigger": "ok",      "source": "restock",        "dest": "recover", "conditions": "has_charges",
      "after": "set_skip_restock"},
-    {"trigger": "ok",      "source": "restock",        "dest": "stopped"},
-    {"trigger": "fail",    "source": "restock",        "dest": "stopped"},
+    {"trigger": "ok",      "source": "restock",        "dest": "stopped", "after": "reason_no_charges"},
+    {"trigger": "fail",    "source": "restock",        "dest": "stopped", "after": "reason_restock_failed"},
 
     {"trigger": "fail",    "source": _WALK_TRADE,      "dest": "recover", "conditions": "has_charges"},
     {"trigger": "fail",    "source": "banking",        "dest": "recover", "conditions": "has_charges",
      "after": "set_skip_restock"},
-    {"trigger": "fail",    "source": _ACTIONS,         "dest": "stopped"},
+    {"trigger": "fail",    "source": _ACTIONS,         "dest": "stopped", "after": "reason_no_charges"},
     {"trigger": "ok",      "source": "recover",        "dest": "walk_to_tanner"},
-    {"trigger": "fail",    "source": "recover",        "dest": "stopped"},
+    {"trigger": "fail",    "source": "recover",        "dest": "stopped", "after": "reason_recover_failed"},
 
-    {"trigger": "stop",    "source": CYCLE_START,      "dest": "stopped"},
+    {"trigger": "stop",    "source": CYCLE_START,      "dest": "stopped", "after": "reason_soft_stop"},
 ]
 
 
@@ -53,6 +56,7 @@ class TannerSession:
         self.charges         = charges
         self.skip_restock    = True   # first bank of a session skips the empty-slot check
         self.runs            = 0
+        self.stop_reason     = None   # set when the session reaches done/stopped
 
     def has_charges(self):
         return self.charges > 0
@@ -71,6 +75,28 @@ class TannerSession:
 
     def clear_skip_restock(self):
         self.skip_restock = False
+
+    def on_enter_restock(self):
+        print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
+
+    def on_enter_done(self):
+        self.stop_reason = "out of hides, GE restock disabled"
+
+    # Why the session stopped — attached to the transitions into `stopped`.
+    def reason_no_charges_for_ge(self):
+        self.stop_reason = "out of hides and no glory charges for the GE trip back"
+
+    def reason_no_charges(self):
+        self.stop_reason = "no glory charges left to recover"
+
+    def reason_recover_failed(self):
+        self.stop_reason = "recovery failed"
+
+    def reason_restock_failed(self):
+        self.stop_reason = "GE restock failed"
+
+    def reason_soft_stop(self):
+        self.stop_reason = "stopped via overlay"
 
 
 def build_machine(stats, restock_enabled, start_from_ge, charges=MAX_CHARGES):

@@ -141,7 +141,8 @@ Same-trigger transitions are listed in evaluation order.
 | `ok`      | `tanning`                                               | `walk_to_bank`   |                       |
 | `ok`      | `walk_to_bank`                                          | `banking`        |                       |
 | `ok`      | `banking`                                               | `walk_to_tanner` |                       |
-| `restock` | `banking`                                               | `restock`        | `restock_enabled`     |
+| `restock` | `banking`                                               | `restock`        | `restock_enabled` and `has_charges` |
+| `restock` | `banking`                                               | `stopped`        | `restock_enabled` (no charge for the trip back — don't spend gold) |
 | `restock` | `banking`                                               | `done`           |                       |
 | `ok`      | `restock`                                               | `recover`        | `has_charges`         |
 | `ok`      | `restock`                                               | `stopped`        |                       |
@@ -168,6 +169,9 @@ Same-trigger transitions are listed in evaluation order.
 - `restock_enabled` — from `config.RESTOCK_GE`.
 - `has_charges()` — `charges > 0`.
 - `start_from_ge` — from the "Run from GE" button.
+- `stop_reason` — set by `after` callbacks on each transition into `stopped` (and
+  `on_enter_done`); `run.py` prints it. Restock/done console messages live in the
+  session's `on_enter_*` callbacks, not in handlers, so they can't disagree with the table.
 
 Summary line: `run.py` prints the final state and the last active state
 (`stats["step"]` as left by the runner), e.g. `Session ended (stopped after trade_ellis)`.
