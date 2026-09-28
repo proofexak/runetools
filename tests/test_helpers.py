@@ -22,3 +22,18 @@ def test_save_attr_keeps_other_lines(tmp_path):
     save_attr(str(p), "B", [3])
     assert p.read_text(encoding="utf-8").splitlines() == [
         '"""doc"""', "A = 1   # comment kept? no - value line replaced", "B = [3]"]
+
+
+def test_release_key_survives_pyautogui_failsafe(monkeypatch):
+    import lib.mouse as mouse
+    released = []
+
+    def key_up(key):
+        if mouse.pyautogui.FAILSAFE:          # mouse is in a corner: emergency abort
+            raise mouse.pyautogui.FailSafeException("corner")
+        released.append(key)
+    monkeypatch.setattr(mouse.pyautogui, "keyUp", key_up)
+    monkeypatch.setattr(mouse.pyautogui, "FAILSAFE", True)
+    mouse.release_key("shift")
+    assert released == ["shift"]
+    assert mouse.pyautogui.FAILSAFE is True       # restored

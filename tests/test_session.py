@@ -124,3 +124,15 @@ def test_teardown_on_crash_and_crash_propagates(calls):
     with pytest.raises(RuntimeError):
         _with_teardown(boom, torn)
     assert torn == [1]
+
+
+def test_emergency_teardown_runs_active_teardown_once(calls):
+    torn = []
+
+    def handler():
+        session.emergency_teardown()   # overlay Exit clicked mid-session
+        return "ok"
+    _with_teardown(handler, torn)
+    assert torn == [1]                 # not again in finally
+    session.emergency_teardown()       # after the session: nothing active
+    assert torn == [1]

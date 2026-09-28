@@ -14,6 +14,16 @@ import lib.log as log
 import lib.pause as pause
 from lib.state_machine import run_machine
 
+_active_teardown = [None]   # the running session's teardown, for emergency_teardown()
+
+
+def emergency_teardown():
+    """Run the active session's teardown now (once) — for the overlay's Exit
+    button, which ends the process without unwinding the session."""
+    fn, _active_teardown[0] = _active_teardown[0], None
+    if fn:
+        fn()
+
 
 def format_elapsed(seconds):
     h, rem = divmod(int(seconds), 3600)
@@ -46,6 +56,7 @@ def run_session(stats, *, log_prefix, intro, setup, session, handlers,
     time.sleep(3)
 
     start = time.time()
+    _active_teardown[0] = teardown
     try:
         pause.wait()
         setup()
@@ -55,8 +66,7 @@ def run_session(stats, *, log_prefix, intro, setup, session, handlers,
         print("Force stopped via overlay.")
         final = "stopped"
     finally:
-        if teardown:
-            teardown()
+        emergency_teardown()   # single-shot: skipped if Exit already ran it
 
     last_step = stats["step"]
     stats["step"] = final

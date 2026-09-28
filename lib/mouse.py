@@ -157,6 +157,17 @@ def jitter(x, y, n=8):
     return x + random.randint(-n, n), y + random.randint(-n, n)
 
 
+def release_key(key):
+    """keyUp that still works during pyautogui's corner failsafe — the
+    emergency abort must not leave a modifier held down."""
+    failsafe = pyautogui.FAILSAFE
+    pyautogui.FAILSAFE = False
+    try:
+        pyautogui.keyUp(key)
+    finally:
+        pyautogui.FAILSAFE = failsafe
+
+
 def hesitate():
     """Short human-like pause before an action."""
     time.sleep(random.uniform(0.3, 0.8))

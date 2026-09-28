@@ -27,7 +27,7 @@ Usage:
 import time, os, threading
 import tkinter as tk
 import lib.pause as pause
-from lib.session import format_elapsed
+from lib.session import format_elapsed, emergency_teardown
 
 BG        = "#0d0d0d"
 FG        = "#aaaacc"
@@ -168,6 +168,10 @@ def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
         bf = tk.Frame(f, bg=BG)
         bf.pack(fill="x", padx=6, pady=(0, 6))
 
+        def _exit():
+            emergency_teardown()   # e.g. release a held key before the process ends
+            os._exit(0)
+
         pause_btn = tk.Button(bf, text="Pause", width=5,
                               bg="#333355", fg="white", font=FONT_BTN, relief="flat")
         pause_btn.pack(side="left", padx=2)
@@ -179,7 +183,7 @@ def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
                   command=pause.force_stop).pack(side="left", padx=2)
         tk.Button(bf, text="Exit", width=4, bg="#550000", fg="white",
                   font=FONT_BTN, relief="flat",
-                  command=lambda: os._exit(0)).pack(side="left", padx=2)
+                  command=_exit).pack(side="left", padx=2)
 
         def _do_pause():
             pause.toggle()

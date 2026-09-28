@@ -6,7 +6,7 @@ import time, random, sys, os
 import pyautogui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from lib.mouse  import human_move, jitter
+from lib.mouse  import human_move, jitter, release_key
 from lib.screen import pixel_matches, get_pixel_color
 import lib.pause as pause
 
@@ -95,7 +95,7 @@ def grab_currency():
 
 def release():
     """Release shift at the end of the session (or on error/stop)."""
-    pyautogui.keyUp("shift")
+    release_key("shift")
 
 
 def craft_item(item):
