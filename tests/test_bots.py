@@ -132,3 +132,8 @@ def test_launch_with_alt_and_configure_rejected():
                              configure=lambda: None)])]
     with pytest.raises(ValueError):
         build_menu(bots, begin=None, ask_int=None, tools=[])
+
+
+def test_repo_suites():
+    assert [b.name for b in discover(REPO, suite="poe")] == ["Crafting"]
+    assert "Crafting" not in [b.name for b in discover(REPO)]

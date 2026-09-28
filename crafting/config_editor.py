@@ -3,12 +3,12 @@ Crafting bot config editor. Shared points/color go through the generic lib
 editor; the per-item click/done-check points use a custom panel here since
 their count is dynamic (grown via the "+ Add Item" button).
 """
-import threading, re, os, sys
+import threading, os, sys
 import tkinter as tk
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import crafting.config as cfg
-from lib.config_editor import run_editor, capture_point, fmt_val, BG, BG2, FG, FG2, FONT, FONTB
+from lib.config_editor import run_editor, save_attr, capture_point, fmt_val, BG, BG2, FG, FG2, FONT, FONTB
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.py")
 
@@ -32,12 +32,7 @@ def _apply(attr, val):
 
 
 def _save_attr(attr, val):
-    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-        content = f.read()
-    pattern = rf'^({re.escape(attr)}\s*=\s*).*$'
-    content = re.sub(pattern, rf'\g<1>{repr(val)}', content, flags=re.MULTILINE)
-    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
+    save_attr(CONFIG_PATH, attr, val)
 
 
 def _make_marker(root, x, y, color, text):
