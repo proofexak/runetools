@@ -62,14 +62,15 @@ def _btn_h(n_items):
     return 50 + n_items * 38 + 10
 
 
-def start(stats, hide_selected, use_selector, menu, on_select, stats_extra=None):
-    """Launch the overlay in a daemon thread. Returns immediately."""
+def start(stats, hide_selected, use_selector, menu, on_select, stats_extra=None, corner="top-left"):
+    """Launch the overlay in a daemon thread. Returns immediately.
+    corner: "top-left" (default), "top-right", "bottom-left", or "bottom-right"."""
     _hide_sel_ref[0] = hide_selected
     threading.Thread(target=_run, daemon=True,
-                     args=(stats, use_selector, menu, on_select, stats_extra)).start()
+                     args=(stats, use_selector, menu, on_select, stats_extra, corner)).start()
 
 
-def _run(stats, use_selector, menu, on_select, stats_extra):
+def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
     root = tk.Tk()
     root.overrideredirect(True)
     root.wm_attributes("-topmost", True)
@@ -78,6 +79,14 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
 
     _root_ref[0] = root
     _current = [None]
+
+    _MARGIN = 10
+
+    def _pos(w, h):
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+        x = sw - w - _MARGIN if corner in ("top-right", "bottom-right") else _MARGIN
+        y = sh - h - _MARGIN if corner in ("bottom-left", "bottom-right") else _MARGIN
+        return x, y
 
     def _clear():
         if _current[0]:
@@ -89,7 +98,8 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
     def _show_page(items, title, back_fn=None):
         _clear()
         h = _btn_h(len(items) + (1 if back_fn else 0))
-        root.geometry(f"{WIDTH}x{h}+10+10")
+        x, y = _pos(WIDTH, h)
+        root.geometry(f"{WIDTH}x{h}+{x}+{y}")
         f = tk.Frame(root, bg=BG)
         f.pack(fill="both", expand=True, padx=6, pady=6)
         _current[0] = f
@@ -143,7 +153,8 @@ def _run(stats, use_selector, menu, on_select, stats_extra):
 
     def _build_stats():
         _clear()
-        root.geometry(f"{WIDTH}x155+10+10")
+        x, y = _pos(WIDTH, 155)
+        root.geometry(f"{WIDTH}x155+{x}+{y}")
 
         f = tk.Frame(root, bg=BG)
         f.pack(fill="both", expand=True)

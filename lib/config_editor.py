@@ -42,6 +42,9 @@ def fmt_val(val, ftype=None):
         if isinstance(val, list) and len(val) == 3:
             return "3 anchors set"
         return "—"
+    if ftype == "color":
+        r, g, b = val
+        return f"#{r:02x}{g:02x}{b:02x}"
     if isinstance(val, list) and val and isinstance(val[0], (tuple, list)):
         return f"polygon ({len(val)} pts)"
     if isinstance(val, tuple) and len(val) == 3 and isinstance(val[2], tuple):
@@ -317,6 +320,9 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
         w.after(0, lambda _w=w, _lx=lx, _ly=ly: _w.geometry(f"+{_lx}+{_ly}"))
         wins.append(w)
 
+    if ftype == "color":
+        return []  # no screen position to show — colour only
+
     if ftype == "inv_anchor":
         if not (isinstance(val, list) and len(val) == 3):
             return []
@@ -488,6 +494,12 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
                       relief="flat", padx=5,
                       command=lambda a=attr, v=var: capture_point(
                           root, True, lambda val, _a=a, _v=v: _cb(val, _a, _v))
+                      ).pack(side="left", padx=4)
+        elif ftype == "color":
+            tk.Button(row, text="col", bg="#223366", fg="white", font=FONT,
+                      relief="flat", padx=5,
+                      command=lambda a=attr, v=var: capture_point(
+                          root, True, lambda val, _a=a, _v=v: _cb(val[2], _a, _v))
                       ).pack(side="left", padx=4)
         elif ftype == "number":
             def _edit_number(a=attr, v=var):

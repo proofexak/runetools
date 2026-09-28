@@ -14,3 +14,7 @@ miner/varrock_exp/config.py
 miner/varrock_exp/log/
 miner/golden_nuggets/config.py
 miner/golden_nuggets/log/
+crafting/config.py
+crafting/log/
+docker/bolt/*.zip
+docker/bolt/Bolt-Linux/

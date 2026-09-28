@@ -14,12 +14,22 @@ class ForceStop(Exception):
     pass
 
 
-def setup(hotkey="p"):
+def setup(hotkey="p", stop_key=None):
+    """
+    hotkey: single character that toggles pause/resume.
+    stop_key: optional pynput special-key name (e.g. "end", "f12") that
+    force-stops the bot immediately, even while paused.
+    """
     global _listener
+
+    stop_vk = getattr(keyboard.Key, stop_key, None) if stop_key else None
 
     def _on_press(key):
         if getattr(key, "char", None) and key.char.lower() == hotkey.lower():
             toggle()
+        elif stop_vk is not None and key == stop_vk:
+            print(f"\n[FORCE STOP] {stop_key} pressed.")
+            force_stop()
 
     _listener = keyboard.Listener(on_press=_on_press)
     _listener.start()

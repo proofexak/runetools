@@ -127,11 +127,16 @@ def _poly_mask(h, w, vertices):
     return np.array(img, dtype=bool)
 
 
-def pixel_matches(x, y, expected_rgb, tol=15):
-    """Check if a single screen pixel matches expected_rgb within tol."""
+def get_pixel_color(x, y):
+    """Return the (r, g, b) color of a single screen pixel."""
     with mss.mss() as sct:
         shot = sct.grab({"left": x, "top": y, "width": 1, "height": 1})
     px = np.array(shot)[0, 0]
-    r, g, b = int(px[2]), int(px[1]), int(px[0])
+    return int(px[2]), int(px[1]), int(px[0])
+
+
+def pixel_matches(x, y, expected_rgb, tol=15):
+    """Check if a single screen pixel matches expected_rgb within tol."""
+    r, g, b = get_pixel_color(x, y)
     er, eg, eb = expected_rgb
     return abs(r-er) <= tol and abs(g-eg) <= tol and abs(b-eb) <= tol
