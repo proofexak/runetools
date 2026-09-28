@@ -89,15 +89,18 @@ Loop, per iteration:
 2. If `model.state == cycle_start` and `stats.get("stop")`: `model.trigger("stop")`
    (every bot's table has `stop` from `cycle_start` to its stop state), then continue.
 3. `pause.wait()` — blocks while O-paused; raises `pause.ForceStop` on P.
-4. `stats["step"] = model.state`.
+4. `stats["step"] = model.state` (so on return it still names the last active
+   state — `run.py` uses it in the summary line).
 5. `event = handlers[model.state]()`.
 6. `model.trigger(event)`.
 
 Properties:
 
 - `ForceStop` is not caught — it propagates to the bot's `run.py`.
-- An event with no matching transition raises `transitions.MachineError`
-  (the library default) — a missing table entry is a loud bug.
+- A declared event with no transition from the current state raises
+  `transitions.MachineError`; an event name the table never declares raises
+  `AttributeError` (both library defaults, verified against 0.9.3). Either way a
+  missing table entry is a loud bug.
 - A handler state missing from `handlers` raises `KeyError` — same reasoning.
 - The runner does not touch `stats["run"]` or any other counter; bots own those.
 
@@ -105,20 +108,25 @@ The model is a plain object whose state is managed by a `transitions.Machine`
 constructed in each bot's `states.py` (`Machine(model=..., states=..., transitions=...,
 initial=..., auto_transitions=False)`).
 
+`transitions` does **not** fire `on_enter_<state>` for the initial state
+(verified). A bot that needs entry callbacks on its first real state starts in a
+transient `start` state and `build_machine` immediately fires `begin`.
+
 ### Handler injection
 
-Each bot's `states.py` exposes a `build_machine(...)` that takes the handler
-functions and any config values as arguments. `states.py` must **not** import the
-bot's actions module or its gitignored `config.py` — this keeps it importable in
-tests without a display, pyautogui, or calibrated config. `run.py` imports the
-real actions/config and passes them in.
+Each bot's `states.py` exposes a `build_machine(...)` that takes `stats` and any
+config values as arguments and returns the session model. Handlers are a separate
+`{state: callable}` dict, built in `run.py` as closures over the session and passed
+to `run_machine`; tests pass stub handlers instead. `states.py` must **not** import
+the bot's actions module or its gitignored `config.py` — this keeps it importable
+in tests without pyautogui or calibrated config.
 
 ## Tanner
 
 ### States
 
-`walk_to_tanner`, `trade_ellis`, `tanning`, `walk_to_bank`, `banking`, `restock`,
-`recover`, and final states `done`, `stopped`.
+`start` (transient), `walk_to_tanner`, `trade_ellis`, `tanning`, `walk_to_bank`,
+`banking`, `restock`, `recover`, and final states `done`, `stopped`.
 
 ### Transition table
 
@@ -141,6 +149,8 @@ Same-trigger transitions are listed in evaluation order.
 | `ok`      | `recover`                                               | `walk_to_tanner` |                       |
 | `fail`    | `recover`                                               | `stopped`        |                       |
 | `stop`    | `walk_to_tanner`                                        | `stopped`        |                       |
+| `begin`   | `start`                                                 | `recover`        | `start_from_ge`       |
+| `begin`   | `start`                                                 | `walk_to_tanner` |                       |
 
 `cycle_start = "walk_to_tanner"`, `final_states = {"done", "stopped"}`.
 
@@ -154,7 +164,10 @@ Same-trigger transitions are listed in evaluation order.
   `build_machine`).
 - `restock_enabled` — from `config.RESTOCK_GE`.
 - `has_charges()` — `charges > 0`.
-- `stop_reason` — short string set when entering `stopped`/`done` for the summary line.
+- `start_from_ge` — from the "Run from GE" button.
+
+Summary line: `run.py` prints the final state and the last active state
+(`stats["step"]` as left by the runner), e.g. `Session ended (stopped after trade_ellis)`.
 
 ### Handlers (in `tanner/run.py`, wrapping existing actions)
 
@@ -170,8 +183,8 @@ Same-trigger transitions are listed in evaluation order.
 
 ### Startup
 
-- Normal: `initial = "walk_to_tanner"`.
-- "Run from GE": `initial = "recover"`. The startup teleport now consumes a charge
+- Normal: `begin` → `walk_to_tanner` (fires `on_enter`, so the first trip counts).
+- "Run from GE": `begin` → `recover`. The startup teleport now consumes a charge
   and a failure stops the session.
 
 ### Behaviour changes vs. today (approved)
