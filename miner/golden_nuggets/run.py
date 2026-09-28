@@ -1,15 +1,21 @@
 """
 Golden Nuggets session loop.
+Control flow is the state machine in miner/golden_nuggets/states.py; this
+module wires the real actions in as handlers.
 """
 import time, os, sys, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import lib.pause as pause
 import lib.log as log
+from lib.state_machine import run_machine
 from miner.golden_nuggets.miner import (
     orient_south, orient_east, click_nearest_vein, wait_for_vein_depletion,
     count_filled_slots, deposit_to_hopper, process_full_sack,
-    click_struts, wait_stopped, _log,
+    check_and_fix_struts, wait_stopped, _log,
+)
+from miner.golden_nuggets.states import (
+    build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK,
 )
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -18,6 +24,50 @@ os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 def _elapsed(start):
     s = int(time.time() - start)
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def _handlers(session, stats, session_start):
+    def seek_vein():
+        before = count_filled_slots()
+        if before >= 27:
+            return "full"
+        pos = click_nearest_vein()
+        if pos is None:
+            _log("Retrying in 3s...")
+            time.sleep(3)
+            return "not_found"
+        wait_stopped()
+        session.vein_pos = pos
+        session.vein_n += 1
+        _log(f"--- Vein #{session.vein_n}  (inv {before}/28, session {_elapsed(session_start)}) ---")
+        return "ok"
+
+    def mining():
+        reason = wait_for_vein_depletion(session.vein_pos, stats)
+        _log(f"Vein #{session.vein_n} done  |  total {stats['run']}  reason={reason}")
+        return mining_event(reason)
+
+    def deposit():
+        if not deposit_to_hopper():
+            orient_south()
+            return "fail"
+        session.hopper_deposits += 1
+        stats["sack"] = session.hopper_deposits
+        _log(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
+        orient_east()
+        check_and_fix_struts()
+        if not session.sack_full():
+            orient_south()
+        return "ok"
+
+    def process_sack():
+        process_full_sack(stats)
+        session.hopper_deposits = 0
+        stats["sack"] = 0
+        return "ok"
+
+    return {"seek_vein": seek_vein, "mining": mining,
+            "deposit": deposit, "process_sack": process_sack}
 
 
 def run(stats):
@@ -31,53 +81,17 @@ def run(stats):
     pause.reset()
 
     orient_south()
-    starting_inv = count_filled_slots()
-    _log(f"Inventory at start: {starting_inv}/28")
-    vein_n = 0
-    hopper_deposits = 0
+    _log(f"Inventory at start: {count_filled_slots()}/28")
 
-    while not stats.get("stop"):
-        pause.wait()
-        stats["step"] = "seeking vein"
+    session = build_machine(stats)
+    try:
+        final = run_machine(session, _handlers(session, stats, session_start),
+                            stats, FINAL_STATES, CYCLE_START)
+    except pause.ForceStop:
+        _log("Force stopped via overlay.")
+        final = "stopped"
+    last_step = stats["step"]
+    stats["step"] = final
 
-        before = count_filled_slots()
-        if before >= 27:
-            stats["step"] = "depositing"
-            transferred = deposit_to_hopper()
-            if not transferred:
-                _log("Hopper full — fixing struts then retrying")
-                orient_east()
-                click_struts()
-                deposit_to_hopper()
-
-            hopper_deposits += 1
-            stats["sack"] = hopper_deposits
-            _log(f"Hopper deposit #{hopper_deposits}/3")
-
-            orient_east()
-            click_struts()
-
-            if hopper_deposits >= 3:
-                stats["step"] = "processing sack"
-                process_full_sack(stats)
-                hopper_deposits = 0
-                stats["sack"] = 0
-            else:
-                orient_south()
-            continue
-
-        pos = click_nearest_vein()
-        if pos is None:
-            _log("Retrying in 3s...")
-            time.sleep(3)
-            continue
-
-        wait_stopped()
-
-        vein_n += 1
-        stats["step"] = "mining"
-        _log(f"--- Vein #{vein_n}  (inv {before}/28, session {_elapsed(session_start)}) ---")
-
-        reason = wait_for_vein_depletion(pos, stats)
-
-        _log(f"Vein #{vein_n} done  |  total {stats['run']}  reason={reason}")
+    _log(f"Session ended ({final} after {last_step}). Veins: {session.vein_n} | "
+         f"Ores: {stats['run']} | Time: {_elapsed(session_start)}")
