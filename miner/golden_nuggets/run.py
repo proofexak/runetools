@@ -12,7 +12,7 @@ from lib.state_machine import run_machine
 from miner.golden_nuggets.miner import (
     orient_south, orient_east, click_nearest_vein, wait_for_vein_depletion,
     count_filled_slots, deposit_to_hopper, process_full_sack,
-    check_and_fix_struts, wait_stopped, _log,
+    click_struts, wait_stopped, _log,
 )
 from miner.golden_nuggets.states import (
     build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK,
@@ -49,7 +49,13 @@ def _handlers(session, stats, session_start):
 
     def deposit():
         ok = deposit_to_hopper()
-        session.record_deposit(ok)
+        if not ok:
+            # A failed deposit usually means broken struts stopped the machine.
+            _log("Hopper full — fixing struts then retrying")
+            orient_east()
+            click_struts()
+            ok = deposit_to_hopper()
+        session.record_deposit(ok)   # only a successful (re)try counts toward the sack
         if not ok:
             if session.deposit_stuck():
                 _log(f"Hopper deposit failed {session.deposit_fails}x in a row — stopping")
@@ -58,7 +64,7 @@ def _handlers(session, stats, session_start):
             return "fail"
         _log(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
         orient_east()
-        check_and_fix_struts()
+        click_struts()
         if not session.sack_full():
             orient_south()
         return "ok"

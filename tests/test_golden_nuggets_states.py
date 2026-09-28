@@ -149,3 +149,8 @@ def test_sack_counter_reset_by_table_after_processing():
     assert s.state == "process_sack"
     s.trigger("ok")
     assert s.hopper_deposits == 0 and s.stats["sack"] == 0
+
+
+def test_sack_holds_three_deposits():
+    # main 51d5799 "reduce banking to 3 deposits"
+    assert DEPOSITS_PER_SACK == 3

@@ -7,7 +7,7 @@ Same-trigger transitions are evaluated in the order listed below.
 """
 from transitions import Machine
 
-DEPOSITS_PER_SACK = 4
+DEPOSITS_PER_SACK = 3
 MAX_DEPOSIT_FAILS = 3   # consecutive — hopper highlight off or HOPPER_REGION miscalibrated
 CYCLE_START       = "seek_vein"
 FINAL_STATES      = {"stopped"}
