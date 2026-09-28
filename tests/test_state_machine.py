@@ -131,3 +131,19 @@ def test_stop_clicked_while_paused_at_cycle_start_runs_no_handler(monkeypatch):
 
 def test_ok_or_fail_mapping():
     assert [ok_or_fail(r) for r in (True, 1, False, None)] == ["ok", "ok", "fail", "fail"]
+
+
+def test_soft_stop_at_any_of_several_cycle_starts(log):
+    stats, calls = {}, []
+
+    def on_call(state):
+        if state == "a":
+            stats["stop"] = True       # set during a: next stop check is at b
+    m = _Model()
+    Machine(model=m, states=["a", "b", "end"], initial="a", auto_transitions=False,
+            transitions=[{"trigger": "ok", "source": "a", "dest": "b"},
+                         {"trigger": "ok", "source": "b", "dest": "a"},
+                         {"trigger": "stop", "source": ["a", "b"], "dest": "end"}])
+    handlers = _scripted(["ok", "ok"], calls, on_call=on_call)
+    assert run_machine(m, handlers, stats, FINAL, cycle_start={"a", "b"}) == "end"
+    assert calls == ["a"]

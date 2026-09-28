@@ -22,7 +22,7 @@ def format_elapsed(seconds):
 
 
 def run_session(stats, *, log_prefix, intro, setup, session, handlers,
-                final_states, cycle_start, summary):
+                final_states, cycle_start, summary, game="OSRS", teardown=None):
     """
     log_prefix — path prefix for the session log file
     intro      — lines printed before the countdown
@@ -30,12 +30,15 @@ def run_session(stats, *, log_prefix, intro, setup, session, handlers,
     session()  — builds the transitions-backed model
     handlers(model) -> {state: handler}
     summary(model, final, last_step) -> str, printed in the closing line
+    game       — named in the "switch to ..." hint
+    teardown() — always runs after the machine stops, even on a crash
+                 (e.g. release a held key); the crash still propagates
     Returns the final state ("stopped" on ForceStop).
     """
     log.setup(log_prefix)
     for line in intro:
         print(line)
-    print("Starting in 3s — switch to OSRS. Press O to pause, P to force-stop.")
+    print(f"Starting in 3s — switch to {game}. {pause.hint()}")
 
     pause.reset()
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
@@ -51,6 +54,9 @@ def run_session(stats, *, log_prefix, intro, setup, session, handlers,
     except pause.ForceStop:
         print("Force stopped via overlay.")
         final = "stopped"
+    finally:
+        if teardown:
+            teardown()
 
     last_step = stats["step"]
     stats["step"] = final

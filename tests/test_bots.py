@@ -33,9 +33,9 @@ def test_discover_repo_finds_the_bots():
 
 def test_descriptors_import_lazily():
     # Discovery must work on a fresh clone: no calibrated config, no screen libs.
-    code = ("import sys, lib.bots as b; b.discover('.'); "
+    code = ("import sys, lib.bots as b; b.discover('.'); b.discover('.', suite='poe'); "
             "print(sorted(m for m in ['tanner.config', 'miner.golden_nuggets.config', "
-            "'choc.config', 'pyautogui', 'mss'] if m in sys.modules))")
+            "'choc.config', 'crafting.config', 'miner.varrock_exp.config', 'pyautogui', 'mss'] if m in sys.modules))")
     out = subprocess.run([sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True)
     assert out.stdout.strip() == "[]", out.stderr
 
@@ -104,3 +104,31 @@ def test_run_guarded_survives_a_crashing_session(capsys):
     assert run_guarded(crash, {}) is False
     assert "tanner.config" in capsys.readouterr().err
     assert run_guarded(lambda stats: None, {}) is True
+
+
+def test_discover_filters_by_suite(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(tmp_path))
+    _pkg(tmp_path, "zz_osrs", "from lib.bots import Bot\nBOT = Bot('O', [])\n")
+    _pkg(tmp_path, "zz_poe", "from lib.bots import Bot\nBOT = Bot('P', [], suite='poe')\n")
+    assert [b.name for b in discover(str(tmp_path))] == ["O"]
+    assert [b.name for b in discover(str(tmp_path), suite="poe")] == ["P"]
+
+
+def test_flat_menu_puts_launches_at_top_level():
+    menu = build_menu(_bots(), begin=lambda b, f: None, ask_int=None, tools=[], flat=True)
+    assert [m[0] for m in menu] == ["Go", "Hide", "⚙ Configure", "Run", "Exit"]
+
+
+def test_launch_configure_is_a_side_button():
+    edit = lambda: None
+    bots = [Bot("M", [Launch("Varrock", start=lambda s: None, configure=edit)])]
+    item = build_menu(bots, begin=None, ask_int=None, tools=[])[0][1][0]
+    assert item[4] == ("⚙", edit)
+
+
+def test_launch_with_alt_and_configure_rejected():
+    import pytest
+    bots = [Bot("M", [Launch("X", start=lambda s: None, alt=("GE", lambda s: None),
+                             configure=lambda: None)])]
+    with pytest.raises(ValueError):
+        build_menu(bots, begin=None, ask_int=None, tools=[])

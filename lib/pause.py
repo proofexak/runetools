@@ -10,6 +10,7 @@ _force_stop     = False
 _listener       = None
 _pause_hotkey   = "o"
 _stop_hotkey    = "p"   # None: no character stop key
+_stop_key       = None  # pynput special-key name, e.g. "end"
 _suppress_until = 0.0   # time.time() before which hotkeys are ignored
 
 
@@ -24,9 +25,10 @@ def setup(pause_hotkey="o", stop_hotkey="p", stop_key=None):
     stop_key:     optional pynput special-key name (e.g. "end", "f12") that
                   also force-stops, even while paused.
     """
-    global _listener, _pause_hotkey, _stop_hotkey
+    global _listener, _pause_hotkey, _stop_hotkey, _stop_key
     _pause_hotkey = pause_hotkey.lower()
     _stop_hotkey  = stop_hotkey.lower() if stop_hotkey else None
+    _stop_key     = stop_key
 
     stop_vk = getattr(keyboard.Key, stop_key, None) if stop_key else None
 
@@ -59,6 +61,13 @@ def suppress_hotkeys(seconds):
     synthetic keystrokes, so typing e.g. "dragonhide" would press O."""
     global _suppress_until
     _suppress_until = max(_suppress_until, time.time() + seconds)
+
+
+def hint():
+    """Operator-facing key help for the configured hotkeys."""
+    stops = [k.upper() for k in (_stop_hotkey,) if k] + ([_stop_key.title()] if _stop_key else [])
+    stop = f", {' or '.join(stops)} to force-stop" if stops else ""
+    return f"Press {_pause_hotkey.upper()} to pause{stop}."
 
 
 def toggle():

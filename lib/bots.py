@@ -21,6 +21,7 @@ class Launch:
     colors:  Tuple[str, str] = ("#1a3a1a", "#2d6a2d")
     alt:     Optional[Tuple[str, Callable]] = None  # small side button, e.g. ("GE", start_from_ge)
     ask_int: Optional[str] = None                   # prompt for an integer before starting
+    configure: Optional[Callable[[], None]] = None  # this launch's editor, as a "⚙" side button
 
 
 @dataclass
@@ -31,12 +32,13 @@ class Bot:
     colors:     Tuple[str, str] = TOOL_COLORS
     configure:  Optional[Callable[[], None]] = None
     stats_line: Optional[Callable[[dict], str]] = None   # extra overlay line during a session
+    suite:      str = "osrs"   # which launcher lists it: "osrs" (run.py) or "poe" (crafting_run.py)
 
 
-def discover(root):
+def discover(root, suite="osrs"):
     """
     BOT from every package <root>/<pkg>/ (has __init__.py) with a bot.py, sorted
-    by (order, name). root must be on sys.path. Non-package dirs are ignored, so
+    by (order, name), keeping only bots of the given suite. root must be on sys.path. Non-package dirs are ignored, so
     a standalone script that happens to be called bot.py (woodcutter/) is never
     imported.
     """
@@ -50,7 +52,8 @@ def discover(root):
             bot = importlib.import_module(f"{name}.bot").BOT
             if not isinstance(bot, Bot):
                 raise TypeError(f"BOT is {type(bot).__name__}, not lib.bots.Bot")
-            bots.append(bot)
+            if bot.suite == suite:
+                bots.append(bot)
         except Exception as e:   # one broken bot must not take the menu down
             print(f"[BOTS] Skipping {name}: {e!r}")
     return sorted(bots, key=lambda b: (b.order, b.name))
@@ -68,25 +71,33 @@ def run_guarded(start, stats):
         return False
 
 
-def build_menu(bots, begin, ask_int, tools):
+def build_menu(bots, begin, ask_int, tools, flat=False):
     """
     Overlay MENU (lib/overlay.py tuple format) for the given bots.
     begin(bot, start)   — hand a session to the main loop; start(stats) runs it
     ask_int(prompt, cb) — show an integer prompt, call cb(n) on submit
     tools               — [(label, callable)] shown after the bots
+    flat                — launches at top level instead of one submenu per bot
     """
     menu = []
     for bot in bots:
         items = []
         for launch in bot.launches:
             item = (launch.label, _command(bot, launch, launch.start, begin, ask_int)) + launch.colors
+            if launch.alt and launch.configure:
+                raise ValueError(f"{bot.name}/{launch.label}: a launch has one side button — alt or configure")
             if launch.alt:
                 alt_label, alt_start = launch.alt
                 item += ((alt_label, _command(bot, launch, alt_start, begin, ask_int)),)
+            elif launch.configure:
+                item += (("⚙", launch.configure),)
             items.append(item)
         if bot.configure:
             items.append(("⚙ Configure", bot.configure) + TOOL_COLORS)
-        menu.append((bot.name, items) + bot.colors)
+        if flat:
+            menu.extend(items)
+        else:
+            menu.append((bot.name, items) + bot.colors)
     for label, fn in tools:
         menu.append((label, fn) + TOOL_COLORS)
     menu.append(("Exit", lambda: os._exit(0)) + EXIT_COLORS)

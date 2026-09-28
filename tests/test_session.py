@@ -85,3 +85,42 @@ def test_intro_and_hint_printed(calls, capsys):
     _run({}, calls)
     out = capsys.readouterr().out
     assert "hello" in out and "Press O to pause, P to force-stop" in out
+
+
+def test_game_name_in_hint(calls, capsys):
+    run_session({}, log_prefix="x", intro=[], setup=lambda: None, session=_model,
+                handlers=lambda m: {"work": lambda: "ok"}, final_states={"end"},
+                cycle_start="work", summary=lambda m, f, l: "", game="the game")
+    assert "switch to the game." in capsys.readouterr().out
+
+
+def _with_teardown(handler, torn):
+    return run_session({}, log_prefix="x", intro=[], setup=lambda: None, session=_model,
+                       handlers=lambda m: {"work": handler}, final_states={"end"},
+                       cycle_start="work", summary=lambda m, f, l: "",
+                       teardown=lambda: torn.append(1))
+
+
+def test_teardown_on_normal_end(calls):
+    torn = []
+    _with_teardown(lambda: "ok", torn)
+    assert torn == [1]
+
+
+def test_teardown_on_force_stop(calls):
+    torn = []
+
+    def boom():
+        raise pause.ForceStop()
+    assert _with_teardown(boom, torn) == "stopped"
+    assert torn == [1]
+
+
+def test_teardown_on_crash_and_crash_propagates(calls):
+    torn = []
+
+    def boom():
+        raise RuntimeError("bug")
+    with pytest.raises(RuntimeError):
+        _with_teardown(boom, torn)
+    assert torn == [1]

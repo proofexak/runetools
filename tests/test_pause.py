@@ -53,3 +53,17 @@ def test_wait_returns_true_after_blocking():
     pause.toggle()
     threading.Timer(0.3, pause.toggle).start()
     assert pause.wait() is True
+
+
+def test_hint_default_keys(monkeypatch):
+    monkeypatch.setattr(pause, "_pause_hotkey", "o")
+    monkeypatch.setattr(pause, "_stop_hotkey", "p")
+    monkeypatch.setattr(pause, "_stop_key", None)
+    assert pause.hint() == "Press O to pause, P to force-stop."
+
+
+def test_hint_special_stop_key(monkeypatch):
+    monkeypatch.setattr(pause, "_pause_hotkey", "p")
+    monkeypatch.setattr(pause, "_stop_hotkey", None)
+    monkeypatch.setattr(pause, "_stop_key", "end")
+    assert pause.hint() == "Press P to pause, End to force-stop."
