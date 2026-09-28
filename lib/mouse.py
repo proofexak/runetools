@@ -154,6 +154,16 @@ def jitter(x, y, n=8):
     return x + random.randint(-n, n), y + random.randint(-n, n)
 
 
+def quick_click(x, y):
+    """Minimal-delay click for tight, fixed-position loops (e.g. adjacent
+    inventory slots) where human_click's full deliberate travel simulation
+    (pre/post pauses, eased multi-step movement) is unnecessary overhead.
+    Keeps jitter's position randomisation, drops the timing."""
+    jx, jy = jitter(x, y)
+    pyautogui.moveTo(jx, jy, duration=0.18, _pause=False)
+    pyautogui.click(_pause=False)
+
+
 def _in_polygon(x, y, poly):
     """Ray-casting point-in-polygon test."""
     inside = False

@@ -10,7 +10,7 @@ import lib.overlay as overlay
 from lib.overlay import start as start_overlay
 import crafting.run as crafting_run
 
-pause.setup("p", stop_key="end")
+pause.setup(pause_hotkey="p", stop_hotkey=None, stop_key="end")
 
 stats     = {"run": 0, "step": "starting", "start": None, "stop": False}
 _selected = threading.Event()

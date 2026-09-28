@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RuneTools
+Comment=Launch the RuneTools OSRS bot menu
+Exec=/home/proofexak/runetools/launcher.sh
+Path=/home/proofexak/runetools
+Icon=utilities-terminal
+Terminal=true
+Categories=Utility;

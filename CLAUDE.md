@@ -11,7 +11,7 @@ lib/                    universal helpers used by all bots
   movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff
   overlay.py            floating tkinter overlay with pause/menu/stats
   config_editor.py      generic point/region/point_color/number calibration UI
-  pause.py              P-key pause gate used everywhere
+  pause.py              O-key pause/resume, P-key force-stop — used everywhere
   log.py                session logger
   ge.py                 universal GE restock flow (sell leathers, buy hides, bank)
   ge_config.py          calibrated GE positions — GITIGNORED, copy from ge_config.example.py
@@ -52,7 +52,7 @@ python tanner/run.py           # normal mode (shows hide selector)
 python tanner/run.py --select  # same — selector is always shown
 ```
 
-Press **P** to pause/resume. Overlay menu: Tanning (hide type + Configure), GE Config, Exit.
+Press **O** to pause/resume, **P** to force-stop. Overlay menu: Tanning (hide type + Configure), GE Config, Exit.
 
 ## Config system
 

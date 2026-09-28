@@ -18,7 +18,7 @@ def run(stats, start_from_ge=False):
     log.setup(os.path.join(os.path.dirname(__file__), "log", "tanner"))
 
     print(f"\nHide type: {config.HIDE_TYPE}")
-    print("Starting in 3s — switch to OSRS. Press P to pause.")
+    print("Starting in 3s — switch to OSRS. Press O to pause, P to force-stop.")
     time.sleep(3)
 
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})

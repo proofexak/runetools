@@ -2,10 +2,12 @@ __pycache__/
 *.pyc
 *.pyo
 tanner/log/
+choc/log/
 *.log
 .claude/
 .venv/
 tanner/config.py
+choc/config.py
 lib/ge_config.py
 lib/energy_config.py
 lib/digit_templates/
