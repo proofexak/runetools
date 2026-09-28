@@ -7,14 +7,17 @@ OSRS bot suite running on Windows. Uses pyautogui for input, mss for screen capt
 ```
 lib/                    universal helpers used by all bots
   screen.py             find_color(), pixel_matches()
-  mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite
-  movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff
+  mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite, hesitate
+  movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff; O/P-pausable
+  camera.py             face(direction, cfg) — compass camera orientation for every bot
   overlay.py            floating tkinter overlay with pause/menu/stats
-  config_editor.py      generic point/region/point_color/number calibration UI
+  config_editor.py      generic point/region/point_color/number calibration UI; save_attr()
   pause.py              O-key pause/resume, P-key force-stop — used everywhere
-  log.py                session logger
+  log.py                session logger (setup) + say() timestamped print
   state_machine.py      run_machine() — shared bot runner on the `transitions` library (see
                          "Bot control flow" below)
+  session.py            run_session() — standard session lifecycle every bot's run() uses
+  bots.py               Bot/Launch descriptors, discover(), build_menu() — see "Bot contract"
   ge.py                 universal GE restock flow (sell leathers, buy hides, bank)
   ge_config.py          calibrated GE positions — GITIGNORED, copy from ge_config.example.py
   ge_config.example.py  zeroed template for ge_config.py
@@ -36,39 +39,45 @@ lib/                    universal helpers used by all bots
   energy_config_editor.py  config editor wired to energy_config.py
 
 tanner/                 Al Kharid leather tanning bot
-  run.py                entry point — setup, wires tanner.py actions in as state handlers
+  bot.py                menu descriptor (4 hide launches + GE side buttons)
+  run.py                run(stats) — handlers + run_session()
   states.py             states, transition table, TannerSession (glory charges, skip_restock)
-  tanner.py             actions: walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover
+  actions.py            walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover
   config.py             calibrated positions — GITIGNORED, copy from config.example.py
   config.example.py     zeroed template for config.py
   config_editor.py      config editor wired to tanner/config.py (GE: prefix routes to ge_config.py)
 
-miner/                  mining bots, dispatched by LOCATION (miner/run.py)
-  golden_nuggets/       Motherlode Mine bot — run.py (handlers), states.py (table), miner.py (actions)
+miner/                  mining bots grouped under one "Mining" menu entry (miner/bot.py)
+  golden_nuggets/       Motherlode Mine bot — run.py, states.py, actions.py, config trio
+  miner.py, config*.py  Varrock Exp copper actions/config — no loop or menu entry yet (PRO-7)
 
-choc/                   chocolate dust grind bot — NOT yet on the state machine (roadmap step 3)
+choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine
+                         (roadmap step 3)
 
 tests/                  pytest suite for runner + bot transition tables (stub handlers, no game
                          needed): `.venv/bin/python -m pytest`. Root-level test_*.py are live
                          in-game scripts, not part of the suite (pytest.ini: testpaths = tests).
 
-woodcutter/             WIP — not functional yet
+woodcutter/             WIP — not functional yet; standalone script, not a package (so its
+                         bot.py is never picked up by discovery)
 
-launcher.py             launches bots (currently only tanner)
+run.py                  overlay menu + session loop; bots come from discover(), no per-bot code
+launcher.sh / .bat      start run.py (RuneTools.desktop points at launcher.sh)
 ```
 
 ## How to run
 
 ```
-python tanner/run.py           # normal mode (shows hide selector)
-python tanner/run.py --select  # same — selector is always shown
+./launcher.sh        # Linux/macOS (or launcher.bat on Windows) — runs root run.py
 ```
 
-Press **O** to pause/resume, **P** to force-stop. Overlay menu: Tanning (hide type + Configure), GE Config, Exit.
+Press **O** to pause/resume, **P** to force-stop (O/P are ignored while the bot itself is
+typing). Overlay menu: one entry per discovered bot (Tanning, Mining, Choco Grind), then
+GE Config, Energy Config, Exit.
 
 ## Config system
 
-- Calibrated positions are in `tanner/config.py`, `lib/ge_config.py`, and `lib/energy_config.py` — all gitignored, as is `lib/digit_templates/` (per-user digit template bitmaps).
+- Calibrated positions are in each bot's `config.py` (`tanner/`, `miner/golden_nuggets/`, `choc/`), `lib/ge_config.py`, and `lib/energy_config.py` — all gitignored, as is `lib/digit_templates/` (per-user digit template bitmaps).
 - On fresh clone: copy `*.example.py` → remove `.example`, then calibrate via the in-game config editors. Energy/stamina needs an extra step first — see README's "Stamina potions" section (`calibrate_energy_digits.py`).
 - Config editors draw coloured overlays on screen (regions = rectangles, points = crosshairs).
 - `config_editor.py` supports ftypes: `point`, `point_color`, `region`, `number`.
@@ -98,6 +107,25 @@ Press **O** to pause/resume, **P** to force-stop. Overlay menu: Tanning (hide ty
 
 **Recovery path** (amulet of glory, max 6 charges):
 Escape → F4 → right-click amulet → teleport Al Kharid → orient west → click double doors → find booth in `TP_BANK_REGION` → `do_bank(skip_restock_check=True)`
+
+**Bot contract (standard for all bots).** A bot is a package (`__init__.py`) with:
+- `bot.py` — `BOT = Bot(name, launches=[Launch(label, start, colors, alt=, ask_int=)], order=,
+  colors=, configure=, stats_line=)`. Import-light: import config/actions/run *inside* the
+  callables — `tests/test_bots.py` checks discovery pulls in no config, pyautogui or mss.
+- `run.py` — `run(stats, ...)` builds handlers and calls `lib.session.run_session(...)`, which
+  owns logging, the 3s countdown, pause/stats reset, P-during-countdown, ForceStop and the
+  closing summary line.
+- `states.py` (table + session model, below), `actions.py` (in-game actions),
+  `config.py` / `config.example.py` / `config_editor.py` (editors save via `save_attr`).
+- Grouped bots (`miner/`) put one `bot.py` at the group level; launches point into sub-packages.
+- Shared helpers to use instead of copying: `lib.camera.face`, `lib.mouse.hesitate`,
+  `lib.log.say`, `lib.movement.wait_until_stopped` (pausable by default), `lib.session.format_elapsed`.
+- Long waits inside actions call `pause.wait()` each iteration; it returns True if it blocked,
+  so an idle/timeout clock can be reset after a pause (see golden_nuggets `wait_for_vein_depletion`).
+
+Adding a bot: create the package with the files above, calibrate, done — it appears in the
+menu automatically (`discover()` runs at startup; a bot.py that fails to import is skipped and
+reported, not fatal).
 
 **Bot control flow (standard for all bots).** Every bot's session is an explicit state machine:
 - `bot/states.py`: `STATES`, a `TRANSITIONS` list (`transitions` library dicts), a session model
@@ -131,10 +159,12 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
   start — goes through the `recover` state and uses one of the 6 charges; a failed "Run from GE"
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).
-- Golden Nuggets miner: on the state machine; O-pause works between every step, P returns to the menu.
+- Golden Nuggets miner: on the state machine and the scaffold; O/P work inside long waits (walking,
+  mining, sack processing) too, and a pause during mining doesn't count toward the idle timeout.
   A failed hopper deposit fixes struts and retries once; only a successful (re)try counts toward
   the 3-deposit sack. Stops after 3 failed deposits (retry included) in a row (MAX_DEPOSIT_FAILS).
-- Varrock Exp miner: menu entry crashes — `miner.varrock_exp` package doesn't exist (PRO-7, roadmap step 4).
+- Varrock Exp miner: `miner/varrock_exp/` (loop added on main) is not yet on the state machine or
+  in the menu; the legacy loose copy in `miner/miner.py` + `miner/config*.py` predates it.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.
 - Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/tanner.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
