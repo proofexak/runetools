@@ -6,13 +6,14 @@ import numpy as np
 import mss
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from miner.golden_nuggets.miner import orient_east, click_struts, _log
+from miner.golden_nuggets.actions import orient_east, click_struts
+from lib.log import say as _log
 import miner.golden_nuggets.config as config
 
 
 def scan_region(name, region):
     l, t, w, h = region
-    with mss.MSS() as sct:
+    with mss.mss() as sct:
         mon = sct.monitors[1]
         shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t, "width": w, "height": h})
     frame = np.array(shot)[:, :, :3]
