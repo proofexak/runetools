@@ -194,8 +194,9 @@ def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
             start_t = stats.get("start")
             elapsed = format_elapsed(time.time() - start_t if start_t else 0)
             lines = [f"Runs:    {stats.get('run', 0)}"]
-            if stats_extra:
-                lines.append(stats_extra(stats))
+            extra = stats_extra(stats) if stats_extra else None
+            if extra:
+                lines.append(extra)
             lines += [f"Time:    {elapsed}", f"Step:    {stats.get('step', '')}"]
             lbl.config(text="\n".join(lines))
             root.after(500, _tick)
