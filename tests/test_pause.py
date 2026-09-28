@@ -42,3 +42,14 @@ def test_bot_typing_does_not_trigger_hotkeys(monkeypatch):
     assert not pause.is_paused()
     mouse.human_typewrite("pop")               # 'p' would force-stop
     pause.wait()
+
+
+def test_wait_returns_false_when_not_paused():
+    assert pause.wait() is False
+
+
+def test_wait_returns_true_after_blocking():
+    import threading
+    pause.toggle()
+    threading.Timer(0.3, pause.toggle).start()
+    assert pause.wait() is True

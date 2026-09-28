@@ -6,9 +6,11 @@ import time
 import numpy as np
 import mss
 
+import lib.pause as pause
+
 
 def wait_until_stopped(region, thresh=3.0, stable_count=3, poll=0.15,
-                        timeout=20.0, paused_fn=None):
+                        timeout=20.0, paused_fn=pause.wait):
     """
     Block until the game view stops changing (character stopped walking).
     region      — (left, top, width, height) area to watch
@@ -16,7 +18,7 @@ def wait_until_stopped(region, thresh=3.0, stable_count=3, poll=0.15,
     stable_count — how many consecutive stable polls required
     poll        — seconds between polls
     timeout     — give up after this many seconds
-    paused_fn   — optional no-arg callable that blocks while paused
+    paused_fn   — no-arg callable that blocks while paused (default: the O/P pause gate)
     Returns True if stopped cleanly, False on timeout.
     """
     def _grab():

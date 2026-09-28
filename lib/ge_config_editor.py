@@ -1,14 +1,14 @@
 """
 GE config editor — defines fields and wires up the generic lib editor.
 """
-import threading, re, os, sys
+import threading, os, sys
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 import lib.ge_config as cfg
-from lib.config_editor import run_editor
+from lib.config_editor import run_editor, save_attr
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "ge_config.py")
 
@@ -57,12 +57,7 @@ def _apply(attr, val):
 
 
 def _save(attr, val):
-    with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-        content = f.read()
-    pattern = rf'^({re.escape(attr)}\s*=\s*).*$'
-    content = re.sub(pattern, rf'\g<1>{repr(val)}', content, flags=re.MULTILINE)
-    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-        f.write(content)
+    save_attr(CONFIG_PATH, attr, val)
 
 
 def open_ge_editor():

@@ -157,6 +157,11 @@ def jitter(x, y, n=8):
     return x + random.randint(-n, n), y + random.randint(-n, n)
 
 
+def hesitate():
+    """Short human-like pause before an action."""
+    time.sleep(random.uniform(0.3, 0.8))
+
+
 def quick_click(x, y):
     """Minimal-delay click for tight, fixed-position loops (e.g. adjacent
     inventory slots) where human_click's full deliberate travel simulation

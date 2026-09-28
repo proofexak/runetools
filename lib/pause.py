@@ -79,12 +79,17 @@ def reset():
 
 
 def wait():
+    """Block while paused; raise ForceStop on P. Returns True if it blocked, so
+    callers timing something (e.g. an idle timeout) can discount the pause."""
+    blocked = False
     while _paused:
         if _force_stop:
             raise ForceStop()
+        blocked = True
         time.sleep(0.2)
     if _force_stop:
         raise ForceStop()
+    return blocked
 
 
 def is_paused():

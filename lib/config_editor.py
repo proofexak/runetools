@@ -15,6 +15,7 @@ Usage (from a bot's config_editor.py):
             save_fn,           # fn(attr, val) -> persist to config file
         ), kwargs=dict(region_colors=REGION_COLORS)).start()
 """
+import re
 import tkinter as tk
 import threading
 import numpy as np
@@ -373,6 +374,16 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
 
 
 # ── Editor window ─────────────────────────────────────────────────────────────
+
+def save_attr(path, attr, val):
+    """Rewrite the `ATTR = ...` line of a config module with repr(val)."""
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    pattern = rf"^({re.escape(attr)}\s*=\s*).*$"
+    content = re.sub(pattern, lambda m: m.group(1) + repr(val), content, flags=re.MULTILINE)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
 
 def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
     """

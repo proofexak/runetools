@@ -6,7 +6,7 @@ import threading, re, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as cfg
 import lib.ge_config as ge_cfg
-from lib.config_editor import run_editor
+from lib.config_editor import run_editor, save_attr
 
 _GE_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "lib", "ge_config.py")
 
@@ -74,27 +74,21 @@ def _apply(attr, val):
 
 def _save(attr, val):
     if attr.startswith("GE:"):
-        with open(_GE_CONFIG_PATH, 'r', encoding='utf-8') as f:
-            content = f.read()
-        pattern = rf'^({re.escape(attr[3:])}\s*=\s*).*$'
-        content = re.sub(pattern, rf'\g<1>{repr(val)}', content, flags=re.MULTILINE)
-        with open(_GE_CONFIG_PATH, 'w', encoding='utf-8') as f:
-            f.write(content)
+        save_attr(_GE_CONFIG_PATH, attr[3:], val)
         return
 
+    if not attr.startswith("IB:"):
+        save_attr(CONFIG_PATH, attr, val)
+        return
+
+    # INTERFACE_BUTTONS dict entry: "hide": (x, y, (r, g, b))
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
-
-    if attr.startswith("IB:"):
-        hide = attr[3:]
-        x, y, (r, g, b) = val
-        new_val = f"({x}, {y}, ({r}, {g}, {b}))"
-        pattern = rf'("{re.escape(hide)}":\s*)(\([^(]+\([^)]+\)[^)]*\))'
-        content = re.sub(pattern, rf'\g<1>{new_val}', content)
-    else:
-        pattern = rf'^({re.escape(attr)}\s*=\s*).*$'
-        content = re.sub(pattern, rf'\g<1>{repr(val)}', content, flags=re.MULTILINE)
-
+    hide = attr[3:]
+    x, y, (r, g, b) = val
+    new_val = f"({x}, {y}, ({r}, {g}, {b}))"
+    pattern = rf'("{re.escape(hide)}":\s*)(\([^(]+\([^)]+\)[^)]*\))'
+    content = re.sub(pattern, rf'\g<1>{new_val}', content)
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
         f.write(content)
 

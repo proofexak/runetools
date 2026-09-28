@@ -12,6 +12,11 @@ class _Tee:
         for f in self._files: f.flush()
 
 
+def say(msg):
+    """Print with a [HH:MM:SS] timestamp — the standard bot log line."""
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
+
+
 def setup(prefix):
     """
     Tee stdout and stderr to a timestamped log file named <prefix>_YYYYMMDD_HHMMSS.log.
