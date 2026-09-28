@@ -6,29 +6,21 @@ import pyautogui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from lib.screen import find_color, pixel_matches
-from lib.mouse import human_click, human_move, human_right_click, menu_click, jitter
+from lib.mouse import human_click, human_move, jitter, hesitate
+from lib.camera import face
+import lib.pause as pause
 import miner.varrock_exp.config as config
 
 ORE_POLL    = 1.0
 ORE_TIMEOUT = 10.0
 
 
-def _pre_action():
-    time.sleep(random.uniform(0.3, 0.8))
-
-
 def orient_south():
-    print("  Orienting camera south...")
-    _pre_action()
-    cpx, cpy = jitter(*config.COMPASS, n=5)
-    ax, ay = human_right_click(cpx, cpy)
-    time.sleep(random.uniform(0.25, 0.45))
-    menu_click(ax + 5, ay + config.MENU_HEADER + config.LOOK_SOUTH_ROW * config.MENU_ROW_H + config.MENU_ROW_H // 2)
-    time.sleep(random.uniform(0.4, 0.7))
+    face("south", config)
 
 
 def _click_rock(color, tol, label):
-    _pre_action()
+    hesitate()
     pos, _ = find_color(color, tol, region=config.ROCK_REGION, jitter_pct=0.10)
     if not pos:
         print(f"  No {label} rock found")
@@ -54,6 +46,8 @@ def wait_and_drop():
     _, _, bg = config.SLOT_BG_COLOR
     deadline = time.time() + ORE_TIMEOUT
     while time.time() < deadline:
+        if pause.wait():
+            deadline = time.time() + ORE_TIMEOUT   # time spent paused doesn't count
         if not pixel_matches(sx, sy, bg):
             print("  Item in slot — dropping")
             time.sleep(random.uniform(0.1, 0.35))
