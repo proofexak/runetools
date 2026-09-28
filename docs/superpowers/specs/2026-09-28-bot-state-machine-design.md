@@ -32,15 +32,38 @@ Success criteria (from PRO-12, as clarified):
   charges, `RESTOCK_GE`, sack-full) are `conditions=` on transitions, relying on
   `transitions` evaluating same-trigger transitions in declaration order.
 
-### Out of scope
+### Roadmap — this spec is sub-project 1 of 4
 
-- **Varrock Exp miner.** `miner/run.py` routes to `miner.varrock_exp.run`, which
-  has never existed in git — selecting it crashes today. Building it is PRO-7.
-- **Choc bot**, woodcutter, `lib/ge.py` internals, action functions in
-  `tanner/tanner.py` and `miner/golden_nuggets/miner.py`.
-- **Launcher/bot auto-discovery** — that's PRO-11.
-- Uncommitted working-tree changes unrelated to this work (choc bot, O/P hotkey
-  split in `lib/pause.py`, root `run.py` choc menu) are not part of this branch.
+The wider goal is one standard scaffold used by every bot. It is split into
+sub-projects, each with its own spec → plan → implementation cycle, in this order:
+
+1. **State machine: runner + Tanner + Golden Nuggets** (this spec — PRO-12/42/43/44).
+   Starts by committing the pending working-tree changes (choc bot, O/P hotkey
+   split in `lib/pause.py`, root `run.py` choc menu, related `tanner/run.py`,
+   `lib/mouse.py`, `.gitignore`, `CLAUDE.md` edits) as their own commit, so the
+   state-machine work builds on them.
+2. **Standard bot scaffold** (PRO-11) — uniform layout (`actions.py`, `states.py`,
+   `run.py`, config trio), shared action helpers moved to `lib/` (camera
+   orientation, `_pre_action`, `_log`, `wait_stopped`), pause checks inside long
+   actions, launcher + overlay menu auto-discover bots. Applied to Tanner and
+   Golden Nuggets.
+3. **Choc bot + `lib/ge.py` flow** onto the scaffold and state machine (new
+   Linear issue).
+4. **Varrock Exp miner** built on the scaffold (PRO-7). `miner/run.py` routes to
+   `miner.varrock_exp.run`, which has never existed in git — selecting it crashes
+   today.
+
+Sub-project 1 comes first because the scaffold standardises on its runner; choc
+and Varrock Exp come after the scaffold so they're built on it once rather than
+converted twice.
+
+### Out of scope for this spec
+
+- Everything in sub-projects 2–4 above: renaming/restructuring action modules,
+  moving helpers into `lib/`, launcher discovery, choc, `lib/ge.py` internals,
+  Varrock Exp. Action functions in `tanner/tanner.py` and
+  `miner/golden_nuggets/miner.py` are called as-is by the new handlers.
+- **Woodcutter** — stays WIP and untouched (standalone YOLO-based script).
 
 ## Architecture
 
