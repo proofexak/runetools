@@ -10,7 +10,7 @@ sys.path.insert(0, ROOT)
 import lib.pause as pause
 import lib.overlay as overlay
 from lib.overlay import start as start_overlay
-from lib.bots import discover, build_menu
+from lib.bots import discover, build_menu, run_guarded
 
 pause.setup(pause_hotkey="o", stop_hotkey="p")
 
@@ -93,7 +93,7 @@ start_overlay(
 
 while True:
     _selected.wait()
-    _pending["start"](stats)
+    run_guarded(_pending["start"], stats)
     _pending["bot"] = _pending["start"] = None
     _selected = threading.Event()
     overlay.show_selector(_selected)

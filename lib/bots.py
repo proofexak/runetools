@@ -6,7 +6,7 @@ built from whatever discover() finds, so adding a bot never touches root
 run.py. bot.py must stay import-light (no pyautogui/mss, no gitignored
 config.py at module level) — import those inside the start/configure callables.
 """
-import importlib, os
+import importlib, os, traceback
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
@@ -47,10 +47,25 @@ def discover(root):
                 and os.path.isfile(os.path.join(pkg, "bot.py"))):
             continue
         try:
-            bots.append(importlib.import_module(f"{name}.bot").BOT)
+            bot = importlib.import_module(f"{name}.bot").BOT
+            if not isinstance(bot, Bot):
+                raise TypeError(f"BOT is {type(bot).__name__}, not lib.bots.Bot")
+            bots.append(bot)
         except Exception as e:   # one broken bot must not take the menu down
             print(f"[BOTS] Skipping {name}: {e!r}")
     return sorted(bots, key=lambda b: (b.order, b.name))
+
+
+def run_guarded(start, stats):
+    """Run one session from the menu loop; a crash prints its traceback and
+    returns False instead of killing the launcher (e.g. an uncalibrated bot)."""
+    try:
+        start(stats)
+        return True
+    except Exception:
+        traceback.print_exc()
+        print("[BOTS] Session crashed — back to the menu.")
+        return False
 
 
 def build_menu(bots, begin, ask_int, tools):

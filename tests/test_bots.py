@@ -86,3 +86,21 @@ def test_ask_int_launch_prompts_then_begins_with_value():
     prompts[0][1](7)             # user enters 7
     begun[0]({"run": 0})
     assert got == [({"run": 0}, 7)]
+
+
+def test_discover_skips_descriptor_that_is_not_a_bot(tmp_path, monkeypatch, capsys):
+    monkeypatch.syspath_prepend(str(tmp_path))
+    _pkg(tmp_path, "zz_bot_d", "from lib.bots import Bot\nBOT = Bot('D', [])\n")
+    _pkg(tmp_path, "zz_bot_e", "BOT = None\n")
+    assert [b.name for b in discover(str(tmp_path))] == ["D"]
+    assert "zz_bot_e" in capsys.readouterr().out
+
+
+def test_run_guarded_survives_a_crashing_session(capsys):
+    from lib.bots import run_guarded
+
+    def crash(stats):
+        raise ModuleNotFoundError("No module named 'tanner.config'")
+    assert run_guarded(crash, {}) is False
+    assert "tanner.config" in capsys.readouterr().err
+    assert run_guarded(lambda stats: None, {}) is True

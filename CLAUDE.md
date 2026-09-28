@@ -125,7 +125,8 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
 
 Adding a bot: create the package with the files above, calibrate, done — it appears in the
 menu automatically (`discover()` runs at startup; a bot.py that fails to import is skipped and
-reported, not fatal).
+reported, not fatal; a session that raises prints its traceback and returns to the menu via
+`lib.bots.run_guarded`).
 
 **Bot control flow (standard for all bots).** Every bot's session is an explicit state machine:
 - `bot/states.py`: `STATES`, a `TRANSITIONS` list (`transitions` library dicts), a session model
@@ -134,8 +135,9 @@ reported, not fatal).
   import pyautogui/mss, the bot's actions module, or its gitignored config — so tests can import it.
 - `bot/run.py`: builds `{state: handler}` closures over the session; each handler does one step
   of real work and returns an **event name** (`"ok"`, `"fail"`, `"full"`, ...), never a state.
-  The table decides where the event leads. Then `run_machine(session, handlers, stats,
-  FINAL_STATES, CYCLE_START)`, catching `pause.ForceStop` for the session summary.
+  The table decides where the event leads. `run()` passes the handler builder, session builder,
+  `FINAL_STATES` and `CYCLE_START` to `lib.session.run_session`, which calls `run_machine` and
+  handles `pause.ForceStop` and the summary (see "Bot contract" above).
 - Guards are `conditions=` on transitions (methods or plain bool attributes); same-trigger
   transitions are tried in list order, so put the conditional row first.
 - `run_machine` gates every step on `pause.wait()` (O-pause, P raises ForceStop), sets
@@ -167,5 +169,5 @@ reported, not fatal).
   in the menu; the legacy loose copy in `miner/miner.py` + `miner/config*.py` predates it.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.
-- Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/tanner.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
+- Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/actions.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
 - Woodcutter: WIP, don't touch.
