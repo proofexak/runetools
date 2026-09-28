@@ -27,6 +27,7 @@ Usage:
 import time, os, threading
 import tkinter as tk
 import lib.pause as pause
+from lib.session import format_elapsed
 
 BG        = "#0d0d0d"
 FG        = "#aaaacc"
@@ -191,12 +192,7 @@ def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
                 return  # stats frame was destroyed, stop loop
             pause_btn.config(text="Resume" if pause.is_paused() else "Pause")
             start_t = stats.get("start")
-            if start_t:
-                e = int(time.time() - start_t)
-                h, r = divmod(e, 3600); m, s = divmod(r, 60)
-                elapsed = f"{h:02d}:{m:02d}:{s:02d}"
-            else:
-                elapsed = "00:00:00"
+            elapsed = format_elapsed(time.time() - start_t if start_t else 0)
             lines = [f"Runs:    {stats.get('run', 0)}"]
             if stats_extra:
                 lines.append(stats_extra(stats))
