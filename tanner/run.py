@@ -7,12 +7,11 @@ real actions in as handlers.
 import time, random, sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import lib.pause as pause
-import lib.log as log
 import tanner.config as config
 from tanner.actions import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover, _wait_stopped
 from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
-from lib.state_machine import run_machine, ok_or_fail
+from lib.state_machine import ok_or_fail
+from lib.session import run_session
 from lib.ge import run_ge_flow
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -48,31 +47,22 @@ def _handlers(session):
     }
 
 
-def run(stats, start_from_ge=False):
-    log.setup(os.path.join(os.path.dirname(__file__), "log", "tanner"))
-
-    print(f"\nHide type: {config.HIDE_TYPE}")
-    print("Starting in 3s — switch to OSRS. Press O to pause, P to force-stop.")
-    time.sleep(3)
-
-    stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
-    pause.reset()
-    orient_west()
-
-    start_time = time.time()
-    stats["start"] = start_time
-    session = build_machine(stats, config.RESTOCK_GE, start_from_ge)
-
-    try:
-        final = run_machine(session, _handlers(session), stats, FINAL_STATES, CYCLE_START)
-    except pause.ForceStop:
-        print("Force stopped via overlay.")
-        final, session.stop_reason = "stopped", "force-stopped (P)"
-    last_step = stats["step"]
-    stats["step"] = final
+def _summary(session, final, last_step):
+    if final == "stopped" and session.stop_reason is None:
+        session.stop_reason = "force-stopped (P)"
     print(f"\n[{final.upper()}] {session.stop_reason}")
+    return f"Runs: {session.runs}"
 
-    elapsed = time.time() - start_time
-    h, rem = divmod(int(elapsed), 3600)
-    m, s   = divmod(rem, 60)
-    print(f"Session ended ({final} after {last_step}). Runs: {session.runs} | Time: {h:02d}:{m:02d}:{s:02d}")
+
+def run(stats, start_from_ge=False):
+    run_session(
+        stats,
+        log_prefix   = os.path.join(os.path.dirname(__file__), "log", "tanner"),
+        intro        = [f"\nHide type: {config.HIDE_TYPE}"],
+        setup        = orient_west,
+        session      = lambda: build_machine(stats, config.RESTOCK_GE, start_from_ge),
+        handlers     = _handlers,
+        final_states = FINAL_STATES,
+        cycle_start  = CYCLE_START,
+        summary      = _summary,
+    )

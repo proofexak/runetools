@@ -6,10 +6,8 @@ module wires the real actions in as handlers.
 import time, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-import lib.pause as pause
-import lib.log as log
-from lib.state_machine import run_machine
 from lib.log import say
+from lib.session import run_session, format_elapsed
 from miner.golden_nuggets.actions import (
     orient_south, orient_east, click_nearest_vein, wait_for_vein_depletion,
     count_filled_slots, deposit_to_hopper, process_full_sack,
@@ -22,12 +20,7 @@ from miner.golden_nuggets.states import (
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
 
-def _elapsed(start):
-    s = int(time.time() - start)
-    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
-
-
-def _handlers(session, stats, session_start):
+def _handlers(session, stats):
     def seek_vein():
         before = count_filled_slots()
         if before >= 27:
@@ -40,7 +33,7 @@ def _handlers(session, stats, session_start):
         wait_stopped()
         session.vein_pos = pos
         session.vein_n += 1
-        say(f"--- Vein #{session.vein_n}  (inv {before}/28, session {_elapsed(session_start)}) ---")
+        say(f"--- Vein #{session.vein_n}  (inv {before}/28, session {format_elapsed(time.time() - stats['start'])}) ---")
         return "ok"
 
     def mining():
@@ -79,27 +72,19 @@ def _handlers(session, stats, session_start):
 
 
 def run(stats):
-    log.setup(os.path.join(os.path.dirname(__file__), "log", "golden_nuggets"))
+    def setup():
+        stats["sack"] = 0
+        orient_south()
+        say(f"Inventory at start: {count_filled_slots()}/28")
 
-    say("=== Golden Nuggets session starting — switch to OSRS (3s) ===")
-    time.sleep(3)
-
-    session_start = time.time()
-    stats.update({"run": 0, "sack": 0, "step": "starting", "start": session_start, "stop": False})
-    pause.reset()
-
-    orient_south()
-    say(f"Inventory at start: {count_filled_slots()}/28")
-
-    session = build_machine(stats)
-    try:
-        final = run_machine(session, _handlers(session, stats, session_start),
-                            stats, FINAL_STATES, CYCLE_START)
-    except pause.ForceStop:
-        say("Force stopped via overlay.")
-        final = "stopped"
-    last_step = stats["step"]
-    stats["step"] = final
-
-    say(f"Session ended ({final} after {last_step}). Veins: {session.vein_n} | "
-         f"Ores: {stats['run']} | Time: {_elapsed(session_start)}")
+    run_session(
+        stats,
+        log_prefix   = os.path.join(os.path.dirname(__file__), "log", "golden_nuggets"),
+        intro        = ["=== Golden Nuggets session ==="],
+        setup        = setup,
+        session      = lambda: build_machine(stats),
+        handlers     = lambda session: _handlers(session, stats),
+        final_states = FINAL_STATES,
+        cycle_start  = CYCLE_START,
+        summary      = lambda session, final, last: f"Veins: {session.vein_n} | Ores: {stats['run']}",
+    )
