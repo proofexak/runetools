@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.mouse    import human_click, human_move, human_right_click, menu_click, jitter, random_area_click
 from lib.screen   import find_color, pixel_matches
 from lib.movement import wait_until_stopped
+from lib.camera import face
 import lib.pause as pause
 import lib.energy as energy
 
@@ -20,7 +21,7 @@ from tanner.config import (
     ELLIS_REGION, BANK_REGION,
     MOVEMENT_REGION, MOVEMENT_THRESH, MOVEMENT_STABLE, MOVEMENT_POLL, WALK_TIMEOUT,
     INTERFACE_TOL, TANNING_CHECK,
-    MENU_ROW_H, MENU_HEADER, COMPASS, CHARACTER, TANNER_AREA, LOOK_WEST_ROW,
+    MENU_ROW_H, MENU_HEADER, CHARACTER, TANNER_AREA,
     AMULET_SLOT, AMULET_MENU_ROW, DOUBLE_DOORS_REGION, TP_BANK_REGION,
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
@@ -32,18 +33,13 @@ from tanner.config import (
 def _wait_stopped():
     return wait_until_stopped(
         MOVEMENT_REGION, MOVEMENT_THRESH, MOVEMENT_STABLE,
-        MOVEMENT_POLL, WALK_TIMEOUT, pause.wait,
+        MOVEMENT_POLL, WALK_TIMEOUT,
     )
 
 
 def orient_west():
-    """One-time camera orientation at session start."""
-    print("  Orienting camera west...")
-    cpx, cpy = jitter(*COMPASS, n=5)
-    ax, ay = human_right_click(cpx, cpy)
-    time.sleep(0.35)
-    menu_click(ax + 5, ay + MENU_HEADER + LOOK_WEST_ROW * MENU_ROW_H + MENU_ROW_H // 2)
-    time.sleep(0.5)
+    """Camera orientation at session start and after the recovery teleport."""
+    face("west", _cfg)
 
 
 def inventory_open():

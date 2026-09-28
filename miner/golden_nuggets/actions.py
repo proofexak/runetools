@@ -9,46 +9,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from lib.screen import find_nearest_color, find_color, pixel_matches
 from lib.movement import wait_until_stopped
 from lib.inventory import get_slots
-from lib.mouse import human_click, human_right_click, menu_click, jitter
+from lib.mouse import human_click, jitter, hesitate
+from lib.camera import face
+from lib.log import say
+import lib.pause as pause
 import miner.golden_nuggets.config as config
 
 
-def _log(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
-
-
-def _pre_action():
-    time.sleep(random.uniform(0.3, 0.8))
-
-
 def orient_north():
-    _log("Orienting camera north")
-    _pre_action()
-    cpx, cpy = jitter(*config.COMPASS, n=5)
-    human_click(cpx, cpy)
-    time.sleep(random.uniform(0.4, 0.7))
+    face("north", config)
 
 
 def orient_east():
-    _log("Orienting camera east")
-    _pre_action()
-    cpx, cpy = jitter(*config.COMPASS, n=5)
-    ax, ay = human_right_click(cpx, cpy)
-    time.sleep(random.uniform(0.25, 0.45))
-    menu_click(ax + 5, ay + config.MENU_HEADER + config.LOOK_EAST_ROW * config.MENU_ROW_H + config.MENU_ROW_H // 2)
-    time.sleep(random.uniform(0.4, 0.7))
-    _log("Camera oriented east")
+    face("east", config)
 
 
 def orient_south():
-    _log("Orienting camera south")
-    _pre_action()
-    cpx, cpy = jitter(*config.COMPASS, n=5)
-    ax, ay = human_right_click(cpx, cpy)
-    time.sleep(random.uniform(0.25, 0.45))
-    menu_click(ax + 5, ay + config.MENU_HEADER + config.LOOK_SOUTH_ROW * config.MENU_ROW_H + config.MENU_ROW_H // 2)
-    time.sleep(random.uniform(0.4, 0.7))
-    _log("Camera oriented")
+    face("south", config)
 
 
 def _inv_patches():
@@ -105,23 +82,23 @@ def wait_stopped():
 
 def deposit_to_hopper():
     """Orient north, click the hopper, verify items were transferred."""
-    _log("Inventory full — depositing to hopper")
+    say("Inventory full — depositing to hopper")
     orient_north()
-    _pre_action()
+    hesitate()
     pos, _ = find_color(config.RED, config.RED_TOL, region=config.HOPPER_REGION)
     if pos is None:
-        _log("Hopper not found — skipping deposit")
+        say("Hopper not found — skipping deposit")
         return False
     before = count_filled_slots()
     ix, iy = round(pos[0]), round(pos[1])
-    _log(f"Clicking hopper at ({ix}, {iy})")
+    say(f"Clicking hopper at ({ix}, {iy})")
     human_click(ix, iy)
     wait_stopped()
     after = count_filled_slots()
     if after < before:
-        _log(f"Deposited  ({before} -> {after} items)")
+        say(f"Deposited  ({before} -> {after} items)")
         return True
-    _log(f"WARNING: Hopper deposit may have failed (inv {before} -> {after})")
+    say(f"WARNING: Hopper deposit may have failed (inv {before} -> {after})")
     return False
 
 
@@ -167,19 +144,19 @@ def check_and_fix_struts():
     """
     n = count_broken_struts(config.STRUT_REGION)
     if n < 2:
-        _log(f"{n} strut(s) broken — machine still running, no fix needed")
+        say(f"{n} strut(s) broken — machine still running, no fix needed")
         return
-    _log(f"{n} struts broken — machine stopped, fixing one")
+    say(f"{n} struts broken — machine stopped, fixing one")
     pos, _ = find_nearest_color(
         config.STRUT_COLOR, config.STRUT_TOL,
         region=config.STRUT_REGION, near=config.CHARACTER,
     )
     if pos is None:
-        _log("Could not locate strut to fix")
+        say("Could not locate strut to fix")
         return
     ix, iy = round(pos[0]), round(pos[1])
-    _log(f"Clicking strut at ({ix}, {iy})")
-    _pre_action()
+    say(f"Clicking strut at ({ix}, {iy})")
+    hesitate()
     human_click(ix, iy)
     wait_stopped()
 
@@ -194,11 +171,11 @@ def click_struts():
         region=config.STRUT_REGION, near=config.CHARACTER,
     )
     if pos is None:
-        _log("No strut visible from hopper view")
+        say("No strut visible from hopper view")
     else:
         ix, iy = round(pos[0]), round(pos[1])
-        _log(f"Clicking strut (hopper view) at ({ix}, {iy})")
-        _pre_action()
+        say(f"Clicking strut (hopper view) at ({ix}, {iy})")
+        hesitate()
         human_click(ix, iy)
         wait_stopped()
 
@@ -208,11 +185,11 @@ def click_struts():
             region=config.STRUT_NEAR_REGION, near=config.CHARACTER,
         )
         if pos is None:
-            _log("No more struts in near region")
+            say("No more struts in near region")
             break
         ix, iy = round(pos[0]), round(pos[1])
-        _log(f"Clicking strut (near view) at ({ix}, {iy})")
-        _pre_action()
+        say(f"Clicking strut (near view) at ({ix}, {iy})")
+        hesitate()
         human_click(ix, iy)
         wait_stopped()
 
@@ -220,74 +197,77 @@ def click_struts():
 def click_sack(region):
     """Find green sack in region (retry up to 10s), click it, wait_stopped, return new item delta."""
     before = count_filled_slots()
-    _pre_action()
+    hesitate()
     deadline = time.time() + 10
     pos = None
     while time.time() < deadline:
+        pause.wait()
         pos, _ = find_color(config.GREEN, config.GREEN_TOL, region=region)
         if pos is not None:
             break
-        _log("Sack not visible yet — retrying...")
+        say("Sack not visible yet — retrying...")
         time.sleep(1)
     if pos is None:
-        _log("Sack not found after 10s")
+        say("Sack not found after 10s")
         return 0
     ix, iy = round(pos[0]), round(pos[1])
-    _log(f"Clicking sack at ({ix}, {iy})")
+    say(f"Clicking sack at ({ix}, {iy})")
     human_click(ix, iy)
     wait_stopped()
     after = count_filled_slots()
     delta = max(0, after - before)
-    _log(f"Sack gave {delta} items  (inv {after}/28)")
+    say(f"Sack gave {delta} items  (inv {after}/28)")
     return delta
 
 
 def open_bank():
     """Click the bank booth and wait for the interface to open."""
-    _pre_action()
+    hesitate()
     pos, _ = find_color(config.BLUE, config.BLUE_TOL, region=config.BANK_REGION)
     if pos is None:
-        _log("Bank not found")
+        say("Bank not found")
         return
     ix, iy = round(pos[0]), round(pos[1])
-    _log(f"Clicking bank at ({ix}, {iy})")
+    say(f"Clicking bank at ({ix}, {iy})")
     human_click(ix, iy)
     bx, by, expected = config.BANK_CHECK
     deadline = time.time() + 10
     while time.time() < deadline:
+        pause.wait()
         time.sleep(0.4)
         if pixel_matches(bx, by, expected):
-            _log("Bank opened")
+            say("Bank opened")
             return
-    _log("Bank open timeout — proceeding anyway")
+    say("Bank open timeout — proceeding anyway")
 
 
 def deposit_all():
     """Click the Deposit-All button in the bank interface, verify inventory actually emptied."""
     before = count_filled_slots()
-    _pre_action()
+    hesitate()
     dpx, dpy = jitter(*config.DEPOSIT_ALL_BTN, n=3)
-    _log(f"Clicking Deposit-All at ({dpx}, {dpy})")
+    say(f"Clicking Deposit-All at ({dpx}, {dpy})")
     human_click(dpx, dpy)
     time.sleep(random.uniform(0.5, 0.8))
     after = count_filled_slots()
     if before > 0 and after >= before:
-        _log(f"WARNING: Deposit-All didn't seem to work (inv {before} -> {after}) — check DEPOSIT_ALL_BTN calibration")
+        say(f"WARNING: Deposit-All didn't seem to work (inv {before} -> {after}) — check DEPOSIT_ALL_BTN calibration")
     else:
-        _log(f"Deposited all  (inv {before} -> {after})")
+        say(f"Deposited all  (inv {before} -> {after})")
 
 
 def process_full_sack(stats):
     """Full sack processing: orient east → fix struts → collect sack → bank loop → resume."""
-    _log("=== Sack full — processing ===")
+    say("=== Sack full — processing ===")
     orient_east()
 
     # 1. Click any broken struts
     click_struts()
 
     # 2. Poll STRUT_NEAR_REGION every 3s until no struts visible
-    _log("Waiting for struts to clear...")
+    say("Waiting for struts to clear...")
     while True:
+        pause.wait()
         time.sleep(3)
         pos, _ = find_nearest_color(
             config.STRUT_COLOR, config.STRUT_TOL,
@@ -295,7 +275,7 @@ def process_full_sack(stats):
         )
         if pos is None:
             break
-        _log("Struts still visible — waiting...")
+        say("Struts still visible — waiting...")
 
     # 3. Collect from sack (walking distance)
     click_sack(config.SACK_REGION)
@@ -307,18 +287,18 @@ def process_full_sack(stats):
         deposit_all()
         pos, _ = find_color(config.GREEN, config.GREEN_TOL, region=config.SACK_BANK_REGION)
         if pos is None:
-            _log("Sack empty (no green) — done banking")
+            say("Sack empty (no green) — done banking")
             break
         click_sack(config.SACK_BANK_REGION)  # closes bank
         open_bank()
 
-    _log("=== Sack processing done ===")
+    say("=== Sack processing done ===")
     orient_south()
 
 
 def click_nearest_vein():
     """Click the pay-dirt vein closest to CHARACTER. Returns clicked (x, y) or None."""
-    _pre_action()
+    hesitate()
     pos, _ = find_nearest_color(
         config.MAGENTA, config.MAGENTA_TOL,
         region=config.PAY_DIRT_REGION,
@@ -326,11 +306,11 @@ def click_nearest_vein():
         jitter_pct=0.40,
     )
     if not pos:
-        _log("No pay-dirt vein found")
+        say("No pay-dirt vein found")
         return None
     ix = round(pos[0])
     iy = round(pos[1] - random.uniform(15, 35))  # bias upward
-    _log(f"Clicking vein at ({ix}, {iy})")
+    say(f"Clicking vein at ({ix}, {iy})")
     human_click(ix, iy)
     return (ix, iy)
 
@@ -386,24 +366,26 @@ def wait_for_vein_depletion(clicked_pos, stats, idle_timeout=10):
     last_gain_t = time.time()
 
     while time.time() - last_gain_t < idle_timeout:
+        if pause.wait():
+            last_gain_t = time.time()   # a long pause isn't "idle — switch vein"
         time.sleep(random.uniform(0.8, 1.2))
 
         current = count_filled_slots()
         if current > last_count:
             gained = current - last_count
             stats["run"] += gained
-            _log(f"  +{gained} pay-dirt  (inv {current}/28, total {stats['run']})")
+            say(f"  +{gained} pay-dirt  (inv {current}/28, total {stats['run']})")
             last_count = current
             last_gain_t = time.time()
 
         # upgrade 3 — full inventory: exit immediately so hopper runs next iteration
         if current >= 27:
-            _log("Inventory full — heading to hopper")
+            say("Inventory full — heading to hopper")
             return "full"
 
         if not character_in_any_vein():
-            _log("Character outside all vein boxes — depleted")
+            say("Character outside all vein boxes — depleted")
             return "depleted"
 
-    _log(f"Idle {idle_timeout}s with no new ore — switching vein")
+    say(f"Idle {idle_timeout}s with no new ore — switching vein")
     return "idle"

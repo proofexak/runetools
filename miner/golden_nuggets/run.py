@@ -9,10 +9,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import lib.pause as pause
 import lib.log as log
 from lib.state_machine import run_machine
-from miner.golden_nuggets.miner import (
+from lib.log import say
+from miner.golden_nuggets.actions import (
     orient_south, orient_east, click_nearest_vein, wait_for_vein_depletion,
     count_filled_slots, deposit_to_hopper, process_full_sack,
-    click_struts, wait_stopped, _log,
+    click_struts, wait_stopped,
 )
 from miner.golden_nuggets.states import (
     build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK,
@@ -33,36 +34,36 @@ def _handlers(session, stats, session_start):
             return "full"
         pos = click_nearest_vein()
         if pos is None:
-            _log("Retrying in 3s...")
+            say("Retrying in 3s...")
             time.sleep(3)
             return "not_found"
         wait_stopped()
         session.vein_pos = pos
         session.vein_n += 1
-        _log(f"--- Vein #{session.vein_n}  (inv {before}/28, session {_elapsed(session_start)}) ---")
+        say(f"--- Vein #{session.vein_n}  (inv {before}/28, session {_elapsed(session_start)}) ---")
         return "ok"
 
     def mining():
         reason = wait_for_vein_depletion(session.vein_pos, stats)
-        _log(f"Vein #{session.vein_n} done  |  total {stats['run']}  reason={reason}")
+        say(f"Vein #{session.vein_n} done  |  total {stats['run']}  reason={reason}")
         return mining_event(reason)
 
     def deposit():
         ok = deposit_to_hopper()
         if not ok:
             # A failed deposit usually means broken struts stopped the machine.
-            _log("Hopper full — fixing struts then retrying")
+            say("Hopper full — fixing struts then retrying")
             orient_east()
             click_struts()
             ok = deposit_to_hopper()
         session.record_deposit(ok)   # only a successful (re)try counts toward the sack
         if not ok:
             if session.deposit_stuck():
-                _log(f"Hopper deposit failed {session.deposit_fails}x in a row — stopping")
+                say(f"Hopper deposit failed {session.deposit_fails}x in a row — stopping")
             else:
                 orient_south()
             return "fail"
-        _log(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
+        say(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
         orient_east()
         click_struts()
         if not session.sack_full():
@@ -80,7 +81,7 @@ def _handlers(session, stats, session_start):
 def run(stats):
     log.setup(os.path.join(os.path.dirname(__file__), "log", "golden_nuggets"))
 
-    _log("=== Golden Nuggets session starting — switch to OSRS (3s) ===")
+    say("=== Golden Nuggets session starting — switch to OSRS (3s) ===")
     time.sleep(3)
 
     session_start = time.time()
@@ -88,17 +89,17 @@ def run(stats):
     pause.reset()
 
     orient_south()
-    _log(f"Inventory at start: {count_filled_slots()}/28")
+    say(f"Inventory at start: {count_filled_slots()}/28")
 
     session = build_machine(stats)
     try:
         final = run_machine(session, _handlers(session, stats, session_start),
                             stats, FINAL_STATES, CYCLE_START)
     except pause.ForceStop:
-        _log("Force stopped via overlay.")
+        say("Force stopped via overlay.")
         final = "stopped"
     last_step = stats["step"]
     stats["step"] = final
 
-    _log(f"Session ended ({final} after {last_step}). Veins: {session.vein_n} | "
+    say(f"Session ended ({final} after {last_step}). Veins: {session.vein_n} | "
          f"Ores: {stats['run']} | Time: {_elapsed(session_start)}")
