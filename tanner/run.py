@@ -11,8 +11,8 @@ import lib.pause as pause
 import lib.log as log
 import tanner.config as config
 from tanner.tanner import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover, _wait_stopped
-from tanner.states import build_machine, ok_or_fail, bank_event, FINAL_STATES, CYCLE_START
-from lib.state_machine import run_machine
+from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
+from lib.state_machine import run_machine, ok_or_fail
 from lib.ge import run_ge_flow
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)

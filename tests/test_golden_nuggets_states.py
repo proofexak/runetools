@@ -25,16 +25,11 @@ def fake_handlers(session, script, visited):
     def deposit():
         visited.append("deposit")
         event = script.pop(0)
-        if event == "ok":
-            session.hopper_deposits += 1
-            session.deposit_fails = 0
-        else:
-            session.deposit_fails += 1
+        session.record_deposit(event == "ok")
         return event
 
     def process_sack():
         visited.append("process_sack")
-        session.hopper_deposits = 0
         return "ok"
 
     return {"seek_vein": seek_vein, "mining": mining,
@@ -135,3 +130,22 @@ def test_successful_deposit_resets_failure_count():
     final, visited = drive(s, script)
     assert visited.count("deposit") == 5
     assert s.deposit_fails == 2
+
+
+def test_record_deposit_counts_and_mirrors_sack():
+    s = build_machine({})
+    s.record_deposit(False)
+    assert s.deposit_fails == 1 and s.hopper_deposits == 0
+    s.record_deposit(True)
+    assert s.deposit_fails == 0 and s.hopper_deposits == 1 and s.stats["sack"] == 1
+
+
+def test_sack_counter_reset_by_table_after_processing():
+    s = build_machine({})
+    s.hopper_deposits = DEPOSITS_PER_SACK
+    s.stats["sack"] = DEPOSITS_PER_SACK
+    s.trigger("full")
+    s.trigger("ok")
+    assert s.state == "process_sack"
+    s.trigger("ok")
+    assert s.hopper_deposits == 0 and s.stats["sack"] == 0

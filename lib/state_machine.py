@@ -34,3 +34,8 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
             raise MachineError(f"no transition for {event!r} from {model.state!r} "
                                f"(all conditions failed)")
     return model.state
+
+
+def ok_or_fail(result):
+    """Map a truthy/falsy action result to the standard "ok"/"fail" events."""
+    return "ok" if result else "fail"

@@ -3,7 +3,7 @@ Golden Nuggets session loop.
 Control flow is the state machine in miner/golden_nuggets/states.py; this
 module wires the real actions in as handlers.
 """
-import time, os, sys, random
+import time, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 import lib.pause as pause
@@ -48,16 +48,14 @@ def _handlers(session, stats, session_start):
         return mining_event(reason)
 
     def deposit():
-        if not deposit_to_hopper():
-            session.deposit_fails += 1
+        ok = deposit_to_hopper()
+        session.record_deposit(ok)
+        if not ok:
             if session.deposit_stuck():
                 _log(f"Hopper deposit failed {session.deposit_fails}x in a row — stopping")
             else:
                 orient_south()
             return "fail"
-        session.deposit_fails = 0
-        session.hopper_deposits += 1
-        stats["sack"] = session.hopper_deposits
         _log(f"Hopper deposit #{session.hopper_deposits}/{DEPOSITS_PER_SACK}")
         orient_east()
         check_and_fix_struts()
@@ -67,8 +65,6 @@ def _handlers(session, stats, session_start):
 
     def process_sack():
         process_full_sack(stats)
-        session.hopper_deposits = 0
-        stats["sack"] = 0
         return "ok"
 
     return {"seek_vein": seek_vein, "mining": mining,

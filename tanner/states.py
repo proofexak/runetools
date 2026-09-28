@@ -7,6 +7,8 @@ Same-trigger transitions are evaluated in the order listed below.
 """
 from transitions import Machine
 
+from lib.state_machine import ok_or_fail
+
 MAX_CHARGES  = 6   # amulet of glory
 CYCLE_START  = "walk_to_tanner"
 FINAL_STATES = {"done", "stopped"}
@@ -106,10 +108,6 @@ def build_machine(stats, restock_enabled, start_from_ge, charges=MAX_CHARGES):
             initial="start", auto_transitions=False)
     session.trigger("begin")
     return session
-
-
-def ok_or_fail(result):
-    return "ok" if result else "fail"
 
 
 def bank_event(result):

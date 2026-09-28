@@ -2,7 +2,7 @@ import pytest
 from transitions import Machine, MachineError
 
 import lib.pause as pause
-from lib.state_machine import run_machine
+from lib.state_machine import run_machine, ok_or_fail
 
 FINAL = {"end"}
 
@@ -127,3 +127,7 @@ def test_stop_clicked_while_paused_at_cycle_start_runs_no_handler(monkeypatch):
     monkeypatch.setattr(pause, "wait", wait)
     assert run_machine(_machine(), _scripted(["ok"], calls), stats, FINAL, cycle_start="a") == "end"
     assert calls == []
+
+
+def test_ok_or_fail_mapping():
+    assert [ok_or_fail(r) for r in (True, 1, False, None)] == ["ok", "ok", "fail", "fail"]

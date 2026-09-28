@@ -3,7 +3,7 @@ import pytest
 import lib.pause as pause
 from lib.state_machine import run_machine
 from tanner.states import (
-    build_machine, bank_event, ok_or_fail, FINAL_STATES, CYCLE_START, MAX_CHARGES,
+    build_machine, bank_event, FINAL_STATES, CYCLE_START, MAX_CHARGES,
 )
 
 ACTION_STATES = ["walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank",
@@ -198,7 +198,3 @@ def test_soft_stop_after_restock_finishes_recovery_first():
 
 def test_bank_event_mapping():
     assert [bank_event(r) for r in ("restock", True, False, None)] == ["restock", "ok", "fail", "fail"]
-
-
-def test_ok_or_fail_mapping():
-    assert [ok_or_fail(r) for r in (True, 1, False, None)] == ["ok", "ok", "fail", "fail"]

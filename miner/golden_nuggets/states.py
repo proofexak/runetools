@@ -24,7 +24,7 @@ TRANSITIONS = [
     {"trigger": "ok",        "source": "deposit",      "dest": "seek_vein"},
     {"trigger": "fail",      "source": "deposit",      "dest": "stopped",   "conditions": "deposit_stuck"},
     {"trigger": "fail",      "source": "deposit",      "dest": "seek_vein"},
-    {"trigger": "ok",        "source": "process_sack", "dest": "seek_vein"},
+    {"trigger": "ok",        "source": "process_sack", "dest": "seek_vein", "after": "sack_emptied"},
     {"trigger": "stop",      "source": CYCLE_START,    "dest": "stopped"},
 ]
 
@@ -42,6 +42,20 @@ class NuggetsSession:
 
     def deposit_stuck(self):
         return self.deposit_fails >= MAX_DEPOSIT_FAILS
+
+    def record_deposit(self, success):
+        """Called by the deposit handler before it returns, so the table's
+        sack_full / deposit_stuck conditions see the updated counts."""
+        if success:
+            self.deposit_fails = 0
+            self.hopper_deposits += 1
+            self.stats["sack"] = self.hopper_deposits
+        else:
+            self.deposit_fails += 1
+
+    def sack_emptied(self):
+        self.hopper_deposits = 0
+        self.stats["sack"] = 0
 
 
 def build_machine(stats):

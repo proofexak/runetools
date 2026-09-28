@@ -101,7 +101,8 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
 
 **Bot control flow (standard for all bots).** Every bot's session is an explicit state machine:
 - `bot/states.py`: `STATES`, a `TRANSITIONS` list (`transitions` library dicts), a session model
-  class, `build_machine(stats, ...) -> session`, and pure event-mapping helpers. It must NOT
+  class, `build_machine(stats, ...) -> session`, and bot-specific event-mapping helpers
+  (generic truthy→`"ok"`/`"fail"` is `lib.state_machine.ok_or_fail`). It must NOT
   import pyautogui/mss, the bot's actions module, or its gitignored config — so tests can import it.
 - `bot/run.py`: builds `{state: handler}` closures over the session; each handler does one step
   of real work and returns an **event name** (`"ok"`, `"fail"`, `"full"`, ...), never a state.
