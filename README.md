@@ -1,7 +1,8 @@
 # runetools
 
-OSRS automation suite — Al Kharid dragonhide tanner, Motherlode Mine (golden nuggets) miner,
-and a chocolate dust grinder. Every bot appears in the overlay menu automatically.
+OSRS automation suite — Al Kharid dragonhide tanner, Motherlode Mine (golden nuggets) and Varrock
+copper miners, and a chocolate dust grinder; every OSRS bot appears in the overlay menu
+automatically. Also includes a Path of Exile crafting bot with its own launcher (`crafting_run.py`).
 
 Setting up OSRS itself on Ubuntu (RuneLite + Jagex account login)? See [OSRS_ON_UBUNTU.md](OSRS_ON_UBUNTU.md).
 
