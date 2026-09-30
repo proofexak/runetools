@@ -24,8 +24,9 @@ Usage:
     overlay.show_selector(new_event)
     new_event.wait()
 """
-import time, os, threading
+import time, os, threading, traceback
 import tkinter as tk
+import lib.events as events
 import lib.pause as pause
 from lib.session import format_elapsed, emergency_teardown
 
@@ -73,6 +74,12 @@ def start(stats, hide_selected, use_selector, menu, on_select, stats_extra=None,
 
 def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
     root = tk.Tk()
+
+    def _report_callback_exception(exc_type, exc, tb):
+        # Tk swallows callback errors (only prints them); record them too.
+        events.record_error(exc, "overlay")
+        traceback.print_exception(exc_type, exc, tb)
+    root.report_callback_exception = _report_callback_exception
     root.overrideredirect(True)
     root.wm_attributes("-topmost", True)
     root.wm_attributes("-alpha", 0.9)

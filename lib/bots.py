@@ -58,6 +58,7 @@ def discover(root, suite="osrs"):
                 bots.append(bot)
         except Exception as e:   # one broken bot must not take the menu down
             print(f"[BOTS] Skipping {name}: {e!r}")
+            events.launcher_error(name, e, "discover")
     return sorted(bots, key=lambda b: (b.order, b.name))
 
 

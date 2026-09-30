@@ -52,11 +52,17 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
 
 
 def gate_pause(state):
-    """pause.wait(), recording how long it blocked in the session's event log."""
-    started = time.time()
-    if pause.wait():
+    """pause.wait(), recording how long it blocked in the session's event log —
+    including a pause that ends in a force stop (P/End pressed while paused)."""
+    started, blocked = time.time(), False
+    try:
+        blocked = pause.wait()
+    except pause.ForceStop:
+        blocked = pause.is_paused()
+        raise
+    finally:
         log = events.current()
-        if log:
+        if blocked and log:
             seconds = time.time() - started
             log.paused_seconds += seconds
             log.emit("pause", state=state, seconds=round(seconds, 3))

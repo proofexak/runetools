@@ -23,7 +23,10 @@ def _warn(err):
     global _warned
     if not _warned:
         _warned = True
-        print(f"[events] Structured log unavailable: {err!r}", file=sys.stderr)
+        try:
+            print(f"[events] Structured log unavailable: {err!r}", file=sys.stderr)
+        except Exception:
+            pass   # nowhere left to complain to; never raise into a bot
 
 
 class EventLog:
@@ -76,8 +79,27 @@ def finish():
 
 
 def error_fields(exc):
-    return {"type": type(exc).__name__, "message": str(exc),
-            "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))}
+    """type / message / traceback of an exception — robust to one whose str() raises."""
+    name = type(exc).__name__
+    try:
+        message = str(exc)
+    except Exception:
+        message = f"<unprintable {name}>"
+    try:
+        tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    except Exception:
+        tb = f"{name}: {message}"
+    return {"type": name, "message": message, "traceback": tb}
+
+
+def record_error(exc, where):
+    """Log an error to the running session if there is one, else to launcher.jsonl."""
+    log = current()
+    if log is not None:
+        log.emit("error", where=where, **error_fields(exc))
+        mark_logged(exc)
+    else:
+        launcher_error(None, exc, where)
 
 
 def mark_logged(exc):

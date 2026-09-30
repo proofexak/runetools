@@ -179,3 +179,53 @@ def test_keyboard_interrupt_is_interrupted(env):
 def test_stop_reason_recorded(env):
     _run(env, {"a": lambda: "ok", "b": lambda: "ok"}, session_fn=lambda: _model("GE restock failed"))
     assert _events(env)[-1]["reason"] == "GE restock failed"
+
+
+def test_error_while_handling_a_stop_still_tears_down_and_ends(env, monkeypatch):
+    torn = []
+
+    def failing_print(*a, **k):
+        if a and str(a[0]).startswith("Force stopped"):
+            raise OSError(28, "No space left on device")
+    monkeypatch.setattr(session, "print", failing_print, raising=False)
+
+    def boom():
+        raise pause.ForceStop()
+    with pytest.raises(OSError):
+        _run(env, {"a": boom}, teardown=lambda: torn.append(1))
+    assert torn == [1]
+    assert _events(env)[-1]["event"] == "session_end"
+    assert events.current() is None
+
+
+def test_exception_with_unprintable_message_is_logged(env):
+    class Weird(Exception):
+        def __str__(self):
+            raise ValueError("no str for you")
+
+    def boom():
+        raise Weird()
+    with pytest.raises(Weird):
+        _run(env, {"a": boom})
+    err, end = _events(env)[-2:]
+    assert err["type"] == "Weird" and "Weird" in err["message"]
+    assert end["final"] == "crashed"
+
+
+def test_force_stop_while_paused_counts_the_pause(env, monkeypatch):
+    calls = {"n": 0}
+
+    def wait():
+        calls["n"] += 1
+        if calls["n"] == 2:                  # paused before state "a", then P pressed
+            until = time.time() + 0.05
+            while time.time() < until:
+                pass
+            raise pause.ForceStop()
+        return False
+    monkeypatch.setattr(pause, "wait", wait)
+    monkeypatch.setattr(pause, "is_paused", lambda: True)
+    assert _run(env, {"a": lambda: "ok"}) == "stopped"
+    ev = _events(env)
+    assert [e for e in ev if e["event"] == "pause"][0]["seconds"] >= 0.05
+    assert ev[-1]["paused_seconds"] >= 0.05

@@ -58,43 +58,51 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
     model, final, error = None, None, None
     try:
-        for line in intro:
-            print(line)
-        print(f"Starting in 3s — switch to {game}. {pause.hint()}")
-        pause.reset()
-        _active_teardown[0] = teardown
-        model = session()
-        time.sleep(3)
-        gate_pause("starting")
-        setup()
-        stats["start"] = start = time.time()
-        final = run_machine(model, handlers(model), stats, final_states, cycle_start)
-    except pause.ForceStop:
-        print("Force stopped via overlay.")
-        ev.emit("force_stop", state=stats.get("step"))
-        final = "stopped"
-    except BaseException as e:
-        error = e
-        final = "interrupted" if isinstance(e, KeyboardInterrupt) else "crashed"
-        ev.emit("error", where="session", state=stats.get("step"), **events.error_fields(e))
-    try:
-        emergency_teardown()   # single-shot: skipped if Exit already ran it
-    except BaseException as e:
-        ev.emit("error", where="teardown", state=stats.get("step"), **events.error_fields(e))
-        if error is None:
-            error, final = e, "crashed"
-
-    last_step = stats["step"]
-    stats["step"] = final
-    ended = time.time()
-    ev.emit("session_end", final=final, reason=getattr(model, "stop_reason", None),
-            last_step=last_step, stats=dict(stats),
-            active_seconds=round(ended - began - ev.paused_seconds, 3),
-            paused_seconds=round(ev.paused_seconds, 3))
-    events.finish()
+        try:
+            for line in intro:
+                print(line)
+            print(f"Starting in 3s — switch to {game}. {pause.hint()}")
+            pause.reset()
+            _active_teardown[0] = teardown
+            model = session()
+            time.sleep(3)
+            gate_pause("starting")
+            setup()
+            stats["start"] = start = time.time()
+            final = run_machine(model, handlers(model), stats, final_states, cycle_start)
+        except pause.ForceStop:
+            final = "stopped"
+            ev.emit("force_stop", state=stats.get("step"))
+        except BaseException as e:
+            error = e
+            final = "interrupted" if isinstance(e, KeyboardInterrupt) else "crashed"
+            ev.emit("error", where="session", state=stats.get("step"), **events.error_fields(e))
+    except BaseException as escaping:
+        # raised while handling the error above (e.g. a failing log write or print)
+        error, final = escaping, "crashed"
+        ev.emit("error", where="session", state=stats.get("step"), **events.error_fields(escaping))
+    finally:
+        # teardown + end record always happen
+        try:
+            emergency_teardown()   # single-shot: skipped if Exit already ran it
+        except BaseException as e:
+            ev.emit("error", where="teardown", state=stats.get("step"), **events.error_fields(e))
+            if error is None:
+                error, final = e, "crashed"
+        last_step = stats["step"]
+        stats["step"] = final
+        ended = time.time()
+        ev.emit("session_end", final=final, reason=getattr(model, "stop_reason", None),
+                last_step=last_step, stats=dict(stats),
+                active_seconds=round(ended - began - ev.paused_seconds, 3),
+                paused_seconds=round(ev.paused_seconds, 3))
+        events.finish()
+        if error is not None:
+            events.mark_logged(error)
     if error is not None:
-        events.mark_logged(error)
         raise error
+    if final == "stopped":
+        print("Force stopped via overlay.")
     print(f"Session ended ({final} after {last_step}). {summary(model, final, last_step)} | "
           f"Time: {format_elapsed(ended - start)}")
     return final

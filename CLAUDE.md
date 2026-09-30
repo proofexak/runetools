@@ -152,8 +152,12 @@ seconds, run), `pause`, `soft_stop`, `force_stop`, `error` (type, message, trace
 They come from `run_session`/`run_machine` — bots only pass `bot=` and `params=`.
 - Errors always land in a log: in a session → `error` + `session_end` "crashed", then re-raised
   (menu returns via `run_guarded`); a bot failing before its session starts → `log/launcher.jsonl`
-  (repo root, gitignored); anything else uncaught (launcher, overlay thread) → same file via the
-  excepthooks both launchers install. A missing `session_end` = the process was killed.
+  (repo root, gitignored); a broken `bot.py` at discovery → same file (`where: discover`); overlay
+  button-callback errors (Tk) → the running session's log, else launcher.jsonl (`where: overlay`);
+  anything else uncaught → launcher.jsonl via the excepthooks both launchers install *before* any
+  other import (so even an import failure is recorded). Teardown + `session_end` sit in a `finally`,
+  so they happen even if handling an error fails. A missing `session_end` = the process was killed
+  (or the overlay's Exit button was used mid-session).
 - Logging never raises into a bot (repr() for odd values, one warning if the file can't be written).
 - Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks),
   `stats [--bot B] [--since YYYY-MM-DD]` (per-bot totals; failures = results `fail`/`not_found`).

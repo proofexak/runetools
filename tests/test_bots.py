@@ -164,3 +164,24 @@ def test_run_guarded_does_not_repeat_an_error_a_session_logged(tmp_path, monkeyp
         raise err
     assert run_guarded(start, {}, bot="Mining") is False
     assert not (tmp_path / "log" / "launcher.jsonl").exists()
+
+
+def test_discover_logs_a_broken_bot(tmp_path, monkeypatch):
+    import json
+    import lib.events as events
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setattr(events, "ROOT", str(tmp_path))
+    _pkg(tmp_path, "zz_broken_bot", "raise RuntimeError('bad descriptor')\n")
+    discover(str(tmp_path))
+    (rec,) = [json.loads(l) for l in open(tmp_path / "log" / "launcher.jsonl")]
+    assert rec["bot"] == "zz_broken_bot" and rec["where"] == "discover" and "bad descriptor" in rec["message"]
+
+
+def test_launchers_install_excepthooks_before_other_imports():
+    # an import failure (pynput without X, missing tkinter...) must be recorded
+    for launcher in ("run.py", "crafting_run.py"):
+        lines = open(os.path.join(REPO, launcher), encoding="utf-8").read().splitlines()
+        hook = next(i for i, l in enumerate(lines) if "install_excepthooks()" in l)
+        first_other = next(i for i, l in enumerate(lines)
+                           if l.startswith(("import lib.", "from lib.")) and "lib.events" not in l)
+        assert hook < first_other, launcher

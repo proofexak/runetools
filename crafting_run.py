@@ -7,13 +7,14 @@ import threading, os, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
+import lib.events as events
+events.install_excepthooks()   # first: even import errors below get recorded
+
 import lib.pause as pause
 import lib.overlay as overlay
 from lib.overlay import start as start_overlay
 from lib.bots import discover, build_menu, run_guarded
-import lib.events as events
 
-events.install_excepthooks()   # uncaught errors anywhere -> log/launcher.jsonl
 pause.setup(pause_hotkey="p", stop_hotkey=None, stop_key="end")
 
 stats     = {"run": 0, "step": "starting", "start": None, "stop": False}

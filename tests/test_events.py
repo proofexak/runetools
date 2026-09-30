@@ -91,3 +91,26 @@ def test_error_already_logged_by_a_session_is_not_repeated(tmp_path, monkeypatch
     events.mark_logged(err)
     sys.excepthook(KeyboardInterrupt, err, None)
     assert not (tmp_path / "log" / "launcher.jsonl").exists()
+
+
+def test_warning_that_cannot_be_printed_never_raises(tmp_path, monkeypatch):
+    monkeypatch.setattr(events, "_warned", False)
+
+    def broken_print(*a, **k):
+        raise OSError("stderr closed")
+    monkeypatch.setattr(events, "print", broken_print, raising=False)
+    log = events.EventLog(str(tmp_path), bot="b", session="s")   # unwritable -> warns
+    log.emit("step")
+
+
+def test_record_error_goes_to_session_or_launcher(tmp_path, monkeypatch):
+    monkeypatch.setattr(events, "ROOT", str(tmp_path))
+    err = RuntimeError("tk callback")
+    events.record_error(err, "overlay")                      # no session -> launcher
+    (rec,) = _lines(tmp_path / "log" / "launcher.jsonl")
+    assert rec["where"] == "overlay" and rec["type"] == "RuntimeError"
+    events.start(str(tmp_path / "s.jsonl"), bot="b", session="s")
+    events.record_error(RuntimeError("during session"), "overlay")
+    events.finish()
+    (rec,) = _lines(tmp_path / "s.jsonl")
+    assert rec["event"] == "error" and rec["where"] == "overlay"
