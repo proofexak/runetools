@@ -20,3 +20,4 @@ crafting/config.py
 crafting/log/
 docker/bolt/*.zip
 docker/bolt/Bolt-Linux/
+/log/

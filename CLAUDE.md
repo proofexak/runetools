@@ -15,7 +15,9 @@ lib/                    universal helpers used by all bots
   overlay.py            floating tkinter overlay with pause/menu/stats
   config_editor.py      generic point/region/point_color/number calibration UI; save_attr()
   pause.py              O-key pause/resume, P-key force-stop — used everywhere
-  log.py                session logger (setup) + say() timestamped print
+  log.py                session text log (setup tees stdout/stderr) + say() timestamped print
+  events.py             structured JSON-lines session events + launcher error log + excepthooks
+  logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats
   state_machine.py      run_machine() — shared bot runner on the `transitions` library (see
                          "Bot control flow" below)
   session.py            run_session() — standard session lifecycle every bot's run() uses
@@ -142,6 +144,20 @@ Adding a bot: create the package with the files above, calibrate, done — it ap
 menu automatically (`discover()` runs at startup; a bot.py that fails to import is skipped and
 reported, not fatal; a session that raises prints its traceback and returns to the menu via
 `lib.bots.run_guarded`).
+
+**Structured session logs (PRO-15).** Every scaffold session writes `<bot>/log/<name>_<stamp>.jsonl`
+next to its text `.log` (same stamp). Events: `session_start` (bot, params), `step` (state, result,
+seconds, run), `pause`, `soft_stop`, `force_stop`, `error` (type, message, traceback, state),
+`session_end` (always: final done/stopped/crashed/interrupted/…, reason, stats, active/paused time).
+They come from `run_session`/`run_machine` — bots only pass `bot=` and `params=`.
+- Errors always land in a log: in a session → `error` + `session_end` "crashed", then re-raised
+  (menu returns via `run_guarded`); a bot failing before its session starts → `log/launcher.jsonl`
+  (repo root, gitignored); anything else uncaught (launcher, overlay thread) → same file via the
+  excepthooks both launchers install. A missing `session_end` = the process was killed.
+- Logging never raises into a bot (repr() for odd values, one warning if the file can't be written).
+- Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks),
+  `stats [--bot B] [--since YYYY-MM-DD]` (per-bot totals; failures = results `fail`/`not_found`).
+- Tests never write the real launcher log (autouse fixture points `events.ROOT` at tmp).
 
 **Vision / pure logic (PRO-13).** Every decision made from the screen is a pure function that
 takes plain data; capture happens only in `lib/screen.grab`.

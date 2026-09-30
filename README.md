@@ -39,6 +39,7 @@ Digit templates and the energy/stamina config are gitignored (per-user calibrati
 - Python 3.8+
 - `pip install -r requirements.txt` (`pyautogui`, `mss`, `numpy`, `Pillow`, `pynput`, `transitions`)
 - Development: `pip install -r requirements-dev.txt`, then `.venv/bin/python -m pytest` (runs `tests/`)
+- Session history: `.venv/bin/python -m lib.logreport` (add `session latest` for the last run's details and errors, `stats` for long-term totals)
 - `tkinter` (system package — e.g. `sudo apt install python3-tk` on Debian/Ubuntu)
 - On Linux, an X11 session (mouse/keyboard simulation does not work under Wayland)
 
