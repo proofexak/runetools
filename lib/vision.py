@@ -59,3 +59,55 @@ def locate(frame, rgb, tol, polygon=None, jitter_pct=0.25, rng=random):
         return None, 0
     ys, xs = np.where(mask)
     return click_point(xs, ys, jitter_pct, rng), count
+
+
+# ── Clusters ──────────────────────────────────────────────────────────────────
+
+def clusters(xs, ys, radius):
+    """Greedy grouping of points: take the first remaining point as a seed; every
+    remaining point within `radius` of that seed joins its cluster. Returns one
+    boolean member mask (over the input points) per cluster, in seed order."""
+    remaining = np.ones(len(xs), dtype=bool)
+    groups = []
+    while remaining.any():
+        seed = int(np.argmax(remaining))
+        members = remaining & ((xs - xs[seed]) ** 2 + (ys - ys[seed]) ** 2 <= radius ** 2)
+        remaining &= ~members
+        groups.append(members)
+    return groups
+
+
+def _matched_points(frame, rgb, tol):
+    ys, xs = np.where(color_mask(frame, rgb, tol))
+    return xs.astype(float), ys.astype(float)
+
+
+def nearest_cluster_point(frame, rgb, tol, near, radius=30, jitter_pct=0.15, rng=random):
+    """(click point in the cluster whose centroid is nearest `near`, total matched
+    pixel count); ties go to the first cluster found. (None, 0) if no match."""
+    xs, ys = _matched_points(frame, rgb, tol)
+    if len(xs) == 0:
+        return None, 0
+    best, best_dist = None, float("inf")
+    for members in clusters(xs, ys, radius):
+        cx, cy = float(np.mean(xs[members])), float(np.mean(ys[members]))
+        dist = (cx - near[0]) ** 2 + (cy - near[1]) ** 2
+        if dist < best_dist:
+            best, best_dist = members, dist
+    return click_point(xs[best], ys[best], jitter_pct, rng), len(xs)
+
+
+def count_clusters(frame, rgb, tol, radius):
+    """Number of distinct rgb clusters (e.g. broken struts)."""
+    return len(clusters(*_matched_points(frame, rgb, tol), radius))
+
+
+def point_in_any_cluster(frame, rgb, tol, point, radius):
+    """True if `point` lies inside the bounding box of any rgb cluster."""
+    xs, ys = _matched_points(frame, rgb, tol)
+    px, py = point
+    for members in clusters(xs, ys, radius):
+        cx, cy = xs[members], ys[members]
+        if cx.min() <= px <= cx.max() and cy.min() <= py <= cy.max():
+            return True
+    return False
