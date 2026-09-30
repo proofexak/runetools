@@ -93,8 +93,10 @@ def was_logged(exc):
     return getattr(exc, "_runetools_logged", False)
 
 
-def launcher_error(bot, exc, where, root=ROOT):
-    """Append an error that happened outside any session to <root>/log/launcher.jsonl."""
+def launcher_error(bot, exc, where, root=None):
+    """Append an error that happened outside any session to <root>/log/launcher.jsonl
+    (root defaults to the repo root)."""
+    root = root or ROOT
     try:
         os.makedirs(os.path.join(root, "log"), exist_ok=True)
     except OSError as e:
@@ -105,7 +107,7 @@ def launcher_error(bot, exc, where, root=ROOT):
     mark_logged(exc)
 
 
-def install_excepthooks(root=ROOT):
+def install_excepthooks(root=None):
     """Record every uncaught exception (main thread and other threads, e.g. the
     overlay) in launcher.jsonl, then let the previous hook run as usual."""
     prev_sys, prev_thread = sys.excepthook, threading.excepthook

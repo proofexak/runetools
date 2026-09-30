@@ -137,3 +137,30 @@ def test_launch_with_alt_and_configure_rejected():
 def test_repo_suites():
     assert [b.name for b in discover(REPO, suite="poe")] == ["Crafting"]
     assert "Crafting" not in [b.name for b in discover(REPO)]
+
+
+def test_run_guarded_logs_a_crash_before_any_session(tmp_path, monkeypatch):
+    import json
+    import lib.events as events
+    from lib.bots import run_guarded
+    monkeypatch.setattr(events, "ROOT", str(tmp_path))
+
+    def start(stats):
+        raise ModuleNotFoundError("No module named 'tanner.config'")
+    assert run_guarded(start, {}, bot="Tanning") is False
+    (rec,) = [json.loads(l) for l in open(tmp_path / "log" / "launcher.jsonl")]
+    assert rec["bot"] == "Tanning" and rec["where"] == "start"
+    assert rec["type"] == "ModuleNotFoundError" and "tanner.config" in rec["message"]
+
+
+def test_run_guarded_does_not_repeat_an_error_a_session_logged(tmp_path, monkeypatch):
+    import lib.events as events
+    from lib.bots import run_guarded
+    monkeypatch.setattr(events, "ROOT", str(tmp_path))
+
+    def start(stats):
+        err = RuntimeError("handler crashed")
+        events.mark_logged(err)          # what run_session does before re-raising
+        raise err
+    assert run_guarded(start, {}, bot="Mining") is False
+    assert not (tmp_path / "log" / "launcher.jsonl").exists()

@@ -11,7 +11,9 @@ import lib.pause as pause
 import lib.overlay as overlay
 from lib.overlay import start as start_overlay
 from lib.bots import discover, build_menu, run_guarded
+import lib.events as events
 
+events.install_excepthooks()   # uncaught errors anywhere -> log/launcher.jsonl
 pause.setup(pause_hotkey="p", stop_hotkey=None, stop_key="end")
 
 stats     = {"run": 0, "step": "starting", "start": None, "stop": False}
@@ -57,7 +59,7 @@ start_overlay(
 
 while True:
     _selected.wait()
-    run_guarded(_pending["start"], stats)
+    run_guarded(_pending["start"], stats, bot=_pending["bot"].name)
     _pending["bot"] = _pending["start"] = None
     _selected = threading.Event()
     overlay.show_selector(_selected)

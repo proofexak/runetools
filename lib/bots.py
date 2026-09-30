@@ -7,6 +7,8 @@ run.py. bot.py must stay import-light (no pyautogui/mss, no gitignored
 config.py at module level) — import those inside the start/configure callables.
 """
 import importlib, os, traceback
+
+import lib.events as events
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
 
@@ -59,13 +61,17 @@ def discover(root, suite="osrs"):
     return sorted(bots, key=lambda b: (b.order, b.name))
 
 
-def run_guarded(start, stats):
+def run_guarded(start, stats, bot=None):
     """Run one session from the menu loop; a crash prints its traceback and
-    returns False instead of killing the launcher (e.g. an uncalibrated bot)."""
+    returns False instead of killing the launcher (e.g. an uncalibrated bot).
+    A crash the session didn't already record (e.g. start() failing before the
+    session began) goes to log/launcher.jsonl."""
     try:
         start(stats)
         return True
-    except Exception:
+    except Exception as e:
+        if not events.was_logged(e):
+            events.launcher_error(bot, e, "start")
         traceback.print_exc()
         print("[BOTS] Session crashed — back to the menu.")
         return False
