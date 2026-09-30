@@ -33,3 +33,10 @@ def fake_screen(monkeypatch):
     monkeypatch.setattr(mss, "mss", screen.mss)
     monkeypatch.setattr(random, "triangular", lambda low, high, mode: mode)
     return screen
+
+
+@pytest.fixture(autouse=True)
+def _launcher_log_in_tmp(monkeypatch, tmp_path):
+    """No test may write the real <repo>/log/launcher.jsonl."""
+    import lib.events as events
+    monkeypatch.setattr(events, "ROOT", str(tmp_path))
