@@ -6,7 +6,9 @@ OSRS bot suite (plus one Path of Exile bot) running on Windows/Linux. Uses pyaut
 
 ```
 lib/                    universal helpers used by all bots
-  screen.py             find_color(), pixel_matches()
+  screen.py             capture only: grab() + find_color(), find_nearest_color(), pixel_matches()
+  vision.py             pure screen-decision logic on numpy frames (masks, clusters, click points,
+                         filled slots, frame/slot/menu diffs) — see "Vision / pure logic" below
   mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite, hesitate
   movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff; O/P-pausable
   camera.py             face(direction, cfg) — compass camera orientation for every bot
@@ -141,6 +143,19 @@ menu automatically (`discover()` runs at startup; a bot.py that fails to import 
 reported, not fatal; a session that raises prints its traceback and returns to the menu via
 `lib.bots.run_guarded`).
 
+**Vision / pure logic (PRO-13).** Every decision made from the screen is a pure function that
+takes plain data; capture happens only in `lib/screen.grab`.
+- Frames are `uint8 (h, w, 3)` **BGR** (what `np.array(mss_shot)[:, :, :3]` gives); vision works
+  in frame-local coords, callers add the offset back. Colours in/out are `(r, g, b)`.
+- New screen logic goes in `lib/vision.py` (or a bot's pure helper, e.g. `choc/logic.py`,
+  `energy.needs_stamina`, `movement.Stillness`, `digit_templates.parse_number`) with a unit test
+  on a synthetic frame. Anything random takes `rng=random` so tests pass a stub.
+- `grab(region)` is relative to monitor 1 like `find_color` always was; `grab(..., absolute=True)`
+  keeps the absolute coordinates movement, `get_pixel_color` and `read_number` always used.
+- Tests: `fake_screen` (tests/conftest.py + tests/fakescreen.py) replaces mss with numpy canvases.
+  `tests/test_characterise_*.py` pin the pre-refactor results of the public functions — treat
+  them as frozen; if one must change, that is a behaviour change and needs a reason.
+
 **Bot control flow (standard for all bots).** Every bot's session is an explicit state machine:
 - `bot/states.py`: `STATES`, a `TRANSITIONS` list (`transitions` library dicts), a session model
   class, `build_machine(stats, ...) -> session`, and bot-specific event-mapping helpers
@@ -183,5 +198,7 @@ reported, not fatal; a session that raises prints its traceback and returns to t
 - Crafting (PoE): on the state machine and scaffold, own launcher; shift is released on any exit.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.
+- Energy reading unreadable (`None`): `maybe_drink_stamina` does NOT drink, `restock_stamina_at_bank`
+  DOES (safe side at the bank) — explicit via `needs_stamina(..., if_unreadable=)`.
 - Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/actions.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
 - Woodcutter: WIP, don't touch.
