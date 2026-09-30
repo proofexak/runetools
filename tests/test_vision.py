@@ -128,3 +128,63 @@ def test_point_in_any_cluster():
     assert vision.point_in_any_cluster(frame, MAGENTA, 10, (150, 150), radius=40) is True
     assert vision.point_in_any_cluster(frame, MAGENTA, 10, (250, 250), radius=40) is False
     assert vision.point_in_any_cluster(canvas(300, 300), MAGENTA, 10, (150, 150), radius=40) is False
+
+
+# ── inventory slots ───────────────────────────────────────────────────────────
+
+BG = (10, 10, 10)
+
+
+def test_filled_slot_needs_min_pixels_deviating():
+    frame = canvas(100, 100, BG)
+    paint(frame, 20, 20, 2, 2, (200, 200, 200))         # 4 pixels
+    paint(frame, 60, 60, 1, 5, (200, 200, 200))         # 5 pixels
+    assert vision.filled_slot_count(frame, [(20, 20)], BG, 20) == 0
+    assert vision.filled_slot_count(frame, [(60, 60)], BG, 20) == 1
+
+
+def test_filled_slot_tolerance_is_strict():
+    frame = paint(canvas(100, 100, BG), 18, 18, 6, 6, (30, 10, 10))   # exactly tol away
+    assert vision.filled_slot_count(frame, [(20, 20)], BG, 20) == 0
+    frame = paint(canvas(100, 100, BG), 18, 18, 6, 6, (31, 10, 10))
+    assert vision.filled_slot_count(frame, [(20, 20)], BG, 20) == 1
+
+
+def test_filled_slot_at_frame_edge_is_clipped():
+    frame = paint(canvas(20, 20, BG), 0, 0, 4, 4, (200, 200, 200))
+    assert vision.filled_slot_count(frame, [(1, 1), (500, 500)], BG, 20) == 1
+
+
+# ── frame differences ─────────────────────────────────────────────────────────
+
+def test_frame_difference():
+    a, b = canvas(10, 10), canvas(10, 10)
+    assert vision.frame_difference(a, b) == 0.0
+    paint(b, 0, 0, 10, 5, (30, 60, 90))                 # half the frame: gray 60
+    assert vision.frame_difference(a, b) == 30.0
+
+
+def test_changed_slot_centre_on_half_stride_grid():
+    before = canvas(200, 150)
+    after = paint(canvas(200, 150), 72, 48, 36, 32, (140, 110, 60))
+    assert vision.changed_slot(before, after) == (90, 64)
+
+
+def test_changed_slot_below_min_score():
+    before = canvas(200, 150)
+    after = paint(canvas(200, 150), 72, 48, 1, 1, (1, 1, 1))      # score 3
+    assert vision.changed_slot(before, after) is None
+    assert vision.changed_slot(before, before) is None
+
+
+def test_menu_origin_top_left_of_change():
+    before = canvas(200, 200)
+    after = paint(canvas(200, 200), 20, 30, 40, 60, (93, 84, 71))
+    assert vision.menu_origin(before, after) == (20, 30)
+
+
+def test_menu_origin_needs_more_than_min_pixels():
+    before = canvas(200, 200)
+    assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 4, 5, (90, 90, 90))) is None   # 20
+    assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 3, 7, (90, 90, 90))) == (5, 5)  # 21
+    assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 10, 10, (6, 7, 7))) is None      # diff 20, not > 20

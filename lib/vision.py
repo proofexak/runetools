@@ -111,3 +111,61 @@ def point_in_any_cluster(frame, rgb, tol, point, radius):
         if cx.min() <= px <= cx.max() and cy.min() <= py <= cy.max():
             return True
     return False
+
+
+# ── Inventory ─────────────────────────────────────────────────────────────────
+
+def filled_slot_count(frame, slots, bg_rgb, tol, box=7, min_pixels=5):
+    """Number of inventory slots that hold an item: a slot is filled when at
+    least `min_pixels` pixels of the 2*box square around its centre differ from
+    the empty-slot colour by more than `tol` on any channel. Robust to small or
+    bright icons whose average colour is close to the background."""
+    br, bg, bb = bg_rgb
+    filled = 0
+    for x, y in slots:
+        patch = frame[max(0, y - box):y + box, max(0, x - box):x + box].astype(int)
+        if patch.size == 0:
+            continue
+        deviating = ((np.abs(patch[:, :, 2] - br) > tol) |
+                     (np.abs(patch[:, :, 1] - bg) > tol) |
+                     (np.abs(patch[:, :, 0] - bb) > tol))
+        if int(deviating.sum()) >= min_pixels:
+            filled += 1
+    return filled
+
+
+# ── Frame differences ─────────────────────────────────────────────────────────
+
+def frame_difference(a, b):
+    """Mean absolute difference of the two frames' grayscale (channel mean)."""
+    return float(np.abs(a.mean(axis=2) - b.mean(axis=2)).mean())
+
+
+def _summed_diff(before, after):
+    return np.abs(before.astype(int) - after.astype(int)).sum(axis=2)
+
+
+def changed_slot(before, after, slot_w=36, slot_h=32, min_score=1000):
+    """Centre of the slot-sized window that changed most between the frames
+    (scanned on a half-slot grid), or None if no window changed by min_score."""
+    diff = _summed_diff(before, after)
+    h, w = diff.shape
+    best_score, best = 0, None
+    for y in range(0, h - slot_h, slot_h // 2):
+        for x in range(0, w - slot_w, slot_w // 2):
+            score = int(diff[y:y + slot_h, x:x + slot_w].sum())
+            if score > best_score:
+                best_score, best = score, (x + slot_w // 2, y + slot_h // 2)
+    if best is None or best_score < min_score:
+        return None
+    return best
+
+
+def menu_origin(before, after, threshold=20, min_pixels=20):
+    """Top-left of the area that changed (e.g. a right-click menu opening):
+    pixels whose summed channel difference exceeds `threshold`. None unless
+    more than `min_pixels` changed."""
+    ys, xs = np.where(_summed_diff(before, after) > threshold)
+    if len(ys) <= min_pixels:
+        return None
+    return int(xs.min()), int(ys.min())
