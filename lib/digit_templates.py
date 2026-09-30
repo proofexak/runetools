@@ -92,25 +92,23 @@ def match_glyph(glyph_img, templates, max_diff_frac=0.15):
     return best_digit
 
 
+def parse_number(img, templates):
+    """RGB image of a number -> (raw_string, int_or_None); unmatched glyphs read
+    as "?" and make the value None."""
+    raw = ""
+    for g in segment_glyphs(preprocess(img)):
+        digit = match_glyph(g, templates)
+        raw += digit if digit is not None else "?"
+    value = int(raw) if raw and raw.isdigit() else None
+    return raw, value
+
+
 def read_number(region, templates=None, pad=6):
     """Grab `region` (left, top, w, h), return (raw_string, int_or_None)."""
-    import mss
+    from lib.screen import grab
     if templates is None:
         templates = load_templates()
 
     l, t, w, h = region
-    l -= pad;  t -= pad;  w += pad * 2;  h += pad * 2
-    with mss.mss() as sct:
-        shot = sct.grab({"left": l, "top": t, "width": w, "height": h})
-    img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
-
-    bw = preprocess(img)
-    glyphs = segment_glyphs(bw)
-
-    raw = ""
-    for g in glyphs:
-        digit = match_glyph(g, templates)
-        raw += digit if digit is not None else "?"
-
-    value = int(raw) if raw and raw.isdigit() else None
-    return raw, value
+    frame, _ = grab((l - pad, t - pad, w + pad * 2, h + pad * 2), absolute=True)
+    return parse_number(Image.fromarray(frame[:, :, ::-1].copy()), templates)

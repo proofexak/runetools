@@ -9,6 +9,7 @@ import lib.pause as pause
 import lib.log as log
 import choc.config as config
 from choc.choc import run_sequence, bootstrap_withdraw, restock_ge
+from choc.logic import restock_due
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -52,7 +53,7 @@ def run(stats, start_count):
             # Decide up front whether this batch's bank visit needs to
             # withdraw the next one's bars, or whether a restock is coming
             # right after (which does its own withdraw at the end).
-            need_restock = (remaining - config.GRIND_COUNT) < config.GRIND_COUNT
+            need_restock = restock_due(remaining, config.GRIND_COUNT)
 
             if not run_sequence(withdraw_next=not need_restock):
                 print("Sequence failed — stopping.")

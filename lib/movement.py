@@ -3,10 +3,22 @@ Movement detection — poll a screen region for pixel changes to detect when
 the character stops walking.
 """
 import time
-import numpy as np
-import mss
 
 import lib.pause as pause
+import lib.vision as vision
+from lib.screen import grab
+
+
+class Stillness:
+    """Counts consecutive calm frames: update(diff) returns True once `stable_count`
+    frames in a row have diff <= thresh; any frame above thresh resets the count."""
+
+    def __init__(self, thresh, stable_count):
+        self.thresh, self.stable_count, self.stable = thresh, stable_count, 0
+
+    def update(self, diff):
+        self.stable = 0 if diff > self.thresh else self.stable + 1
+        return self.stable >= self.stable_count
 
 
 def wait_until_stopped(region, thresh=3.0, stable_count=3, poll=0.15,
@@ -21,29 +33,21 @@ def wait_until_stopped(region, thresh=3.0, stable_count=3, poll=0.15,
     paused_fn   — no-arg callable that blocks while paused (default: the O/P pause gate)
     Returns True if stopped cleanly, False on timeout.
     """
-    def _grab():
-        with mss.mss() as sct:
-            shot = sct.grab({"left": region[0], "top": region[1],
-                             "width": region[2], "height": region[3]})
-        return np.array(shot)[:, :, :3].mean(axis=2).astype(float)
-
     time.sleep(0.8)
     deadline = time.time() + timeout
-    stable, prev = 0, _grab()
+    still = Stillness(thresh, stable_count)
+    prev, _ = grab(region, absolute=True)
     while time.time() < deadline:
         if paused_fn:
             paused_fn()
         time.sleep(poll)
-        curr = _grab()
-        diff = np.abs(curr - prev).mean()
+        curr, _ = grab(region, absolute=True)
+        diff = vision.frame_difference(curr, prev)
+        if still.update(diff):
+            print("  Stopped.              ")
+            return True
         if diff > thresh:
-            stable = 0
             print(f"  [walking] diff={diff:.1f}", end="\r")
-        else:
-            stable += 1
-            if stable >= stable_count:
-                print("  Stopped.              ")
-                return True
         prev = curr
     print("  Walk timeout.")
     return False

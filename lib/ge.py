@@ -4,7 +4,6 @@ Universal lib module; bots pass their own hide_type and on_complete callback.
 """
 import time, random, sys, os
 import pyautogui
-import numpy as np
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -12,7 +11,8 @@ if _ROOT not in sys.path:
 
 from lib.mouse    import smart_right_click, human_right_click, human_click, menu_click, \
                          jitter, human_typewrite, drag_and_drop
-from lib.screen   import find_color, pixel_matches
+from lib.screen   import find_color, pixel_matches, grab
+import lib.vision    as vision
 from lib.movement import wait_until_stopped
 import lib.pause     as pause
 import lib.ge_config as cfg
@@ -87,37 +87,17 @@ def _wait_offer():
 
 def _deposit_and_relocate():
     """Deposit all, find where hides landed via snapshot diff, drag to SECOND_BANK_TAB_SLOT."""
-    import mss
-
-    l, t, w, h = cfg.GE_BANK_AREA
-
-    def _screenshot():
-        with mss.mss() as sct:
-            mon = sct.monitors[1]
-            shot = sct.grab({"left": mon["left"]+l, "top": mon["top"]+t,
-                             "width": w, "height": h})
-        return np.array(shot)[:, :, :3]
-
-    before = _screenshot()
+    l, t, _, _ = cfg.GE_BANK_AREA
+    before, _ = grab(cfg.GE_BANK_AREA)
     human_click(*jitter(*cfg.DEPOSIT_BTN))
     time.sleep(random.uniform(0.7, 1.1))
-    after = _screenshot()
+    after, _ = grab(cfg.GE_BANK_AREA)
 
-    diff = np.abs(before.astype(int) - after.astype(int)).sum(axis=2)
-
-    SLOT_W, SLOT_H = 36, 32
-    best_score, best_cx, best_cy = 0, None, None
-    for y in range(0, h - SLOT_H, SLOT_H // 2):
-        for x in range(0, w - SLOT_W, SLOT_W // 2):
-            score = int(diff[y:y+SLOT_H, x:x+SLOT_W].sum())
-            if score > best_score:
-                best_score = score
-                best_cx = l + x + SLOT_W // 2
-                best_cy = t + y + SLOT_H // 2
-
-    if best_cx is None or best_score < 1000:
+    slot = vision.changed_slot(before, after)
+    if slot is None:
         print("  [GE] Could not detect changed bank slot.")
         return False
+    best_cx, best_cy = l + slot[0], t + slot[1]
 
     print(f"  [GE] Hides at ({best_cx}, {best_cy}) — dragging to slot...")
     tx, ty = cfg.SECOND_TAB

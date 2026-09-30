@@ -2,11 +2,10 @@
 Golden Nuggets miner actions.
 """
 import time, random, sys, os
-import numpy as np
-import mss
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from lib.screen import find_nearest_color, find_color, pixel_matches
+from lib.screen import find_nearest_color, find_color, pixel_matches, grab
+import lib.vision as vision
 from lib.movement import wait_until_stopped
 from lib.inventory import get_slots
 from lib.mouse import human_click, jitter, hesitate
@@ -28,52 +27,18 @@ def orient_south():
     face("south", config)
 
 
-def _inv_patches():
-    """Grab inventory screenshot and return (frame, l, t, slots)."""
+def count_filled_slots():
+    """Filled inventory slots (slot 0, the hammer, is skipped) — one capture of
+    the inventory area, decided by vision.filled_slot_count."""
     slots = get_slots(config.INV_ANCHORS)
     xs = [x for x, _ in slots]
     ys = [y for _, y in slots]
     pad = 10
     l, t = min(xs) - pad, min(ys) - pad
-    rw, rh = max(xs) - l + pad, max(ys) - t + pad
-    with mss.mss() as sct:
-        mon  = sct.monitors[1]
-        shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
-                         "width": rw, "height": rh})
-    return np.array(shot)[:, :, :3], l, t, slots
-
-
-_MIN_DEVIATING_PIXELS = 5  # pixels that must clearly differ from bg to count a slot filled
-
-
-def _patch_deviating_count(patch, br, bg_, bb, tol):
-    dr = np.abs(patch[:, :, 2].astype(int) - br)
-    dg = np.abs(patch[:, :, 1].astype(int) - bg_)
-    db = np.abs(patch[:, :, 0].astype(int) - bb)
-    return int(((dr > tol) | (dg > tol) | (db > tol)).sum())
-
-
-
-def count_filled_slots():
-    """
-    Grab the inventory region once. For each slot, count pixels in a 14×14 patch
-    whose color clearly deviates from the calibrated empty-slot color. A slot is
-    filled if enough pixels deviate — robust to items whose average color is
-    close to background (e.g. small/bright icons surrounded by bg padding).
-    """
-    frame, l, t, slots = _inv_patches()
-    _, _, (br, bg_, bb) = config.SLOT_BG_COLOR
-    tol = config.SLOT_BG_TOL
-    box = 7
-    count = 0
-    for sx, sy in slots[1:]:  # slot 0 is the hammer — always skip
-        lx, ly = sx - l, sy - t
-        patch = frame[max(0, ly - box):ly + box, max(0, lx - box):lx + box]
-        if patch.size == 0:
-            continue
-        if _patch_deviating_count(patch, br, bg_, bb, tol) >= _MIN_DEVIATING_PIXELS:
-            count += 1
-    return count
+    frame, _ = grab((l, t, max(xs) - l + pad, max(ys) - t + pad))
+    _, _, bg_rgb = config.SLOT_BG_COLOR
+    local = [(x - l, y - t) for x, y in slots[1:]]
+    return vision.filled_slot_count(frame, local, bg_rgb, config.SLOT_BG_TOL)
 
 
 def wait_stopped():
@@ -104,37 +69,8 @@ def deposit_to_hopper():
 
 def count_broken_struts(region):
     """Count distinct broken-strut clusters in region."""
-    l, t, w, h = region
-    mr, mg, mb = config.STRUT_COLOR
-    tol = config.STRUT_TOL
-
-    with mss.mss() as sct:
-        mon  = sct.monitors[1]
-        shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
-                         "width": w, "height": h})
-    frame = np.array(shot)[:, :, :3]
-    mask = (
-        (frame[:, :, 2] >= mr - tol) & (frame[:, :, 2] <= mr + tol) &
-        (frame[:, :, 1] >= mg - tol) & (frame[:, :, 1] <= mg + tol) &
-        (frame[:, :, 0] >= mb - tol) & (frame[:, :, 0] <= mb + tol)
-    )
-    if not mask.any():
-        return 0
-
-    ys_i, xs_i = np.where(mask)
-    abs_xs = xs_i.astype(float)
-    abs_ys = ys_i.astype(float)
-    remaining = np.ones(len(abs_xs), dtype=bool)
-    count = 0
-    while remaining.any():
-        idx = int(np.argmax(remaining))
-        sx_, sy_ = abs_xs[idx], abs_ys[idx]
-        in_c = remaining & (
-            (abs_xs - sx_) ** 2 + (abs_ys - sy_) ** 2 <= 60 ** 2
-        )
-        remaining &= ~in_c
-        count += 1
-    return count
+    frame, _ = grab(region)
+    return vision.count_clusters(frame, config.STRUT_COLOR, config.STRUT_TOL, radius=60)
 
 
 def check_and_fix_struts():
@@ -317,44 +253,14 @@ def click_nearest_vein():
 
 def character_in_any_vein():
     """
-    Return True if CHARACTER falls inside the bounding box of any magenta cluster
+    Return True if CHARACTER falls inside the bounding box of any vein cluster
     in PAY_DIRT_REGION. False means the character is no longer at any vein.
     """
-    l, t, w, h = config.PAY_DIRT_REGION
-    mr, mg, mb = config.MAGENTA
-    tol = config.MAGENTA_TOL
-
-    with mss.mss() as sct:
-        mon  = sct.monitors[1]
-        shot = sct.grab({"left": mon["left"] + l, "top": mon["top"] + t,
-                         "width": w, "height": h})
-    frame = np.array(shot)[:, :, :3]
-    mask = (
-        (frame[:, :, 2] >= mr - tol) & (frame[:, :, 2] <= mr + tol) &
-        (frame[:, :, 1] >= mg - tol) & (frame[:, :, 1] <= mg + tol) &
-        (frame[:, :, 0] >= mb - tol) & (frame[:, :, 0] <= mb + tol)
-    )
-    if not mask.any():
-        return False
-
-    ys_i, xs_i = np.where(mask)
-    abs_xs = (xs_i + l).astype(float)
-    abs_ys = (ys_i + t).astype(float)
-    cx, cy  = config.CHARACTER
-
-    remaining = np.ones(len(abs_xs), dtype=bool)
-    while remaining.any():
-        idx     = int(np.argmax(remaining))
-        sx, sy  = abs_xs[idx], abs_ys[idx]
-        in_clus = remaining & (
-            (abs_xs - sx) ** 2 + (abs_ys - sy) ** 2 <= 40 ** 2
-        )
-        remaining &= ~in_clus
-        x0, x1 = abs_xs[in_clus].min(), abs_xs[in_clus].max()
-        y0, y1 = abs_ys[in_clus].min(), abs_ys[in_clus].max()
-        if x0 <= cx <= x1 and y0 <= cy <= y1:
-            return True
-    return False
+    l, t, _, _ = config.PAY_DIRT_REGION
+    frame, _ = grab(config.PAY_DIRT_REGION)
+    cx, cy = config.CHARACTER
+    return vision.point_in_any_cluster(frame, config.MAGENTA, config.MAGENTA_TOL,
+                                       (cx - l, cy - t), radius=40)
 
 
 def wait_for_vein_depletion(clicked_pos, stats, idle_timeout=10):

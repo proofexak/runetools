@@ -30,6 +30,16 @@ def read_energy():
     return value
 
 
+def needs_stamina(energy, threshold, force=False, if_unreadable=False):
+    """Should we drink? force always does; an unreadable reading (None) answers
+    `if_unreadable`; otherwise drink below threshold."""
+    if force:
+        return True
+    if energy is None:
+        return if_unreadable
+    return energy < threshold
+
+
 def drink_stamina():
     """Drink the whole bottle (all 4 doses) from the stamina potion slot.
     The potion stays in the same slot as doses are consumed, so this is 4
@@ -45,8 +55,7 @@ def maybe_drink_stamina(threshold=None):
     cfg.DRINK_THRESHOLD). Returns True if a potion was drunk."""
     if threshold is None:
         threshold = cfg.DRINK_THRESHOLD
-    energy = read_energy()
-    if energy is not None and energy < threshold:
+    if needs_stamina(read_energy(), threshold):
         drink_stamina()
         return True
     return False
@@ -66,8 +75,9 @@ def restock_stamina_at_bank(force=False):
     fine (or force=False and above threshold) or the booth couldn't be
     found again afterwards.
     """
-    energy = read_energy()
-    if not force and energy is not None and energy >= cfg.DRINK_THRESHOLD:
+    # Unlike maybe_drink_stamina, an unreadable energy value drinks here —
+    # we're already at the bank, so topping up is the safe side.
+    if not needs_stamina(read_energy(), cfg.DRINK_THRESHOLD, force=force, if_unreadable=True):
         return False
 
     human_click(*jitter(*cfg.POTION_TAB))

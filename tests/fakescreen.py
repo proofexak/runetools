@@ -38,6 +38,7 @@ class FakeScreen:
     def __init__(self, w=400, h=400):
         self.w, self.h = w, h
         self.grabs = 0
+        self.monitor = (0, 0)   # monitor 1's top-left on the virtual screen
         self._frames = [canvas(w, h)]
 
     def show(self, c):
@@ -54,7 +55,8 @@ class FakeScreen:
         screen = self
 
         class _MSS:
-            monitors = [{}, {"left": 0, "top": 0, "width": screen.w, "height": screen.h}]
+            monitors = [{}, {"left": screen.monitor[0], "top": screen.monitor[1],
+                             "width": screen.w, "height": screen.h}]
 
             def __enter__(self):
                 return self

@@ -78,7 +78,8 @@ def smart_right_click(x, y, menu_scan_region=None):
     Falls back to click coords if detection fails.
     Returns (ax, ay, menu_x, menu_top_y).
     """
-    import mss, numpy as np
+    from lib.screen import grab
+    import lib.vision as vision
 
     ax = x + random.randint(-3, 3)
     ay = y + random.randint(-3, 3)
@@ -91,14 +92,7 @@ def smart_right_click(x, y, menu_scan_region=None):
     else:
         sl, st, sw, sh = menu_scan_region
 
-    def _grab():
-        with mss.mss() as sct:
-            mon = sct.monitors[1]
-            shot = sct.grab({"left": mon["left"]+sl, "top": mon["top"]+st,
-                             "width": sw, "height": sh})
-        return np.array(shot)[:, :, :3]
-
-    before = _grab()
+    before, _ = grab((sl, st, sw, sh))
 
     time.sleep(random.uniform(0.1, 0.18))
     _move(ax, ay)
@@ -106,14 +100,11 @@ def smart_right_click(x, y, menu_scan_region=None):
     pyautogui.rightClick()
     time.sleep(0.18)
 
-    after = _grab()
+    after, _ = grab((sl, st, sw, sh))
 
-    diff = np.abs(before.astype(int) - after.astype(int)).sum(axis=2)
-    ys, xs = np.where(diff > 20)
-
-    if len(ys) > 20:
-        menu_top  = st + int(ys.min())
-        menu_left = sl + int(xs.min())
+    origin = vision.menu_origin(before, after)
+    if origin is not None:
+        menu_left, menu_top = sl + origin[0], st + origin[1]
     else:
         print("  smart_right_click: menu not detected, using click coords as fallback")
         menu_top, menu_left = ay, ax
