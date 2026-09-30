@@ -35,6 +35,8 @@ def _handlers(session):
 def run(stats):
     run_session(
         stats,
+        bot          = "crafting",
+        params       = {"items": sum(1 for item in config.ITEMS if not item.get("skip"))},
         log_prefix   = os.path.join(os.path.dirname(__file__), "log", "crafting"),
         intro        = [],
         setup        = lambda: None,

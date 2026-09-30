@@ -50,6 +50,7 @@ def _handlers(session):
 def run(stats):
     run_session(
         stats,
+        bot          = "varrock_exp",
         log_prefix   = os.path.join(os.path.dirname(__file__), "log", "varrock_exp"),
         intro        = ["=== Varrock Exp session ==="],
         setup        = orient_south,

@@ -79,6 +79,7 @@ def run(stats):
 
     run_session(
         stats,
+        bot          = "golden_nuggets",
         log_prefix   = os.path.join(os.path.dirname(__file__), "log", "golden_nuggets"),
         intro        = ["=== Golden Nuggets session ==="],
         setup        = setup,

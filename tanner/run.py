@@ -57,6 +57,9 @@ def _summary(session, final, last_step):
 def run(stats, start_from_ge=False):
     run_session(
         stats,
+        bot          = "tanner",
+        params       = {"hide_type": config.HIDE_TYPE, "start_from_ge": start_from_ge,
+                        "restock_ge": config.RESTOCK_GE},
         log_prefix   = os.path.join(os.path.dirname(__file__), "log", "tanner"),
         intro        = [f"\nHide type: {config.HIDE_TYPE}"],
         setup        = orient_west,
