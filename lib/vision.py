@@ -1,0 +1,61 @@
+"""
+Pure screen-decision logic — no capture, no input, no config.
+
+Every function takes plain data: frames are uint8 (h, w, 3) arrays in BGR
+order (what np.array(mss_shot)[:, :, :3] gives), colours are (r, g, b), and
+coordinates are frame-local — callers add the capture offset. Randomised
+results take `rng` (anything with .triangular) so tests are deterministic.
+Screen capture lives in lib/screen.py.
+"""
+import random
+
+import numpy as np
+from PIL import Image, ImageDraw
+
+
+# ── Colour ────────────────────────────────────────────────────────────────────
+
+def color_mask(frame, rgb, tol):
+    """Boolean (h, w) mask of pixels within ±tol of rgb on every channel."""
+    r, g, b = rgb
+    return (
+        (frame[:, :, 2] >= r - tol) & (frame[:, :, 2] <= r + tol) &
+        (frame[:, :, 1] >= g - tol) & (frame[:, :, 1] <= g + tol) &
+        (frame[:, :, 0] >= b - tol) & (frame[:, :, 0] <= b + tol)
+    )
+
+
+def color_close(rgb, expected, tol):
+    """True if every channel of rgb is within ±tol of expected."""
+    return all(abs(a - e) <= tol for a, e in zip(rgb, expected))
+
+
+def polygon_mask(h, w, vertices):
+    """Boolean (h, w) mask of the filled polygon (frame-local vertices)."""
+    img = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(img).polygon(vertices, fill=1)
+    return np.array(img, dtype=bool)
+
+
+# ── Where to click ────────────────────────────────────────────────────────────
+
+def click_point(xs, ys, jitter_pct, rng=random):
+    """Centroid of the points, spread by a triangular jitter of ±jitter_pct of
+    their bounding box — clicks land near the middle of a highlight."""
+    mx, my = float(np.mean(xs)), float(np.mean(ys))
+    sx = (float(xs.max()) - float(xs.min())) * jitter_pct
+    sy = (float(ys.max()) - float(ys.min())) * jitter_pct
+    return rng.triangular(mx - sx, mx + sx, mx), rng.triangular(my - sy, my + sy, my)
+
+
+def locate(frame, rgb, tol, polygon=None, jitter_pct=0.25, rng=random):
+    """(click point, matched pixel count) for rgb in the frame, optionally
+    only inside `polygon`; (None, 0) if nothing matches."""
+    mask = color_mask(frame, rgb, tol)
+    if polygon is not None:
+        mask &= polygon_mask(frame.shape[0], frame.shape[1], polygon)
+    count = int(mask.sum())
+    if count == 0:
+        return None, 0
+    ys, xs = np.where(mask)
+    return click_point(xs, ys, jitter_pct, rng), count
