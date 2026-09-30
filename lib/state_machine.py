@@ -7,8 +7,11 @@ an event name ("ok", "fail", ...); the transition table decides where that
 event leads. This loop owns the parts every bot repeats: the O-pause gate
 before each step, the overlay's step label, and the soft-stop check.
 """
+import time
+
 from transitions import MachineError
 
+import lib.events as events
 import lib.pause as pause
 
 
@@ -21,23 +24,42 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
     always finishes — the bot's table must declare a "stop" trigger from each.
     ForceStop (P) is not caught.
     stats["step"] is left naming the last state whose handler ran.
+    Emits step / pause / soft_stop events to the session's event log, if any.
     An event whose every row is blocked by its conditions raises MachineError
     (transitions itself would silently stay put and re-run the same handler).
     """
     if isinstance(cycle_start, str):
         cycle_start = {cycle_start}
     cycle_start = cycle_start or set()
+    log = events.current()
     while model.state not in final_states:
-        pause.wait()   # before the stop check, so Stop clicked while paused is honoured
+        gate_pause(model.state)   # before the stop check, so Stop clicked while paused is honoured
         if model.state in cycle_start and stats.get("stop"):
+            if log:
+                log.emit("soft_stop", state=model.state)
             model.trigger("stop")
             continue
-        stats["step"] = model.state
-        event = handlers[model.state]()
+        stats["step"] = state = model.state
+        started = time.time()
+        event = handlers[state]()
+        if log:
+            log.emit("step", state=state, result=event, seconds=round(time.time() - started, 3),
+                     run=stats.get("run"))
         if not model.trigger(event):
             raise MachineError(f"no transition for {event!r} from {model.state!r} "
                                f"(all conditions failed)")
     return model.state
+
+
+def gate_pause(state):
+    """pause.wait(), recording how long it blocked in the session's event log."""
+    started = time.time()
+    if pause.wait():
+        log = events.current()
+        if log:
+            seconds = time.time() - started
+            log.paused_seconds += seconds
+            log.emit("pause", state=state, seconds=round(seconds, 3))
 
 
 def ok_or_fail(result):

@@ -17,12 +17,13 @@ def say(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}")
 
 
-def setup(prefix):
+def setup(prefix, stamp=None):
     """
-    Tee stdout and stderr to a timestamped log file named <prefix>_YYYYMMDD_HHMMSS.log.
-    Returns the open file handle.
+    Tee stdout and stderr to a timestamped log file named <prefix>_<stamp>.log
+    (stamp defaults to now, YYYYMMDD_HHMMSS). Returns the open file handle.
     """
-    f = open(f"{prefix}_{time.strftime('%Y%m%d_%H%M%S')}.log", "w", buffering=1, encoding="utf-8")
+    stamp = stamp or time.strftime("%Y%m%d_%H%M%S")
+    f = open(f"{prefix}_{stamp}.log", "w", buffering=1, encoding="utf-8")
     sys.stdout = _Tee(sys.__stdout__, f)
     sys.stderr = _Tee(sys.__stderr__, f)
     return f

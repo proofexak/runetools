@@ -19,10 +19,11 @@ def _model():
 
 
 @pytest.fixture
-def calls(monkeypatch):
+def calls(monkeypatch, tmp_path):
     log = []
     pause.reset()
-    monkeypatch.setattr(session.log, "setup", lambda prefix: log.append("log"))
+    monkeypatch.chdir(tmp_path)          # the session's .jsonl lands next to log_prefix
+    monkeypatch.setattr(session.log, "setup", lambda prefix, stamp=None: log.append("log"))
     monkeypatch.setattr(session.time, "sleep", lambda s: log.append(f"sleep{s}"))
     real_reset = pause.reset
     monkeypatch.setattr(pause, "reset", lambda: (log.append("reset"), real_reset()))
@@ -32,7 +33,7 @@ def calls(monkeypatch):
 
 def _run(stats, calls, handler=None, setup=None):
     return run_session(
-        stats, log_prefix="x", intro=["hello"],
+        stats, bot="test", log_prefix="x", intro=["hello"],
         setup=setup or (lambda: calls.append("setup")),
         session=lambda: (calls.append("session"), _model())[1],
         handlers=lambda m: {"work": handler or (lambda: calls.append("work") or "ok")},
@@ -88,14 +89,14 @@ def test_intro_and_hint_printed(calls, capsys):
 
 
 def test_game_name_in_hint(calls, capsys):
-    run_session({}, log_prefix="x", intro=[], setup=lambda: None, session=_model,
+    run_session({}, bot="test", log_prefix="x", intro=[], setup=lambda: None, session=_model,
                 handlers=lambda m: {"work": lambda: "ok"}, final_states={"end"},
                 cycle_start="work", summary=lambda m, f, l: "", game="the game")
     assert "switch to the game." in capsys.readouterr().out
 
 
 def _with_teardown(handler, torn):
-    return run_session({}, log_prefix="x", intro=[], setup=lambda: None, session=_model,
+    return run_session({}, bot="test", log_prefix="x", intro=[], setup=lambda: None, session=_model,
                        handlers=lambda m: {"work": handler}, final_states={"end"},
                        cycle_start="work", summary=lambda m, f, l: "",
                        teardown=lambda: torn.append(1))

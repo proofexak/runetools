@@ -29,6 +29,7 @@ def _warn(err):
 class EventLog:
     def __init__(self, path, bot, session):
         self.path, self.bot, self.session = path, bot, session
+        self.paused_seconds = 0.0   # accumulated by the runner's pause gate
         try:
             self._f = open(path, "a", encoding="utf-8")
         except OSError as e:
