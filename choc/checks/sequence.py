@@ -10,7 +10,7 @@ Chocolate Inv Slot), then run this standing near a bank booth — already
 switched to the chocolate tab — with a knife already in your inventory's
 last slot:
 
-    .venv/bin/python test_choc_sequence.py
+    .venv/bin/python -m choc.checks.sequence
 """
 import time
 

@@ -1,11 +1,12 @@
 """
 Standalone strut fix test — switch to OSRS before running.
+
+    .venv/bin/python -m miner.golden_nuggets.checks.struts
 """
-import time, sys, os
+import time
 import numpy as np
 import mss
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from miner.golden_nuggets.actions import orient_east, click_struts
 from lib.log import say as _log
 import miner.golden_nuggets.config as config
@@ -42,17 +43,22 @@ def scan_region(name, region):
         print(f"  {label}: RGB({r},{g},{b})")
 
 
-_log("Starting strut diagnostic in 3s...")
-time.sleep(3)
+def main():
+    _log("Starting strut diagnostic in 3s...")
+    time.sleep(3)
 
-orient_east()
-time.sleep(0.5)
+    orient_east()
+    time.sleep(0.5)
 
-_log("--- Scanning regions ---")
-scan_region("STRUT_REGION", config.STRUT_REGION)
-scan_region("STRUT_NEAR_REGION", config.STRUT_NEAR_REGION)
+    _log("--- Scanning regions ---")
+    scan_region("STRUT_REGION", config.STRUT_REGION)
+    scan_region("STRUT_NEAR_REGION", config.STRUT_NEAR_REGION)
 
-_log("--- Running click_struts ---")
-click_struts()
+    _log("--- Running click_struts ---")
+    click_struts()
 
-_log("Done.")
+    _log("Done.")
+
+
+if __name__ == "__main__":
+    main()

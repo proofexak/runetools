@@ -65,9 +65,11 @@ docker/                 Ubuntu + Xvfb/VNC sandbox for running the suite headless
 choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine
                          (roadmap step 3)
 
-tests/                  pytest suite for runner + bot transition tables (stub handlers, no game
-                         needed): `.venv/bin/python -m pytest`. Root-level test_*.py are live
-                         in-game scripts, not part of the suite (pytest.ini: testpaths = tests).
+tests/                  pytest suite (stub handlers, fake screen — no game needed):
+                         `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
+<bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
+                         tanner (inventory_check, slot_check), golden_nuggets (struts),
+                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
                          bot.py is never picked up by discovery)
@@ -139,6 +141,12 @@ Escape → F4 → right-click amulet → teleport Al Kharid → orient west → 
   `lib.log.say`, `lib.movement.wait_until_stopped` (pausable by default), `lib.session.format_elapsed`.
 - Long waits inside actions call `pause.wait()` each iteration; it returns True if it blocked,
   so an idle/timeout clock can be reset after a pause (see golden_nuggets `wait_for_vein_depletion`).
+- Optional `checks/` package (PRO-10): **live checks** — small scripts you run by hand against the
+  real game to verify one piece (a pixel check, a click sequence) before trusting a full session.
+  One module per check, run from the repo root with `.venv/bin/python -m <bot>.checks.<name>`
+  (shared lib pieces: `lib.checks.<name>`). Rules, enforced by tests/test_live_checks.py: never
+  name them `test_*` (pytest must never import code that clicks) and put all work in `main()`
+  behind `if __name__ == "__main__":` — importing a check must do nothing.
 
 Adding a bot: create the package with the files above, calibrate, done — it appears in the
 menu automatically (`discover()` runs at startup; a bot.py that fails to import is skipped and

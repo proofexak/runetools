@@ -9,7 +9,7 @@ Calibrate first (overlay's "Energy Config" menu):
 
 Have your inventory open with a stamina potion actually in that slot, then:
 
-    .venv/bin/python test_drink_stamina.py
+    .venv/bin/python -m lib.checks.drink_stamina
 
 Reads energy, prints it, drinks one dose, then re-reads energy a few times
 to confirm it went up.

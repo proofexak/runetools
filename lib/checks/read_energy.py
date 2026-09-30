@@ -9,7 +9,7 @@ Calibrate first:
 
 Then run this with RuneLite visible:
 
-    .venv/bin/python test_energy.py
+    .venv/bin/python -m lib.checks.read_energy
 
 Prints the parsed percentage every second until Ctrl+C.
 """

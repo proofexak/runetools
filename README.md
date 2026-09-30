@@ -29,8 +29,8 @@ The tanner bot can automatically withdraw and drink a stamina potion when run en
 4. In `Tanning → ⚙ Configure`, also capture **Hide Tab** (the bank tab holding raw hides) and **Empty Slot Check** (a pixel+colour sampled directly on Bank Slot 2 *while it's actually empty*, used to detect when you're out of hides).
 5. Sanity-check each piece standalone before trusting it in a real run:
    ```
-   .venv/bin/python test_energy.py                 # just reads energy, Ctrl+C to stop
-   .venv/bin/python test_drink_sequence.py --force  # runs the full withdraw+drink+redeposit sequence once
+   .venv/bin/python -m lib.checks.read_energy               # just reads energy, Ctrl+C to stop
+   .venv/bin/python -m lib.checks.drink_sequence --force    # runs the full withdraw+drink+redeposit sequence once
    ```
 
 Digit templates and the energy/stamina config are gitignored (per-user calibration data, tied to your specific screen/RuneLite rendering) — recalibrate on any new machine.

@@ -4,7 +4,7 @@ Standalone test driver for lib/energy.py's restock_stamina_at_bank().
 Run this while standing at the bank with it already open (the caller in the
 real bot will handle detecting/opening it — this assumes it's already open).
 
-    .venv/bin/python test_drink_sequence.py
+    .venv/bin/python -m lib.checks.drink_sequence
 
 Pass --force to run the sequence regardless of current energy (useful for
 testing the mechanics without needing to actually be low on energy).
