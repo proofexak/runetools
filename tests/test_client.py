@@ -6,6 +6,8 @@ import lib.pause as pause
 import lib.client as client
 from tests.fakescreen import canvas
 
+REAL_PAUSE_WAIT = pause.wait      # captured before the autouse fixture stubs it out
+
 
 @pytest.fixture(autouse=True)
 def no_pause(monkeypatch):
@@ -135,3 +137,14 @@ def test_credentials_saved(tmp_path):
     (tmp_path / ".runelite").mkdir()
     (tmp_path / ".runelite" / "credentials.properties").write_text("JX_SESSION_ID=x\n")
     assert client.credentials_saved(str(tmp_path)) is True
+
+
+def test_default_wait_honours_a_force_stop(monkeypatch):
+    monkeypatch.setattr(pause, "wait", REAL_PAUSE_WAIT)
+    monkeypatch.setattr(client.time, "sleep", lambda s: None)
+    pause.force_stop()
+    try:
+        with pytest.raises(pause.ForceStop):
+            client.gated_sleep(5)
+    finally:
+        pause.reset()

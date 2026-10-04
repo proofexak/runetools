@@ -77,6 +77,19 @@ def grab_screen():
     return grab((0, 0, mon["width"], mon["height"]))
 
 
+def gated_sleep(seconds, step=0.25):
+    """Sleep in small steps through the pause gate, so a force stop (P,
+    botctl kill, docker stop) interrupts a long wait for a screen."""
+    import lib.pause as pause
+    end = time.time() + seconds
+    while True:
+        pause.wait()
+        left = end - time.time()
+        if left <= 0:
+            return
+        time.sleep(min(step, left))
+
+
 def _human_click(x, y):
     from lib.mouse import human_click
     human_click(x, y)
@@ -84,7 +97,7 @@ def _human_click(x, y):
 
 class Env:
     def __init__(self, templates=None, grab=grab_screen, click=_human_click, clock=time.time,
-                 wait=time.sleep, running=running, start=start):
+                 wait=gated_sleep, running=running, start=start):
         self.templates = load_templates() if templates is None else templates
         self.grab, self.click, self.clock, self.wait = grab, click, clock, wait
         self.running, self.start = running, start

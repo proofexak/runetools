@@ -63,6 +63,12 @@ def suppress_hotkeys(seconds):
     _suppress_until = max(_suppress_until, time.time() + seconds)
 
 
+def set_paused(value):
+    """Pause (True) or resume (False); a no-op if already in that state."""
+    if bool(value) != _paused:
+        toggle()
+
+
 def hint():
     """Operator-facing key help for the configured hotkeys."""
     stops = [k.upper() for k in (_stop_hotkey,) if k] + ([_stop_key.title()] if _stop_key else [])

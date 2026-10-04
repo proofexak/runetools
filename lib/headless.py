@@ -7,8 +7,8 @@ Unattended mode: keep RuneLite logged in, run one bot, restart it per policy.
 The container's main command when BOT is set (docker/docker-compose.yml).
 Control it from the host with docker/botctl (signals):
 
-    SIGUSR1  pause / resume      SIGUSR2  soft stop → idle    SIGINT  kill → idle
-    SIGHUP   start (leave idle)  SIGTERM  force stop and exit
+    SIGUSR1  pause               SIGUSR2  soft stop → idle    SIGINT  kill → idle
+    SIGHUP   resume / start      SIGTERM  force stop and exit
 
 Idle never exits — the container and its VNC stay up for a human to look.
 Supervisor events go to log/launcher.jsonl (`python -m lib.logreport supervisor`).
@@ -46,6 +46,10 @@ class RealClient:
         import lib.client as client
         return client.credentials_saved()
 
+    def missing_templates(self):
+        import lib.client as client
+        return client.missing_templates(client.load_templates())
+
     def ensure_logged_in(self):
         import lib.client as client
         return client.ensure_logged_in()
@@ -73,7 +77,7 @@ class Supervisor:
 
     # ── signals (handlers only set flags) ──────────────────────────────────────
     def on_pause(self):
-        pause.toggle()
+        pause.set_paused(True)
 
     def on_soft_stop(self):
         self.operator, self.active = True, False
@@ -86,7 +90,11 @@ class Supervisor:
         self._wake.set()
 
     def on_start(self):
-        pause.reset()             # clear a previous kill's force-stop flag
+        """Resume a paused bot; if idle, also start it again (fresh budget)."""
+        if self.active:
+            pause.set_paused(False)
+            return
+        pause.reset()             # clears pause and a previous kill's force-stop flag
         self.active = True
         self.backoff.reset()
         self.budget.reset()
@@ -126,8 +134,16 @@ class Supervisor:
             final, reason, crashed = self.stats.get("step"), self.stats.get("reason"), False
         except Exception as e:
             final, reason, crashed = "crashed", f"{type(e).__name__}: {e}", True
+        # P over VNC force-stops too: still set after the session -> operator stop
+        operator = self.operator or (pause._force_stop and not crashed)
         return Outcome(final=final, reason=reason, crashed=crashed,
-                       operator=self.operator, seconds=self.clock() - began)
+                       operator=operator, seconds=self.clock() - began)
+
+    def _logged_in(self):
+        try:
+            return self.client.logged_in()
+        except Exception:         # can't tell (X/grab error): assume logged out, re-login
+            return False
 
     def run_forever(self):
         self._event("supervisor_start")
@@ -140,12 +156,18 @@ class Supervisor:
                 self._sleep(policy.CREDENTIALS_RECHECK)
                 continue
 
+            missing = getattr(self.client, "missing_templates", lambda: [])()
+            if missing:                      # config problem: don't touch the client
+                self._idle("giving_up", f"missing client templates: {', '.join(missing)}")
+                continue
             try:
                 ok, reason = self.client.ensure_logged_in()
-            except pause.ForceStop:          # P (or botctl kill) while logging in
+            except pause.ForceStop:          # P (or botctl kill / docker stop) while logging in
                 if not self.exiting:
                     self._idle("operator", "force-stopped during login")
                 continue
+            except Exception as e:           # X/grab/PIL error: a failed login, not a crash
+                ok, reason = False, f"{type(e).__name__}: {e}"
             self._event("login", ok=ok, reason=reason)
             if not ok:
                 self.login_failures += 1
@@ -156,12 +178,17 @@ class Supervisor:
                     self._pause_before_retry(self.backoff.next(), after="login failure")
                 continue
             self.login_failures = 0
+            if self.exiting:
+                break
+            if not self.active:              # botctl stop / kill arrived during login
+                self._idle("operator", "stopped during login")
+                continue
 
             outcome = self._run_session()
             if self.exiting:
                 break
             self.backoff.session_ran(outcome.seconds)
-            action = decide(outcome, self.client.logged_in())
+            action = decide(outcome, self._logged_in())
             self._event("session_end", final=outcome.final, reason=outcome.reason,
                         seconds=round(outcome.seconds, 1), action=action)
             if action == "restart":

@@ -14,7 +14,7 @@ FIELDS = [
     ("Login", "Terms 'Accept' (first run)",  "terms_accept", "region"),
     ("Login", "'Play Now' button",           "login_play",   "region"),
     ("Login", "'Click here to play'",        "welcome_play", "region"),
-    ("Game",  "In-game marker (e.g. compass)", "in_game",    "region"),
+    ("Game",  "In-game marker (fixed: minimap frame / tab icon, NOT the compass)", "in_game", "region"),
 ]
 
 
@@ -30,12 +30,19 @@ def _load_regions(directory=TEMPLATE_DIR):
         return {}
 
 
-def save_template(name, region, directory=TEMPLATE_DIR):
-    """Grab `region` (left, top, width, height) and save it as <directory>/<name>.png."""
+def save_template(name, region, directory=TEMPLATE_DIR, snapshot=None):
+    """Save `region` (left, top, width, height) as <directory>/<name>.png — cropped
+    from `snapshot` (a BGR frame of the screen) if given, else grabbed live."""
     from PIL import Image
-    from lib.screen import grab
+    if len(region) != 4 or not all(isinstance(v, int) for v in region):
+        raise ValueError("drag a rectangle (▭) — polygons can't be used as templates")
+    l, t, w, h = region
+    if snapshot is not None:
+        frame = snapshot[t:t + h, l:l + w]
+    else:
+        from lib.screen import grab
+        frame, _ = grab(tuple(region))
     os.makedirs(directory, exist_ok=True)
-    frame, _ = grab(tuple(region))
     Image.fromarray(frame[:, :, ::-1].copy()).save(os.path.join(directory, f"{name}.png"))
     regions = _load_regions(directory)
     regions[name] = list(region)
@@ -54,6 +61,11 @@ def open_editor():
     def _apply(attr, val):
         regions[attr] = list(val)
 
+    def _save(attr, val):
+        # the capture overlay hides the screen in Xvfb: crop from its snapshot
+        save_template(attr, val, snapshot=config_editor.last_snapshot[0])
+
+    import lib.config_editor as config_editor
     threading.Thread(daemon=True, target=run_editor, args=(
-        "Client Templates", FIELDS, _get, _apply, save_template,
+        "Client Templates", FIELDS, _get, _apply, _save,
     )).start()

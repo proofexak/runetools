@@ -7,6 +7,9 @@ VNC_PASSWORD="${VNC_PASSWORD:-runetools}"
 # No GLX: Mesa isn't installed (see Dockerfile). No window manager either —
 # RuneLite runs fine without one (undecorated, centred), and fluxbox only added
 # RAM plus a stray "can't set wallpaper" popup the bot could click on.
+# A container restart leaves the previous Xvfb's lock behind ("Server is
+# already active for display 1"), which would break coming back unattended.
+rm -f "/tmp/.X${DISPLAY#:}-lock" "/tmp/.X11-unix/X${DISPLAY#:}"
 Xvfb "$DISPLAY" -screen 0 "$RES" -extension GLX &
 
 for i in $(seq 1 20); do

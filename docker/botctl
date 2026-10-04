@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Control an unattended bot running in the container (lib/headless.py).
 #
-#   docker/botctl pause      pause / resume (toggles, same as O)
-#   docker/botctl resume
+#   docker/botctl pause      pause (no-op if already paused)
+#   docker/botctl resume     resume a paused bot (no-op if running)
 #   docker/botctl stop       finish the current trip, then idle
 #   docker/botctl kill       stop right now (same as P), then idle
-#   docker/botctl start      leave idle: log in if needed and start the bot
+#   docker/botctl start      resume, or leave idle: log in if needed and start the bot
 #   docker/botctl status     recent sessions + supervisor events
 #
 # Not in the docker group yet? Prefix with:  sg docker -c "docker/botctl …"
@@ -28,7 +28,8 @@ signal() {   # "docker compose kill" only sends the signal; its "Killed" wording
 py() { if [ -x .venv/bin/python ]; then .venv/bin/python "$@"; else python3 "$@"; fi; }
 
 case "${1:-}" in
-    pause|resume) signal USR1 ;;
+    pause)        signal USR1 ;;
+    resume)       signal HUP ;;
     stop)         signal USR2 ;;
     kill)         signal INT ;;
     start)        signal HUP ;;

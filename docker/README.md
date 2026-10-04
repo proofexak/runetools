@@ -169,7 +169,7 @@ and logouts, and comes back by itself after a container or host restart.
    | `terms_accept` | the terms dialog's **Accept** button (first start of a fresh profile only; optional) |
    | `login_play` | the login screen's **Play Now** button |
    | `welcome_play` | the red **CLICK HERE TO PLAY** button after logging in |
-   | `in_game` | something always visible in game, e.g. the compass or minimap frame |
+   | `in_game` | a **fixed** in-game element: a minimap frame ornament or a side-panel tab icon. **Not the compass** (it rotates with the camera, which the bots turn) and nothing with changing numbers (orbs, XP) |
 
    Crops land in `lib/client_templates/` (gitignored, per user). Select only the
    element, with nothing on top of it.
@@ -186,10 +186,10 @@ and logouts, and comes back by itself after a container or host restart.
 
 | command | effect |
 |---|---|
-| `docker/botctl pause` / `resume` | pause / resume (same as O) |
+| `docker/botctl pause` / `resume` | pause / resume (each is a no-op if already in that state) |
 | `docker/botctl stop` | finish the current trip, then idle |
 | `docker/botctl kill` | stop right now (same as P), then idle |
-| `docker/botctl start` | leave idle: log in if needed and start the bot |
+| `docker/botctl start` | resume, or leave idle: log in if needed and start the bot |
 | `docker/botctl status` | recent sessions + supervisor events |
 | `docker compose … stop` / `down` | stop now and exit cleanly |
 

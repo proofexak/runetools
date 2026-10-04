@@ -16,6 +16,7 @@ Usage (from a bot's config_editor.py):
         ), kwargs=dict(region_colors=REGION_COLORS)).start()
 """
 import re
+import time
 import tkinter as tk
 import threading
 import numpy as np
@@ -118,13 +119,36 @@ def capture_point(root, with_color, callback):
     ov.focus_force()
 
 
+last_snapshot = [None]   # BGR frame of the screen as it was when the last region capture began
+
+
+def snapshot_screen():
+    """BGR frame of the whole display (monitor 1)."""
+    with mss.mss() as sct:
+        mon = sct.monitors[1]
+        shot = sct.grab({"left": mon["left"], "top": mon["top"],
+                         "width": mon["width"], "height": mon["height"]})
+    return np.array(shot)[:, :, :3]
+
+
 def capture_region(root, callback):
     root.withdraw()
+    root.update()
+    time.sleep(0.15)          # let the editor window disappear before the snapshot
+    # Without a compositor (Xvfb in Docker) the "transparent" overlay is solid
+    # black, so draw a snapshot of the real screen on it — you see what you're
+    # selecting, and last_snapshot holds the pixels to crop from afterwards.
+    snap = snapshot_screen()
+    last_snapshot[0] = snap
     ov = _fullscreen_overlay()
     ov.attributes('-alpha', 0.25)
 
     canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
     canvas.place(relwidth=1, relheight=1)
+    from PIL import Image, ImageTk
+    photo = ImageTk.PhotoImage(Image.fromarray(snap[:, :, ::-1].copy()), master=ov)
+    canvas.create_image(0, 0, image=photo, anchor="nw")
+    canvas.image = photo      # keep a reference so Tk doesn't drop it
 
     lbl = tk.Label(ov, text="Click top-left corner\n(ESC to cancel)",
                    bg='#111133', fg='white', font=("Consolas", 13, "bold"),

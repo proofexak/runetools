@@ -78,10 +78,11 @@ idle  ⇄  (start signal)  →  ensure_logged_in  →  run session  →  decide 
 
 | `docker/botctl` | signal | effect |
 |---|---|---|
-| `pause` / `resume` | SIGUSR1 | toggle pause (same as O) |
+| `pause` | SIGUSR1 | pause (no-op if paused) |
+| `resume` | SIGHUP | resume (no-op if running) — same signal as `start` |
 | `stop` | SIGUSR2 | soft stop: finish the current trip, then idle |
 | `kill` | SIGINT | force stop now (same as P; teardown runs), then idle |
-| `start` | SIGHUP | leave idle: log in if needed, start the bot |
+| `start` | SIGHUP | resume; if idle, log in if needed and start the bot |
 | (`docker compose stop/down`) | SIGTERM | force stop, teardown, exit 0 |
 
 Handlers only set flags / call `pause.*` (safe in Python signal handlers).

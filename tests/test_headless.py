@@ -244,12 +244,10 @@ def test_term_signal_returns(tmp_path):
     assert supervisor_events(tmp_path)[-1]["event"] == "supervisor_exit"
 
 
-def test_pause_signal_toggles_pause():
+def test_pause_signal_pauses():
     sup, _ = make(bot_script()[0], FakeClient())
     sup.on_pause()
     assert pause.is_paused()
-    sup.on_pause()
-    assert not pause.is_paused()
 
 
 def test_launcher_event_common_fields(tmp_path):
@@ -308,3 +306,94 @@ def test_install_signals_maps_each_signal(monkeypatch):
     for sig in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
         installed[sig](sig, None)
     assert called == ["on_pause", "on_soft_stop", "on_kill", "on_start", "on_term"]
+
+
+# ── review fixes ──────────────────────────────────────────────────────────────
+
+def test_soft_stop_during_login_does_not_start_a_session(tmp_path):
+    holder = {}
+
+    class StopsDuringLogin(FakeClient):
+        def ensure_logged_in(self):
+            holder["sup"].on_soft_stop()         # botctl stop while logging in
+            return True, None
+    start, calls = bot_script(("done", None))
+    sup, _ = make(start, StopsDuringLogin())
+    holder["sup"] = sup
+    sup.run_forever()
+    assert calls == []
+    assert [e for e in supervisor_events(tmp_path) if e["event"] == "idle"][-1]["why"] == "operator"
+
+
+def test_term_during_login_exits_without_running_the_bot(tmp_path):
+    holder = {}
+
+    class TermDuringLogin(FakeClient):
+        def ensure_logged_in(self):
+            holder["sup"].on_term()
+            return True, None                    # e.g. already in game: no gate passed
+    start, calls = bot_script(("done", None))
+    sup, _ = make(start, TermDuringLogin())
+    holder["sup"] = sup
+    sup.run_forever()
+    assert calls == [] and supervisor_events(tmp_path)[-1]["event"] == "supervisor_exit"
+
+
+def test_p_over_vnc_counts_as_operator_stop(tmp_path):
+    def p_pressed(stats):
+        pause.force_stop()                       # P via VNC, not botctl
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, _ = bot_script(p_pressed)
+    sup, _ = make(start, FakeClient(logged_in=False))
+    sup.run_forever()
+    assert [e for e in supervisor_events(tmp_path) if e["event"] == "idle"][-1]["why"] == "operator"
+
+
+def test_unexpected_login_error_is_a_login_failure_not_a_crash():
+    class Explodes(FakeClient):
+        def ensure_logged_in(self):
+            raise OSError("X connection broke")
+    start, calls = bot_script(("done", None))
+    client = Explodes()
+    sup, _ = make(start, client)
+    sup.run_forever()                            # must not raise
+    assert calls == [] and client.kills == 3
+
+
+def test_logged_in_check_error_is_treated_as_logged_out():
+    class FlakyCheck(FakeClient):
+        def logged_in(self):
+            raise OSError("grab failed")
+    start, calls = bot_script(("stopped", "recovery failed"), ("done", None))
+    sup, _ = make(start, FlakyCheck())
+    sup.run_forever()
+    assert len(calls) == 2                       # treated as logged out -> relogin + restart
+
+
+def test_missing_templates_idle_without_killing_the_client(tmp_path):
+    class NoTemplates(FakeClient):
+        def missing_templates(self):
+            return ["login_play", "in_game"]
+    start, calls = bot_script(("done", None))
+    client = NoTemplates()
+    sup, _ = make(start, client)
+    sup.run_forever()
+    assert calls == [] and client.kills == 0
+    idle = [e for e in supervisor_events(tmp_path) if e["event"] == "idle"][-1]
+    assert idle["why"] == "giving_up" and "login_play" in idle["reason"]
+
+
+def test_pause_is_idempotent_and_start_resumes():
+    sup, _ = make(bot_script()[0], FakeClient())
+    sup.on_pause(); sup.on_pause()
+    assert pause.is_paused()                     # pausing twice stays paused
+    sup.on_start()
+    assert not pause.is_paused()
+
+
+def test_start_while_running_only_resumes():
+    sup, _ = make(bot_script()[0], FakeClient())
+    sup.budget.allow()
+    sup.on_pause()
+    sup.on_start()                               # active: just resume, keep budget/backoff
+    assert not pause.is_paused() and len(sup.budget._times) == 1 and not sup._wake.is_set()

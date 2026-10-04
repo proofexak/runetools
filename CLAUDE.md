@@ -20,7 +20,8 @@ lib/                    universal helpers used by all bots
   logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats / supervisor
   headless.py           unattended mode (`python -m lib.headless`, container main command when BOT
                          is set): keeps RuneLite logged in, runs one bot, restarts per policy;
-                         signals from docker/botctl (USR1 pause, USR2 stop, INT kill, HUP start, TERM exit)
+                         signals from docker/botctl (USR1 pause, HUP resume/start, USR2 stop, INT kill,
+                         TERM exit)
   supervisor.py         pure restart policy: decide(), Backoff (30 s→600 s), Budget (5/hour)
   client.py, client_states.py  RuneLite lifecycle (launch → terms → Play → welcome → in game) by image
                          templates (lib/client_templates/*.png, gitignored; vision.find_template)
