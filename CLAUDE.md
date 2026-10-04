@@ -17,7 +17,14 @@ lib/                    universal helpers used by all bots
   pause.py              O-key pause/resume, P-key force-stop — used everywhere
   log.py                session text log (setup tees stdout/stderr) + say() timestamped print
   events.py             structured JSON-lines session events + launcher error log + excepthooks
-  logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats
+  logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats / supervisor
+  headless.py           unattended mode (`python -m lib.headless`, container main command when BOT
+                         is set): keeps RuneLite logged in, runs one bot, restarts per policy;
+                         signals from docker/botctl (USR1 pause, USR2 stop, INT kill, HUP start, TERM exit)
+  supervisor.py         pure restart policy: decide(), Backoff (30 s→600 s), Budget (5/hour)
+  client.py, client_states.py  RuneLite lifecycle (launch → terms → Play → welcome → in game) by image
+                         templates (lib/client_templates/*.png, gitignored; vision.find_template)
+  client_templates_editor.py  "⚙ Client Templates" capture tool in the menu
   state_machine.py      run_machine() — shared bot runner on the `transitions` library (see
                          "Bot control flow" below)
   session.py            run_session() — standard session lifecycle every bot's run() uses
@@ -64,6 +71,7 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          two-stage build, Temurin JRE, no window manager, Mesa removed (RuneLite's
                          GPU plugin must stay off — software GL burns CPU), runs as host UID 1000;
                          `docker/runelite` starts the client with FPS cap + JVM flags;
+                         `docker/botctl` controls unattended mode (see docker/README.md);
                          `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%)
 
 choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine

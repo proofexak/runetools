@@ -142,6 +142,73 @@ disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 **P** to force-stop. Session logs land in `<bot>/log/` in your working tree —
 `python -m lib.logreport` on the host reads them.
 
+## Unattended mode
+
+Set a bot in `docker/.env` and the container runs it with nobody watching:
+`lib.headless` keeps RuneLite logged in, runs the bot, restarts it after crashes
+and logouts, and comes back by itself after a container or host restart.
+
+### One-time setup
+
+1. **Save your login.** RuneLite can store the Jagex session it gets from Bolt so
+   it can log in later without Bolt: launch RuneLite **once from Bolt with the
+   extra RuneLite argument `--insecure-write-credentials`** (in Bolt's RuneLite
+   launch options). Check it worked from the exec shell:
+   ```
+   ls ~/.runelite/credentials.properties
+   ```
+   ⚠ That file holds your session tokens **in plain text**. It lives only in the
+   local `runetools-userhome` Docker volume; don't copy it anywhere. Deleting it
+   (or `docker compose down -v`) logs the container out.
+2. **Capture the login templates** (once, and again if Jagex restyles a screen):
+   `python3 run.py` → **⚙ Client Templates**, then drag a rectangle (via VNC) over
+   each element while it is on screen:
+
+   | template | what to select |
+   |---|---|
+   | `terms_accept` | the terms dialog's **Accept** button (first start of a fresh profile only; optional) |
+   | `login_play` | the login screen's **Play Now** button |
+   | `welcome_play` | the red **CLICK HERE TO PLAY** button after logging in |
+   | `in_game` | something always visible in game, e.g. the compass or minimap frame |
+
+   Crops land in `lib/client_templates/` (gitignored, per user). Select only the
+   element, with nothing on top of it.
+3. **Pick the bot** in `docker/.env` — names as shown in the menu:
+   ```
+   BOT=Tanning
+   LAUNCH=Green Dragonhide
+   # VALUE=500      # only for launches that ask for a number (Choco Grind)
+   ```
+   then `docker compose -f docker/docker-compose.yml up -d`. Remove `BOT` to go
+   back to manual mode (the container just idles, as before).
+
+### Control: `docker/botctl`
+
+| command | effect |
+|---|---|
+| `docker/botctl pause` / `resume` | pause / resume (same as O) |
+| `docker/botctl stop` | finish the current trip, then idle |
+| `docker/botctl kill` | stop right now (same as P), then idle |
+| `docker/botctl start` | leave idle: log in if needed and start the bot |
+| `docker/botctl status` | recent sessions + supervisor events |
+| `docker compose … stop` / `down` | stop now and exit cleanly |
+
+### What it does when a session ends
+
+| how it ended | supervisor |
+|---|---|
+| crashed (unexpected error) | logs back in if needed, waits, restarts |
+| stopped by the bot while **logged out** | logs back in, restarts (the logout explains it) |
+| stopped by the bot while still logged in (out of hides, no glory charges, …) | **idles** — a human is needed |
+| done (job finished) | idles |
+| stopped via `botctl stop` / `kill` | idles |
+
+Waits before automatic restarts grow 30 s → 1 min → 2 min … up to 10 min (reset
+after a session of 10+ minutes); at most **5 automatic restarts per hour** and
+**3 failed logins in a row** before it idles. Idle never exits — the container
+and VNC stay up; `botctl start` resumes. Everything is logged to
+`log/launcher.jsonl`: `python -m lib.logreport supervisor` (or `botctl status`).
+
 ## Settings (`docker/.env`)
 
 | variable | default | |
@@ -152,6 +219,7 @@ disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 | `RUNELITE_FPS` | `30` | frame cap seeded on a fresh RuneLite profile; `0` = no cap |
 | `RUNELITE_JAVA_OPTS` | `-Xmx512m -XX:+UseSerialGC` | client JVM flags |
 | `RUNETOOLS_UID` / `RUNETOOLS_GID` | `1000` | your `id -u` / `id -g` on Linux |
+| `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above); unset = manual mode |
 
 `RUNELITE_FPS` and "GPU plugin off" only apply to a **fresh** profile (RuneLite
 reads them once from `settings.properties`); on an existing one, set them in
