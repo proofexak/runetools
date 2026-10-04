@@ -174,6 +174,14 @@ class Supervisor:
         self._event("supervisor_exit")
 
 
+def install_signals(sup):
+    """botctl's signals -> the supervisor's handlers (see module docstring)."""
+    for sig, name in ((signal.SIGUSR1, "on_pause"), (signal.SIGUSR2, "on_soft_stop"),
+                      (signal.SIGINT, "on_kill"), (signal.SIGHUP, "on_start"),
+                      (signal.SIGTERM, "on_term")):
+        signal.signal(sig, lambda signum, frame, _name=name: getattr(sup, _name)())
+
+
 def main():
     events.install_excepthooks()
     from lib.bots import discover
@@ -190,10 +198,7 @@ def main():
 
     pause.setup(pause_hotkey="o", stop_hotkey="p")     # O/P still work over VNC
     sup = Supervisor(bot, start, RealClient())
-    for sig, fn in ((signal.SIGUSR1, sup.on_pause), (signal.SIGUSR2, sup.on_soft_stop),
-                    (signal.SIGINT, sup.on_kill), (signal.SIGHUP, sup.on_start),
-                    (signal.SIGTERM, sup.on_term)):
-        signal.signal(sig, lambda *a, _fn=fn: _fn())
+    install_signals(sup)
     sup.run_forever()
     return 0
 

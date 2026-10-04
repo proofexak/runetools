@@ -294,3 +294,17 @@ def test_force_stop_during_login_goes_idle(tmp_path):
     sup.run_forever()
     assert calls == [] and clock["idles"] == 1
     assert [e for e in supervisor_events(tmp_path) if e["event"] == "idle"][-1]["why"] == "operator"
+
+
+def test_install_signals_maps_each_signal(monkeypatch):
+    import signal
+    installed = {}
+    monkeypatch.setattr(signal, "signal", lambda sig, fn: installed.__setitem__(sig, fn))
+    sup, _ = make(bot_script()[0], FakeClient())
+    called = []
+    for name in ("on_pause", "on_soft_stop", "on_kill", "on_start", "on_term"):
+        monkeypatch.setattr(sup, name, lambda n=name: called.append(n))
+    headless.install_signals(sup)
+    for sig in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
+        installed[sig](sig, None)
+    assert called == ["on_pause", "on_soft_stop", "on_kill", "on_start", "on_term"]

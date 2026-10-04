@@ -13,7 +13,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 dc() { docker compose -f docker/docker-compose.yml "$@"; }
-signal() { dc kill -s "$1" runetools >/dev/null && echo "sent SIG$1"; }
+signal() {   # "docker compose kill" only sends the signal; its "Killed" wording is noise
+    if [ -z "$(dc ps --status running -q runetools 2>/dev/null)" ]; then
+        echo "the runetools container isn't running (docker compose -f docker/docker-compose.yml up -d)" >&2
+        exit 1
+    fi
+    if dc kill -s "$1" runetools >/dev/null 2>&1; then
+        echo "sent SIG$1"
+    else
+        echo "could not signal the bot — is the container running? (docker compose -f docker/docker-compose.yml ps)" >&2
+        exit 1
+    fi
+}
 py() { if [ -x .venv/bin/python ]; then .venv/bin/python "$@"; else python3 "$@"; fi; }
 
 case "${1:-}" in
