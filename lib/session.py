@@ -91,6 +91,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
                 error, final = e, "crashed"
         last_step = stats["step"]
         stats["step"] = final
+        stats["reason"] = getattr(model, "stop_reason", None)   # read by lib/headless.py
         ended = time.time()
         ev.emit("session_end", final=final, reason=getattr(model, "stop_reason", None),
                 last_step=last_step, stats=dict(stats),

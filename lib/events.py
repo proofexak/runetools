@@ -115,6 +115,19 @@ def was_logged(exc):
     return getattr(exc, "_runetools_logged", False)
 
 
+def launcher_event(bot, event, root=None, **fields):
+    """Append a non-session event (e.g. the unattended supervisor's) to
+    <root>/log/launcher.jsonl (root defaults to the repo root)."""
+    root = root or ROOT
+    try:
+        os.makedirs(os.path.join(root, "log"), exist_ok=True)
+    except OSError as e:
+        _warn(e)
+    log = EventLog(os.path.join(root, "log", "launcher.jsonl"), bot, None)
+    log.emit(event, **fields)
+    log.close()
+
+
 def launcher_error(bot, exc, where, root=None):
     """Append an error that happened outside any session to <root>/log/launcher.jsonl
     (root defaults to the repo root)."""
