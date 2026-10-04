@@ -60,7 +60,11 @@ crafting/               Path of Exile shift+alt-orb crafting bot — same contra
                          so it is listed only by crafting_run.py (never by the OSRS menu)
 crafting_run.py         PoE launcher: flat menu from discover(suite="poe"), P pause / End stop,
                          top-right overlay, "Log Done Checks" diagnostic
-docker/                 Ubuntu + Xvfb/VNC sandbox for running the suite headless (see docker/README.md)
+docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite headless (docker/README.md):
+                         two-stage build, Temurin JRE, no window manager, Mesa removed (RuneLite's
+                         GPU plugin must stay off — software GL burns CPU), runs as host UID 1000;
+                         `docker/runelite` starts the client with FPS cap + JVM flags;
+                         `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%)
 
 choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine
                          (roadmap step 3)

@@ -3,21 +3,29 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    # Run as your host user so files the bots write into the repo (logs, saved
+    # calibration) stay owned by you on Linux. 1000 is the first user on
+    # Ubuntu; set RUNETOOLS_UID/GID in docker/.env if `id -u` / `id -g` differ.
+    # (Ignored by Docker Desktop's Windows bind mounts — harmless there.)
+    user: "${RUNETOOLS_UID:-1000}:${RUNETOOLS_GID:-1000}"
     volumes:
       - ..:/app
       - ./bolt:/opt/bolt
-      - runetools-home:/root
+      - runetools-userhome:/home/runetools   # RuneLite + Bolt state, survives restarts
     ports:
       # bound to localhost only — this is a bot control channel, not something
       # to expose on the network
       - "127.0.0.1:5900:5900"
-    shm_size: "1gb"
+    shm_size: "256mb"
     environment:
+      - VNC=${VNC:-1}
       - VNC_PASSWORD=${VNC_PASSWORD:-runetools}
       - XVFB_RESOLUTION=${XVFB_RESOLUTION:-1280x800x24}
+      - RUNELITE_FPS=${RUNELITE_FPS:-30}
+      - RUNELITE_JAVA_OPTS=${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}
     stdin_open: true
     tty: true
     restart: unless-stopped
 
 volumes:
-  runetools-home:
+  runetools-userhome:

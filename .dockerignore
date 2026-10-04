@@ -1,0 +1,6 @@
+# Build context for docker/Dockerfile: it only needs these. Keeps .venv, logs
+# and calibrated configs out of the context (and out of build caches).
+*
+!requirements.txt
+!docker/entrypoint.sh
+!docker/runelite

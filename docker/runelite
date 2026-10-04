@@ -1,0 +1,35 @@
+#!/bin/sh
+# Start RuneLite inside the container: `runelite` (extra args go to the launcher).
+#
+# RUNELITE_FPS        frame cap seeded on a fresh RuneLite home (default 30, 0 = no cap)
+# RUNELITE_JAVA_OPTS  JVM flags for the client (default "-Xmx512m -XX:+UseSerialGC")
+#
+# The FPS cap and "GPU plugin off" are written to ~/.runelite/settings.properties,
+# which RuneLite migrates into its profile on first start only — on an existing
+# profile, change them in RuneLite's settings (FPS Control plugin) instead.
+set -e
+
+FPS="${RUNELITE_FPS:-30}"
+RL="$HOME/.runelite"
+
+if [ ! -d "$RL/profiles2" ] && [ ! -e "$RL/settings.properties" ]; then
+    mkdir -p "$RL"
+    {
+        echo "runelite.gpuplugin=false"
+        if [ "$FPS" != "0" ]; then
+            echo "runelite.fpsplugin=true"
+            echo "fpscontrol.limitFps=true"
+            echo "fpscontrol.maxFps=$FPS"
+            echo "fpscontrol.limitFpsUnfocused=true"
+            echo "fpscontrol.maxFpsUnfocused=$FPS"
+        fi
+    } > "$RL/settings.properties"
+fi
+
+JVM=""
+for opt in ${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}; do
+    JVM="$JVM -J$opt"
+done
+
+# shellcheck disable=SC2086  # JVM is a deliberately split list of -J flags
+exec java -jar /opt/RuneLite.jar $JVM "$@"
