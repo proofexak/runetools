@@ -169,3 +169,41 @@ def menu_origin(before, after, threshold=20, min_pixels=20):
     if len(ys) <= min_pixels:
         return None
     return int(xs.min()), int(ys.min())
+
+
+# ── Template matching ─────────────────────────────────────────────────────────
+
+MIN_TEMPLATE_STD = 1.0   # a featureless template (e.g. all black) can't be located
+
+
+def _gray(img):
+    return img.astype(np.float64).mean(axis=2)
+
+
+def find_template(frame, template, max_diff=8.0):
+    """Frame-local centre of the window that best matches `template`, or None.
+    Best = lowest sum of squared grayscale differences (FFT cross-correlation);
+    accepted only if that window's mean absolute grayscale difference is
+    <= max_diff. Featureless templates and templates larger than the frame
+    never match."""
+    th, tw = template.shape[:2]
+    fh, fw = frame.shape[:2]
+    if th > fh or tw > fw:
+        return None
+    t = _gray(template)
+    if t.std() < MIN_TEMPLATE_STD:
+        return None
+    f = _gray(frame)
+
+    # SSD(u, v) = sum(window²) - 2·corr(u, v) + sum(t²), over valid offsets only
+    shape = (fh, fw)
+    corr = np.fft.irfft2(np.fft.rfft2(f, shape) * np.conj(np.fft.rfft2(t, shape)), shape)
+    corr = corr[:fh - th + 1, :fw - tw + 1]
+    sq = np.pad(np.cumsum(np.cumsum(f * f, axis=0), axis=1), ((1, 0), (1, 0)))
+    window_sq = sq[th:, tw:] - sq[:-th, tw:] - sq[th:, :-tw] + sq[:-th, :-tw]
+    ssd = window_sq - 2 * corr + (t * t).sum()
+
+    v, u = np.unravel_index(int(np.argmin(ssd)), ssd.shape)
+    if np.abs(f[v:v + th, u:u + tw] - t).mean() > max_diff:
+        return None
+    return int(u + tw // 2), int(v + th // 2)

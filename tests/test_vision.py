@@ -188,3 +188,49 @@ def test_menu_origin_needs_more_than_min_pixels():
     assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 4, 5, (90, 90, 90))) is None   # 20
     assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 3, 7, (90, 90, 90))) == (5, 5)  # 21
     assert vision.menu_origin(before, paint(canvas(200, 200), 5, 5, 10, 10, (6, 7, 7))) is None      # diff 20, not > 20
+
+
+# ── template matching ─────────────────────────────────────────────────────────
+
+def _pattern(w=24, h=16):
+    rng = np.random.RandomState(7)
+    return rng.randint(40, 220, size=(h, w, 3)).astype(np.uint8)
+
+
+def test_find_template_exact_match_centre():
+    frame = canvas(300, 200)
+    tpl = _pattern()
+    frame[50:66, 100:124] = tpl
+    assert vision.find_template(frame, tpl) == (112, 58)
+
+
+def test_find_template_tolerates_noise():
+    frame = canvas(300, 200)
+    tpl = _pattern()
+    noisy = np.clip(tpl.astype(int) + np.random.RandomState(1).randint(-3, 4, tpl.shape), 0, 255)
+    frame[50:66, 100:124] = noisy.astype(np.uint8)
+    assert vision.find_template(frame, tpl, max_diff=8.0) == (112, 58)
+
+
+def test_find_template_absent_is_none():
+    frame = paint(canvas(300, 200), 0, 0, 300, 200, (90, 90, 90))
+    assert vision.find_template(frame, _pattern()) is None
+
+
+def test_find_template_bigger_than_frame_is_none():
+    assert vision.find_template(canvas(20, 10), _pattern()) is None
+
+
+def test_find_template_best_of_two_lookalikes():
+    frame = canvas(300, 200)
+    tpl = _pattern()
+    degraded = np.clip(tpl.astype(int) + 6, 0, 255).astype(np.uint8)
+    frame[20:36, 20:44] = degraded
+    frame[120:136, 200:224] = tpl
+    assert vision.find_template(frame, tpl, max_diff=10.0) == (212, 128)
+
+
+def test_find_template_rejects_featureless_template():
+    # an all-black template "matches" any black area — refuse to locate it
+    frame = canvas(300, 200)
+    assert vision.find_template(frame, canvas(24, 16)) is None
