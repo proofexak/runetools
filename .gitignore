@@ -21,3 +21,4 @@ crafting/log/
 docker/bolt/*.zip
 docker/bolt/Bolt-Linux/
 /log/
+lib/client_templates/

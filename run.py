@@ -66,6 +66,11 @@ def _open_ge_editor():
     open_ge_editor()
 
 
+def _open_client_templates():
+    from lib.client_templates_editor import open_editor
+    open_editor()
+
+
 def _open_energy_editor():
     from lib.energy_config_editor import open_energy_editor
     open_energy_editor()
@@ -80,7 +85,8 @@ MENU = build_menu(
     discover(ROOT),
     begin   = _begin,
     ask_int = _ask_int,
-    tools   = [("⚙ GE Config", _open_ge_editor), ("⚙ Energy Config", _open_energy_editor)],
+    tools   = [("⚙ GE Config", _open_ge_editor), ("⚙ Energy Config", _open_energy_editor),
+               ("⚙ Client Templates", _open_client_templates)],
 )
 
 start_overlay(
