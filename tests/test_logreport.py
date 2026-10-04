@@ -140,3 +140,29 @@ def test_rate_hidden_for_sessions_under_a_minute(capsys):
     s = lr.summarize(NORMAL)
     lr._print_sessions([dict(s, active_seconds=30.0, runs_per_hour=240.0)], 20)
     assert "240.0" not in capsys.readouterr().out
+
+
+def test_cli_supervisor_lists_events_newest_last(tmp_path, capsys):
+    path = tmp_path / "log" / "launcher.jsonl"
+    path.parent.mkdir(parents=True)
+    lines = [
+        {"ts": "2026-10-04T10:00:00.000", "session": None, "bot": "Tanning", "event": "supervisor_start"},
+        {"ts": "2026-10-04T10:00:05.000", "session": None, "bot": "Tanning", "event": "login", "ok": True, "reason": None},
+        {"ts": "2026-10-04T11:00:00.000", "session": None, "bot": "Tanning", "event": "session_end",
+         "final": "crashed", "reason": "RuntimeError: boom", "seconds": 3595.0, "action": "restart"},
+        {"ts": "2026-10-04T11:00:00.100", "session": None, "bot": "Tanning", "event": "restart", "delay": 30, "after": "crashed"},
+        {"ts": "2026-10-04T11:30:00.000", "session": None, "bot": "Tanning", "event": "idle", "why": "giving_up", "reason": "login"},
+    ]
+    path.write_text("".join(json.dumps(l) + "\n" for l in lines))
+    lr.main(["supervisor"], root=str(tmp_path))
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("2026-10-04 10:00:00") and "supervisor_start" in out[0]
+    assert "idle" in out[-1] and "giving_up" in out[-1] and "login" in out[-1]
+    assert any("restart" in l and "30" in l for l in out)
+    lr.main(["supervisor", "--last", "2"], root=str(tmp_path))
+    assert len(capsys.readouterr().out.splitlines()) == 2
+
+
+def test_cli_supervisor_without_events(tmp_path, capsys):
+    lr.main(["supervisor"], root=str(tmp_path))
+    assert "No supervisor events" in capsys.readouterr().out

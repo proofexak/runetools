@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Control an unattended bot running in the container (lib/headless.py).
+#
+#   docker/botctl pause      pause / resume (toggles, same as O)
+#   docker/botctl resume
+#   docker/botctl stop       finish the current trip, then idle
+#   docker/botctl kill       stop right now (same as P), then idle
+#   docker/botctl start      leave idle: log in if needed and start the bot
+#   docker/botctl status     recent sessions + supervisor events
+#
+# Not in the docker group yet? Prefix with:  sg docker -c "docker/botctl …"
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+dc() { docker compose -f docker/docker-compose.yml "$@"; }
+signal() { dc kill -s "$1" runetools >/dev/null && echo "sent SIG$1"; }
+py() { if [ -x .venv/bin/python ]; then .venv/bin/python "$@"; else python3 "$@"; fi; }
+
+case "${1:-}" in
+    pause|resume) signal USR1 ;;
+    stop)         signal USR2 ;;
+    kill)         signal INT ;;
+    start)        signal HUP ;;
+    status)
+        py -m lib.logreport sessions --last 5
+        echo
+        py -m lib.logreport supervisor --last 10
+        ;;
+    *)
+        sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+        exit 1
+        ;;
+esac

@@ -23,6 +23,14 @@ services:
       - XVFB_RESOLUTION=${XVFB_RESOLUTION:-1280x800x24}
       - RUNELITE_FPS=${RUNELITE_FPS:-30}
       - RUNELITE_JAVA_OPTS=${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}
+      # Unattended mode (docker/README.md): set BOT + LAUNCH (and VALUE for a
+      # launch that asks for a number) and the container runs lib.headless,
+      # which logs in, runs the bot and restarts it. Unset = manual mode.
+      - BOT=${BOT:-}
+      - LAUNCH=${LAUNCH:-}
+      - VALUE=${VALUE:-}
+    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec sleep infinity; fi"]
+    stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
     stdin_open: true
     tty: true
     restart: unless-stopped

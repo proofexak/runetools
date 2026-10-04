@@ -6,6 +6,7 @@ Session report from the structured event logs (see lib/events.py).
     python -m lib.logreport session latest       # one session in detail, incl. tracebacks
     python -m lib.logreport session 20260930_210455
     python -m lib.logreport stats --since 2026-09-01
+    python -m lib.logreport supervisor --last 30 # unattended-mode events (log/launcher.jsonl)
 
 parse_lines / summarize / aggregate are pure; main() only finds files and prints.
 """
@@ -188,6 +189,17 @@ def _print_stats(agg, launcher):
         print(f"   {e['ts'][:19]}  {e.get('bot') or '-'}  {e.get('where')}: {e.get('type')}: {e.get('message')}")
 
 
+def _print_supervisor(launcher, last):
+    events = [e for e in launcher if e["event"] != "error" or e.get("where") == "headless"]
+    if not events:
+        print("No supervisor events logged yet.")
+        return
+    skip = {"ts", "session", "bot", "event", "traceback"}
+    for e in events[-last:]:
+        details = "  ".join(f"{k}={e[k]}" for k in e if k not in skip and e[k] is not None)
+        print(f"{e['ts'][:19].replace('T', ' ')}  {e.get('bot') or '-':12s} {e['event']:16s} {details}")
+
+
 def main(argv=None, root=None):
     root = root or ROOT
     p = argparse.ArgumentParser(prog="python -m lib.logreport", description="Bot session report")
@@ -198,6 +210,8 @@ def main(argv=None, root=None):
     p1.add_argument("id", help="session id (YYYYMMDD_HHMMSS) or 'latest'"); p1.add_argument("--bot")
     pst = sub.add_parser("stats", help="long-term stats per bot")
     pst.add_argument("--bot"); pst.add_argument("--since", help="YYYY-MM-DD")
+    psv = sub.add_parser("supervisor", help="unattended-mode supervisor events")
+    psv.add_argument("--last", type=int, default=30)
     args = p.parse_args(argv)
 
     summaries, bad, launcher = load_sessions(root)
@@ -206,7 +220,9 @@ def main(argv=None, root=None):
     if bad:
         print(f"({bad} unreadable log line(s) skipped)")
 
-    if args.cmd == "session":
+    if args.cmd == "supervisor":
+        _print_supervisor(launcher, args.last)
+    elif args.cmd == "session":
         chosen = summaries[-1:] if args.id == "latest" else [s for s in summaries if s["session"] == args.id]
         if not chosen:
             print("No such session.")
