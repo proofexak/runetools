@@ -29,6 +29,7 @@ const router = createBrowserRouter([
       { path: "sessions/:id", lazy: async () => ({ Component: (await import("@/pages/session-detail")).SessionDetailPage }) },
       { path: "bots", lazy: async () => ({ Component: (await import("@/pages/bots")).BotStatsPage }) },
       { path: "accounts", lazy: async () => ({ Component: (await import("@/pages/accounts")).AccountsPage }) },
+      { path: "accounts/:id", lazy: async () => ({ Component: (await import("@/pages/account-detail")).AccountDetailPage }) },
       { path: "settings", lazy: async () => ({ Component: (await import("@/pages/settings")).SettingsPage }) },
       { path: "*", lazy: async () => ({ Component: (await import("@/pages/not-found")).NotFoundPage }) },
     ],

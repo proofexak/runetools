@@ -110,6 +110,28 @@ test("vault: set a master password, store a login, lock, unlock, show and copy",
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("hunter2");
 });
 
+test("account page: that account's stats, sessions and login", async ({ page }) => {
+  await logIn(page);
+  await nav(page, "Accounts");
+  await page.getByRole("link", { name: "Zezima" }).click();
+  await expect(page.getByRole("heading", { name: "Zezima" })).toBeVisible();
+  // Zezima's two sessions (yesterday + today's crash), not the unassigned live miner
+  await expect(page.getByText("Nothing running right now.")).toBeVisible();
+  await expect(page.getByText("Crashes, 7 days").locator("..")).toContainText("1");
+  await expect(page.locator("tbody tr")).toHaveCount(2);
+  // unlock right here if the vault is locked, then the login shows
+  const master = page.getByLabel("Master password");
+  const show = page.getByRole("button", { name: "Show" });
+  await expect(master.or(show)).toBeVisible();
+  if (await master.isVisible()) {
+    await master.fill("vault master pw");
+    await page.getByRole("button", { name: "Unlock" }).click();
+  }
+  await show.click();
+  await expect(page.getByText("zezima@example.com")).toBeVisible();
+  await expect(page.getByRole("link", { name: "All sessions" })).toHaveAttribute("href", "/sessions?account=Zezima");
+});
+
 test("live: a new log line shows up without reloading", async ({ page }) => {
   await logIn(page);
   await expect(page.getByText("Running now")).toBeVisible();

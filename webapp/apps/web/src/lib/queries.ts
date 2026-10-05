@@ -16,7 +16,8 @@ export const keys = {
   settings: ["settings"] as const,
 };
 
-export const useOverview = (account?: string) => useQuery({
+export const useOverview = (account?: string, opts: { enabled?: boolean } = {}) => useQuery({
+  ...opts,
   queryKey: keys.overview(account),
   queryFn: () => api.get<Overview>(`/api/overview${qs({ account })}`),
   placeholderData: keepPreviousData,
