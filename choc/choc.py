@@ -24,7 +24,8 @@ def open_bank():
 
     for attempt in range(cfg.BANK_OPEN_RETRIES):
         pos, _ = find_color(cfg.BLUE, cfg.BLUE_TOL, outside_pad=0,
-                             region=cfg.BANK_BOOTH_REGION)
+                             region=cfg.BANK_BOOTH_REGION,
+                             whole_screen=attempt == cfg.BANK_OPEN_RETRIES - 1)
         if pos:
             bx, by = pos
             human_click(bx, by)
@@ -118,7 +119,8 @@ def _open_ge():
     choc/config_editor.py's "GE:" prefix)."""
     gx, gy, expected = ge_cfg.GE_CHECK
     for attempt in range(ge_cfg.MAX_AGENT_TRIES):
-        pos, _ = find_color(ge_cfg.MAGENTA, ge_cfg.MAGENTA_TOL, region=ge_cfg.GE_REGION)
+        pos, _ = find_color(ge_cfg.MAGENTA, ge_cfg.MAGENTA_TOL, region=ge_cfg.GE_REGION,
+                            whole_screen=attempt == ge_cfg.MAX_AGENT_TRIES - 1)
         if pos:
             human_click(*pos)
             deadline = time.time() + 5.0

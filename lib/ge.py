@@ -39,7 +39,8 @@ def _open_bank(region):
     """Find blue-hull banker in region, click, confirm bank opens. Returns True on success."""
     for attempt in range(cfg.MAX_BANKER_TRIES):
         pause.wait()
-        pos, _ = find_color(cfg.BLUE, cfg.BLUE_TOL, region=region)
+        pos, _ = find_color(cfg.BLUE, cfg.BLUE_TOL, region=region,
+                            whole_screen=attempt == cfg.MAX_BANKER_TRIES - 1)
         if pos:
             human_click(*pos)
             bx, by, expected = cfg.BANK_CHECK
@@ -57,7 +58,8 @@ def _open_ge():
     """Find magenta GE agent and confirm GE interface opens. Returns True on success."""
     for attempt in range(cfg.MAX_AGENT_TRIES):
         pause.wait()
-        pos, _ = find_color(cfg.MAGENTA, cfg.MAGENTA_TOL, region=cfg.GE_REGION)
+        pos, _ = find_color(cfg.MAGENTA, cfg.MAGENTA_TOL, region=cfg.GE_REGION,
+                            whole_screen=attempt == cfg.MAX_AGENT_TRIES - 1)
         if pos:
             human_click(*pos)
             gx, gy, expected = cfg.GE_CHECK

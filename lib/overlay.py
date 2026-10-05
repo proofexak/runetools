@@ -94,6 +94,9 @@ def _run(stats, use_selector, menu, on_select, stats_extra, corner="top-left"):
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
         x = sw - w - _MARGIN if corner in ("top-right", "bottom-right") else _MARGIN
         y = sh - h - _MARGIN if corner in ("bottom-left", "bottom-right") else _MARGIN
+        # its stats text is pure green: keep a bot's whole-screen colour search off it
+        import lib.screen as screen
+        screen.exclude("overlay", (x, y, w, h))
         return x, y
 
     def _clear():

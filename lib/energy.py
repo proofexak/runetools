@@ -98,7 +98,7 @@ def restock_stamina_at_bank(force=False):
     time.sleep(0.6)
 
     pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0,
-                         region=cfg.BANK_BOOTH_REGION)
+                         region=cfg.BANK_BOOTH_REGION, whole_screen=True)   # the only try
     if not pos:
         return False
     bx, by = pos

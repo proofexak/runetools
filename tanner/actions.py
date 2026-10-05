@@ -86,7 +86,8 @@ def trade_ellis():
     for round_ in range(1, MAX_ELLIS_ROUNDS + 1):
         for attempt in range(1, MAX_ELLIS_TRIES + 1):
             pause.wait()
-            pos, _ = find_color(BLUE, BLUE_TOL, outside_pad=0, region=ELLIS_REGION)
+            last = round_ == MAX_ELLIS_ROUNDS and attempt == MAX_ELLIS_TRIES
+            pos, _ = find_color(BLUE, BLUE_TOL, outside_pad=0, region=ELLIS_REGION, whole_screen=last)
             if not pos:
                 print(f"  Round {round_} attempt {attempt}: not visible, waiting...")
                 time.sleep(1.2)
@@ -108,7 +109,8 @@ def trade_ellis():
 def click_bank_booth():
     for attempt in range(MAX_BOOTH_TRIES):
         pause.wait()
-        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=BANK_REGION)
+        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=BANK_REGION,
+                            whole_screen=attempt == MAX_BOOTH_TRIES - 1)
         if pos:
             bx, by = pos
             print(f"  Booth at ({bx:.0f}, {by:.0f})")
@@ -170,7 +172,8 @@ def recover():
     print("[RECOVERY] Looking for bank booth...")
     for attempt in range(MAX_BOOTH_TRIES):
         pause.wait()
-        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=booth_region)
+        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=booth_region,
+                            whole_screen=attempt == MAX_BOOTH_TRIES - 1)
         if pos:
             bx, by = pos
             print(f"  [RECOVERY] Booth at ({bx:.0f}, {by:.0f})")

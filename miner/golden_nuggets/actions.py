@@ -50,7 +50,7 @@ def deposit_to_hopper():
     say("Inventory full — depositing to hopper")
     orient_north()
     hesitate()
-    pos, _ = find_color(config.RED, config.RED_TOL, region=config.HOPPER_REGION)
+    pos, _ = find_color(config.RED, config.RED_TOL, region=config.HOPPER_REGION, whole_screen=True)
     if pos is None:
         say("Hopper not found — skipping deposit")
         return False
@@ -85,7 +85,7 @@ def check_and_fix_struts():
     say(f"{n} struts broken — machine stopped, fixing one")
     pos, _ = find_nearest_color(
         config.STRUT_COLOR, config.STRUT_TOL,
-        region=config.STRUT_REGION, near=config.CHARACTER,
+        region=config.STRUT_REGION, near=config.CHARACTER, whole_screen=True,
     )
     if pos is None:
         say("Could not locate strut to fix")
@@ -143,6 +143,8 @@ def click_sack(region):
             break
         say("Sack not visible yet — retrying...")
         time.sleep(1)
+    if pos is None:   # one last look, over the whole screen
+        pos, _ = find_color(config.GREEN, config.GREEN_TOL, region=region, whole_screen=True)
     if pos is None:
         say("Sack not found after 10s")
         return 0
@@ -159,7 +161,7 @@ def click_sack(region):
 def open_bank():
     """Click the bank booth and wait for the interface to open."""
     hesitate()
-    pos, _ = find_color(config.BLUE, config.BLUE_TOL, region=config.BANK_REGION)
+    pos, _ = find_color(config.BLUE, config.BLUE_TOL, region=config.BANK_REGION, whole_screen=True)
     if pos is None:
         say("Bank not found")
         return

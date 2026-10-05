@@ -137,6 +137,13 @@ GE Config, Energy Config, Exit.
 
 **find_color** returns the centroid of all matched pixels (not the first hit), with a small triangular-distributed jitter. This means it clicks the centre of RuneLite NPC hull/tile outlines, not their edges.
 
+**Whole-screen last try.** `find_color` / `find_nearest_color(..., whole_screen=True)`: if the colour isn't in its
+region, search all of monitor 1 once and take the cluster nearest the region (or `near`), skipping areas registered
+with `screen.exclude()` (the overlay registers its window: its stats text is pure green). Bots pass it on the
+**final** attempt at a click target only — tanner Ellis / bank booth / recovery booth, GE banker + agent (lib/ge.py,
+choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never on "is it still there?" checks
+(Varrock rocks, pay-dirt veins, struts/sack polls): a respawning target must read as gone.
+
 **RuneLite highlight colours** must match these constants exactly:
 - BLUE `(0,0,255)` — Ellis (tanner), GE banker
 - MAGENTA `(255,0,255)` — bank booth, GE exchange agent

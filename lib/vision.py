@@ -97,6 +97,29 @@ def nearest_cluster_point(frame, rgb, tol, near, radius=30, jitter_pct=0.15, rng
     return click_point(xs[best], ys[best], jitter_pct, rng), len(xs)
 
 
+def region_center(region):
+    """Centre (x, y) of a (left, top, width, height) rect or of a polygon's bounding box."""
+    if isinstance(region[0], (tuple, list)):
+        xs, ys = [p[0] for p in region], [p[1] for p in region]
+        return (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    l, t, w, h = region
+    return l + w / 2, t + h / 2
+
+
+def blank_rects(frame, rects, origin=(0, 0)):
+    """Copy of the frame with each (left, top, width, height) rect — in the same
+    coordinates as `origin`, the frame's top-left — painted black, so nothing in
+    it can match (e.g. the bot's own overlay window)."""
+    out = frame.copy()
+    h, w = out.shape[:2]
+    for l, t, rw, rh in rects:
+        x0, y0 = max(0, int(l - origin[0])), max(0, int(t - origin[1]))
+        x1, y1 = min(w, int(l - origin[0] + rw)), min(h, int(t - origin[1] + rh))
+        if x0 < x1 and y0 < y1:
+            out[y0:y1, x0:x1] = 0
+    return out
+
+
 def count_clusters(frame, rgb, tol, radius):
     """Number of distinct rgb clusters (e.g. broken struts)."""
     return len(clusters(*_matched_points(frame, rgb, tol), radius))

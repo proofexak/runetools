@@ -31,7 +31,7 @@ def test_walks_into_tp_bank_region_then_finds_booth_in_booth_region(recover_env,
     actions, calls = recover_env
     searched = []
 
-    def find_color(color, tol, outside_pad=0, region=None):
+    def find_color(color, tol, outside_pad=0, region=None, whole_screen=False):
         searched.append(region)
         return (330, 415), None
     monkeypatch.setattr(actions, "find_color", find_color)
@@ -45,10 +45,13 @@ def test_walks_into_tp_bank_region_then_finds_booth_in_booth_region(recover_env,
 
 def test_booth_not_found_fails_after_retries(recover_env, monkeypatch):
     actions, calls = recover_env
-    monkeypatch.setattr(actions, "find_color", lambda *a, **k: (None, None))
+    tries = []
+    monkeypatch.setattr(actions, "find_color", lambda *a, **k: tries.append(k.get("whole_screen")) or (None, None))
     assert actions.recover() is False
     assert ("bank",) not in calls
     assert sum(1 for c in calls if c[0] == "click") == 0
+    # only the last try looks beyond TP_BOOTH_REGION, over the whole screen
+    assert tries == [False] * (actions.MAX_BOOTH_TRIES - 1) + [True]
 
 
 def test_uncalibrated_booth_region_fails_before_searching(recover_env, monkeypatch):
