@@ -40,3 +40,7 @@ def _launcher_log_in_tmp(monkeypatch, tmp_path):
     """No test may write the real <repo>/log/launcher.jsonl."""
     import lib.events as events
     monkeypatch.setattr(events, "ROOT", str(tmp_path))
+    # ... nor tag sessions with (or write) the user's real data/accounts.json
+    import lib.accounts as accounts
+    monkeypatch.setattr(accounts, "ROOT", str(tmp_path))
+    monkeypatch.delenv(accounts.ENV_VAR, raising=False)

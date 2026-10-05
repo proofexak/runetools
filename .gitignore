@@ -31,3 +31,6 @@ docker/runelite-profile/
 
 # full RuneLite home backups (docker/backups/*.tgz), local only
 docker/backups/
+
+# account list + the active one (lib/accounts.py), local only
+/data/

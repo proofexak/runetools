@@ -50,6 +50,8 @@ lib/                    universal helpers used by all bots
   energy_config.py      calibrated energy/stamina positions — GITIGNORED, copy from
                          energy_config.example.py
   energy_config_editor.py  config editor wired to energy_config.py
+  accounts.py           data/accounts.json (gitignored): account names + the active one;
+                         run_session tags session_start with `account` (RUNETOOLS_ACCOUNT overrides)
 
 tanner/                 Al Kharid leather tanning bot
   bot.py                menu descriptor (4 hide launches + GE side buttons)
@@ -170,7 +172,7 @@ reported, not fatal; a session that raises prints its traceback and returns to t
 `lib.bots.run_guarded`).
 
 **Structured session logs (PRO-15).** Every scaffold session writes `<bot>/log/<name>_<stamp>.jsonl`
-next to its text `.log` (same stamp). Events: `session_start` (bot, params), `step` (state, result,
+next to its text `.log` (same stamp). Events: `session_start` (bot, params, account), `step` (state, result,
 seconds, run), `pause`, `soft_stop`, `force_stop`, `error` (type, message, traceback, state),
 `session_end` (always: final done/stopped/crashed/interrupted/…, reason, stats, active/paused time).
 They come from `run_session`/`run_machine` — bots only pass `bot=` and `params=`.

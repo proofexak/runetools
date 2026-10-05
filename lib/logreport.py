@@ -73,7 +73,8 @@ def summarize(events):
 
     return {
         "session": first.get("session"), "bot": first.get("bot"),
-        "start": start["ts"], "params": start.get("params", {}),
+        "account": start.get("account"),
+        "start": start["ts"], "end": (end or events[-1])["ts"], "params": start.get("params", {}),
         "final": end["final"] if end else "killed",
         "reason": end.get("reason") if end else None,
         "last_step": end.get("last_step") if end else (steps[-1]["state"] if steps else None),
