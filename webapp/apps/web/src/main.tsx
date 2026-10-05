@@ -6,13 +6,6 @@ import { AuthGate } from "@/auth";
 import { Layout } from "@/components/layout";
 import { ApiError } from "@/lib/api";
 import { initTheme } from "@/lib/theme";
-import { AccountsPage } from "@/pages/accounts";
-import { BotStatsPage } from "@/pages/bots";
-import { DashboardPage } from "@/pages/dashboard";
-import { NotFoundPage } from "@/pages/not-found";
-import { SessionDetailPage } from "@/pages/session-detail";
-import { SessionsPage } from "@/pages/sessions";
-import { SettingsPage } from "@/pages/settings";
 import "./index.css";
 
 initTheme();
@@ -29,14 +22,15 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   {
     element: <Layout />,
+    // pages load on first visit: the chart library only comes with the dashboard
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "sessions", element: <SessionsPage /> },
-      { path: "sessions/:id", element: <SessionDetailPage /> },
-      { path: "bots", element: <BotStatsPage /> },
-      { path: "accounts", element: <AccountsPage /> },
-      { path: "settings", element: <SettingsPage /> },
-      { path: "*", element: <NotFoundPage /> },
+      { index: true, lazy: async () => ({ Component: (await import("@/pages/dashboard")).DashboardPage }) },
+      { path: "sessions", lazy: async () => ({ Component: (await import("@/pages/sessions")).SessionsPage }) },
+      { path: "sessions/:id", lazy: async () => ({ Component: (await import("@/pages/session-detail")).SessionDetailPage }) },
+      { path: "bots", lazy: async () => ({ Component: (await import("@/pages/bots")).BotStatsPage }) },
+      { path: "accounts", lazy: async () => ({ Component: (await import("@/pages/accounts")).AccountsPage }) },
+      { path: "settings", lazy: async () => ({ Component: (await import("@/pages/settings")).SettingsPage }) },
+      { path: "*", lazy: async () => ({ Component: (await import("@/pages/not-found")).NotFoundPage }) },
     ],
   },
 ]);

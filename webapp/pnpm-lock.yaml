@@ -23,9 +23,6 @@ importers:
 
   apps/api:
     dependencies:
-      '@electric-sql/pglite':
-        specifier: ^0.5.8
-        version: 0.5.8
       '@fastify/cookie':
         specifier: ^11.1.2
         version: 11.1.2
@@ -54,6 +51,9 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.8
+        version: 0.5.8
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.1

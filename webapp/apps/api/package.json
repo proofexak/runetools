@@ -2,10 +2,6 @@
   "name": "@runetools/api",
   "private": true,
   "type": "module",
-  "files": [
-    "dist",
-    "drizzle"
-  ],
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
     "build": "tsup",
@@ -15,7 +11,6 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.8",
     "@fastify/cookie": "^11.1.2",
     "@fastify/rate-limit": "^11.2.0",
     "@fastify/static": "^10.1.5",
@@ -27,6 +22,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^24.0.0",
     "drizzle-kit": "^0.31.11",
     "tsup": "^8.5.1",

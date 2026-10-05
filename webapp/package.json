@@ -11,9 +11,13 @@
     "build": "pnpm --filter ./apps/* build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @runetools/api db:generate"
+    "db:generate": "pnpm --filter @runetools/api db:generate",
+    "e2e": "playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.19.1",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
   }
 }
