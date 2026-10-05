@@ -26,6 +26,24 @@ Set `TZ` in `docker/.env` to the time zone the bots run in (e.g. `TZ=Europe/Wars
 with no zone, so this setting decides when "today" starts. "Running now" doesn't depend on it: it uses the log file's
 modification time.
 
+### From another laptop (Tailscale Funnel)
+
+The app only listens on this PC's localhost, and it stays that way. [Tailscale Funnel](https://tailscale.com/kb/1223/funnel)
+gives it a public HTTPS address that forwards to it, so another laptop only needs a browser. Tailscale is installed on
+this PC only.
+
+1. Install Tailscale on this PC and log in (`tailscale up`).
+2. `tailscale funnel --bg 8778`. The first time, it gives you a link to allow HTTPS and Funnel for your tailnet.
+3. `tailscale funnel status` shows the address, e.g. `https://my-pc.tail1234.ts.net`. Put that name in
+   `docker/.env` as `PUBLIC_HOST=my-pc.tail1234.ts.net` (the app refuses Host names it doesn't know), then
+   `docker compose -f docker/docker-compose.yml up -d webapp`.
+4. Open `https://my-pc.tail1234.ts.net` from anywhere. Stop it with `tailscale funnel --https=443 off`.
+
+Anyone who has the address reaches the login page, so use a strong app password. Through Funnel every request
+comes from the same local address, so the password rate limit (`PASSWORD_RATE_LIMIT`, 10 a minute) is shared by
+everyone: someone guessing at it can make you wait a minute too. The vault stays encrypted with its own master
+password either way.
+
 ## How the data gets in
 
 The session logs the bots write (`<bot>/log/*.jsonl` and `<group>/<bot>/log/*.jsonl`, see `lib/events.py`) are the

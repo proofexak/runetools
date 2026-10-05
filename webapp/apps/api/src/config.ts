@@ -12,7 +12,10 @@ export interface Config {
   logRoots: string[];
   /** Where data/active_account lives: the bots read it at session start. */
   dataDir: string;
-  /** Host headers accepted (DNS-rebinding guard); empty = derive from host + port. */
+  /**
+   * Host headers accepted (DNS-rebinding guard): ALLOWED_HOSTS, else 127.0.0.1 / localhost on the
+   * port; plus PUBLIC_HOST, the name another device uses (e.g. this PC's Tailscale name).
+   */
   allowedHosts: string[];
   webDist: string | null;
   pollMs: number;
@@ -40,9 +43,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port,
     logRoots: env.LOG_ROOTS ? list(env.LOG_ROOTS) : [REPO],
     dataDir: env.DATA_DIR || path.join(REPO, "data"),
-    allowedHosts: env.ALLOWED_HOSTS
-      ? env.ALLOWED_HOSTS.split(",").map((s) => s.trim()).filter(Boolean)
-      : [`127.0.0.1:${publicPort}`, `localhost:${publicPort}`],
+    allowedHosts: [
+      ...(env.ALLOWED_HOSTS ? hosts(env.ALLOWED_HOSTS) : [`127.0.0.1:${publicPort}`, `localhost:${publicPort}`]),
+      ...hosts(env.PUBLIC_HOST),
+    ],
     webDist: env.WEB_DIST === "" ? null : env.WEB_DIST || path.resolve(REPO, "webapp/apps/web/dist"),
     pollMs: Number(env.POLL_MS || 2000),
     secureCookie: env.COOKIE_SECURE === "1",
@@ -51,6 +55,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     vnc: hostPort(env.VNC_ADDR || "127.0.0.1:5900"),
     vncPassword: env.VNC_PASSWORD ?? "runetools",
   };
+}
+
+/** "a:1, b" → ["a:1", "b"], lower-cased: Host headers compare as sent, browsers send lower case. */
+function hosts(value: string | undefined): string[] {
+  return (value ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
 function hostPort(value: string) {

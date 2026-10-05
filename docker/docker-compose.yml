@@ -81,6 +81,9 @@ services:
       - DATA_DIR=/repo/data
       # the browser on the host, plus the bot container pushing to http://webapp:8778
       - ALLOWED_HOSTS=127.0.0.1:8778,localhost:8778,webapp:8778
+      # the name another laptop opens it by, e.g. this PC's Tailscale name (webapp/README.md
+      # "From another laptop"); set PUBLIC_HOST in docker/.env
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
       # live view (PRO-89): the API bridges the page's VNC WebSocket to x11vnc over the
       # compose network, so no extra port is published for it
       - VNC_ADDR=runetools:5900
