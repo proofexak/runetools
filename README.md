@@ -35,6 +35,26 @@ The tanner bot can automatically withdraw and drink a stamina potion when run en
 
 Digit templates and the energy/stamina config are gitignored (per-user calibration data, tied to your specific screen/RuneLite rendering) — recalibrate on any new machine.
 
+## Dashboard
+
+```
+pip install -r requirements-dashboard.txt     # cryptography, for the login vault
+.venv/bin/python -m dashboard                 # opens http://127.0.0.1:8777/
+```
+
+A local web page with bot time per account (today, last 7 days, 14-day chart), runs, crashes,
+recent sessions and what's running right now. All of it comes from the session logs.
+Add your accounts there and pick the one under **New sessions log to**: every session you
+start is tagged with it (`account` in `session_start`). Sessions from before that show as
+*Unassigned*. For a container per account, set `RUNETOOLS_ACCOUNT` instead.
+
+Logins (email + password) go in an encrypted vault, `data/vault.json`, unlocked with a master
+password that is never stored. There is no recovery if you forget it. `data/` is gitignored.
+The bots don't use these logins: they log in through RuneLite's saved Jagex session.
+
+The server listens on 127.0.0.1 only, and every API call needs a token baked into the page,
+so other websites open in your browser can't read it.
+
 ## Requirements
 - Python 3.8+
 - `pip install -r requirements.txt` (`pyautogui`, `mss`, `numpy`, `Pillow`, `pynput`, `transitions`)

@@ -10,6 +10,7 @@ summary always has one.
 """
 import os, time
 
+import lib.accounts as accounts
 import lib.events as events
 import lib.log as log
 import lib.pause as pause
@@ -53,7 +54,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
     stamp = time.strftime("%Y%m%d_%H%M%S")
     log.setup(log_prefix, stamp=stamp)
     ev = events.start(f"{log_prefix}_{stamp}.jsonl", bot, stamp)
-    ev.emit("session_start", params=params or {}, pid=os.getpid())
+    ev.emit("session_start", params=params or {}, pid=os.getpid(), account=accounts.active())
     began = start = time.time()
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
     model, final, error = None, None, None

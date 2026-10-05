@@ -50,6 +50,17 @@ lib/                    universal helpers used by all bots
   energy_config.py      calibrated energy/stamina positions — GITIGNORED, copy from
                          energy_config.example.py
   energy_config_editor.py  config editor wired to energy_config.py
+  accounts.py           data/accounts.json (gitignored): account names + the active one;
+                         run_session tags session_start with `account` (RUNETOOLS_ACCOUNT overrides)
+
+dashboard/              local web dashboard, `python -m dashboard` (127.0.0.1:8777) — not a bot
+  stats.py              pure: per-account/day hours + runs (midnight split by wall time), live
+                         sessions (no session_end + event < 15 min old), from logreport summaries
+  vault.py              encrypted logins, data/vault.json — scrypt-derived Fernet key, master
+                         password never stored; needs requirements-dashboard.txt (cryptography)
+  server.py             stdlib ThreadingHTTPServer; /api needs the per-run X-Token from the page
+                         and a localhost Host header; vault auto-locks after 10 min unused
+  static/index.html     the whole UI (vanilla JS, inline SVG chart, light/dark)
 
 tanner/                 Al Kharid leather tanning bot
   bot.py                menu descriptor (4 hide launches + GE side buttons)
