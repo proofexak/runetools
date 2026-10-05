@@ -1,5 +1,6 @@
 import { activeAccount, writeActiveFile } from "./accounts.js";
 import { buildApp } from "./app.js";
+import { ensureBotToken } from "./bot-token.js";
 import { Bus } from "./bus.js";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
@@ -12,7 +13,16 @@ const { db, close } = await openDb(config.databaseUrl);
 const bus = new Bus();
 const ingester = new Ingester(db, () => getLogRoots(db, config), bus, (msg, err) => app.log.error({ err }, msg));
 const vault = new Vault(db, bus);
-const app = await buildApp({ db, config, bus, ingester, vault });
+let botToken: string | null = null, tokenError: unknown = null;
+try {
+  botToken = await ensureBotToken(config.dataDir);
+} catch (err) {
+  tokenError = err;
+}
+const app = await buildApp({ db, config, bus, ingester, vault, botToken });
+if (tokenError) {
+  app.log.warn({ err: tokenError }, `couldn't write ${config.dataDir}/bot_token — bots can't push, the page updates every ${config.pollMs} ms`);
+}
 
 // the database is the truth for the active account: bring data/active_account in line
 try {

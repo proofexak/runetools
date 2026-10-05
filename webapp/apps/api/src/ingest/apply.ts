@@ -3,8 +3,12 @@
  * The result for a whole file equals lib/logreport.summarize, however the file was
  * split into reads:
  *   - session_end, when present, decides final / reason / last_step / active / paused / runs;
- *   - without it the session is open: active = (last event − start) − logged pauses,
+ *   - without it the session is open: active = (last event − start) − logged pauses
+ *     − a pause still going (pause_start with no pause / pause_end after it),
  *     runs = the last step's run number.
+ * Live status (PRO-99): state_enter sets current_state + state_since, pause_start /
+ * pause_end (and the runner's pause) set / clear paused_since, heartbeat sets
+ * last_heartbeat; session_end clears the state and the pause.
  */
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.js";
@@ -44,6 +48,10 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
     errorCount: 0,
     hasStart: false,
     fileMtime: null,
+    currentState: null,
+    stateSince: null,
+    pausedSince: null,
+    lastHeartbeat: null,
   };
   const newSteps: (typeof steps.$inferInsert)[] = [];
   const newErrors: (typeof errors.$inferInsert)[] = [];
@@ -74,6 +82,22 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
       case "pause":
         s.pauses += 1;
         if (s.final === null) s.pausedSeconds += num(e.seconds);
+        s.pausedSince = null;      // counted in pausedSeconds now
+        break;
+      case "state_enter":
+        if (s.final === null) {
+          s.currentState = str(e.state);
+          s.stateSince = wall(e.ts);
+        }
+        break;
+      case "pause_start":
+        if (s.final === null) s.pausedSince ??= wall(e.ts);
+        break;
+      case "pause_end":
+        s.pausedSince = null;
+        break;
+      case "heartbeat":
+        s.lastHeartbeat = wall(e.ts);
         break;
       case "error":
         newErrors.push({
@@ -90,6 +114,8 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
         s.activeSeconds = num(e.active_seconds);
         s.pausedSeconds = num(e.paused_seconds);
         s.runs = int((e.stats as Record<string, unknown> | undefined)?.run) ?? 0;
+        s.currentState = null;
+        s.pausedSince = null;
         break;
       }
     }
@@ -99,6 +125,8 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
     if (lastRun !== null) s.runs = lastRun;
     else if (newSteps.length > 0) s.runs = 0;   // logreport: `steps[-1].get("run") or 0`
     s.activeSeconds = (tsMillis(s.lastEventAt) - tsMillis(s.startedAt)) / 1000 - s.pausedSeconds;
+    // paused right now: heartbeats move the last event on, the bot doesn't
+    if (s.pausedSince !== null) s.activeSeconds -= Math.max(0, (tsMillis(s.lastEventAt) - tsMillis(s.pausedSince)) / 1000);
   }
 
   const { id: _id, ...values } = s;

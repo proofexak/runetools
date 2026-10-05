@@ -5,10 +5,11 @@ import { Link, useNavigate, useParams } from "react-router";
 import { AccountDialog, DeleteDialog } from "@/components/account-dialogs";
 import { ErrorNote } from "@/components/common";
 import { PageHeader } from "@/components/layout";
-import { OverviewSkeleton, OverviewView } from "@/components/overview";
+import { LiveSessions, OverviewSkeleton, OverviewView } from "@/components/overview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LoginCell, VaultCard } from "@/components/vault";
 import { api } from "@/lib/api";
 import { keys, useAccounts, useOverview, useVault } from "@/lib/queries";
@@ -63,6 +64,10 @@ export function AccountDetailPage() {
           </PageHeader>
 
           <div className="grid grid-cols-1 gap-4">
+            {/* what this account's bot is doing right now, first: state, time in it, paused */}
+            {overview.data && !overview.isPlaceholderData
+              ? <LiveSessions o={overview.data} account={account.name} />
+              : <Skeleton className="h-14" />}
             <Card className="gap-3">
               <CardHeader>
                 <div className="grid gap-1.5">
@@ -82,7 +87,7 @@ export function AccountDetailPage() {
 
             {/* never show another account's numbers (keepPreviousData) while this one's load */}
             {overview.data && !overview.isPlaceholderData
-              ? <OverviewView o={overview.data} account={account.name} />
+              ? <OverviewView o={overview.data} account={account.name} live={false} />
               : <OverviewSkeleton />}
           </div>
         </>

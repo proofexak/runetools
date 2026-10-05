@@ -116,7 +116,7 @@ test("account page: that account's stats, sessions and login", async ({ page }) 
   await page.getByRole("link", { name: "Zezima" }).click();
   await expect(page.getByRole("heading", { name: "Zezima" })).toBeVisible();
   // Zezima's two sessions (yesterday + today's crash), not the unassigned live miner
-  await expect(page.getByText("Nothing running right now.")).toBeVisible();
+  await expect(page.getByText("Nothing running on Zezima right now.")).toBeVisible();
   await expect(page.getByText("Crashes, 7 days").locator("..")).toContainText("1");
   await expect(page.locator("tbody tr")).toHaveCount(2);
   // unlock right here if the vault is locked, then the login shows
@@ -140,6 +140,65 @@ test("live: a new log line shows up without reloading", async ({ page }) => {
   const last = JSON.parse(fs.readFileSync(file, "utf8").trim().split("\n").at(-1)!);
   fs.appendFileSync(file, JSON.stringify({ ...last, state: "walk_back", run: 3 }) + "\n");
   await expect(page.getByRole("link", { name: /Golden nuggets/ }).first()).toContainText("walk_back", { timeout: 10_000 });
+});
+
+test("live status: a bot's pushed state and pause show within a second", async ({ page, request }) => {
+  await logIn(page);
+  const token = fs.readFileSync(path.join(ROOT, "data", "bot_token"), "utf8").trim();
+  const p = (n: number, w = 2) => String(n).padStart(w, "0");
+  const wall = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:` +
+    `${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  const stamp = wall(new Date()).slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
+  const key = `choc/log/choc_${stamp}.jsonl`;
+  const file = path.join(ROOT, "repo", ...key.split("/"));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+
+  // what lib/events.py does: write the line, then POST it with its byte offset
+  const emit = async (event: Record<string, unknown>) => {
+    const line = JSON.stringify({ ts: wall(new Date()), session: stamp, bot: "choc", ...event });
+    const offset = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    fs.appendFileSync(file, `${line}\n`);
+    const res = await request.post("/api/ingest", {
+      headers: { authorization: `Bearer ${token}` }, data: { file: key, offset, line },
+    });
+    expect(res.status()).toBe(200);
+    expect(["applied", "duplicate"]).toContain((await res.json()).result);   // duplicate: the tailer was quicker
+  };
+
+  // started while Zezima is the active account (lib/accounts.py tags session_start)
+  await emit({ event: "session_start", params: {}, pid: 9, account: "Zezima" });
+  await emit({ event: "heartbeat", state: "starting", run: 0, paused: false });
+  await emit({ event: "state_enter", state: "grind", run: 0 });
+  const card = page.getByRole("link", { name: /Choc/ }).first();
+  await expect(card.getByTestId("live-state")).toContainText("grind", { timeout: 2000 });
+  await expect(card).toContainText("Zezima");
+
+  // another account's page: not its bot
+  await nav(page, "Accounts");
+  await page.getByRole("link", { name: "Lynx Titan" }).click();
+  await expect(page.getByText("Nothing running on Lynx Titan right now.")).toBeVisible();
+
+  // the account's own page shows it, live
+  await nav(page, "Accounts");
+  await page.getByRole("link", { name: "Zezima" }).click();
+  await expect(page.getByRole("heading", { name: "Zezima" })).toBeVisible();
+  await expect(card.getByTestId("live-state")).toContainText("grind");
+  await emit({ event: "step", state: "grind", result: "ok", seconds: 1, run: 1 });
+  await emit({ event: "state_enter", state: "bank", run: 1 });
+  await expect(card.getByTestId("live-state")).toContainText("bank", { timeout: 2000 });
+
+  await emit({ event: "pause_start", state: "bank" });
+  await expect(card.getByText("Paused")).toBeVisible({ timeout: 2000 });
+  await emit({ event: "pause_end", state: "bank" });
+  await expect(card.getByText("Paused")).toBeHidden({ timeout: 2000 });
+
+  await emit({ event: "session_end", final: "stopped", reason: null, last_step: "bank", stats: { run: 1 },
+    active_seconds: 2, paused_seconds: 0 });
+  await expect(page.getByText("Nothing running on Zezima right now.")).toBeVisible({ timeout: 2000 });
+
+  // a push without the bot token is refused
+  const res = await request.post("/api/ingest", { data: { file: key, offset: 0, line: "{}" } });
+  expect(res.status()).toBe(401);
 });
 
 test("settings: change the app password; the old one stops working", async ({ page }) => {

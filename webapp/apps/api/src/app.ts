@@ -4,7 +4,8 @@
  * Every /api route except health and the auth entry points needs a logged-in session;
  * every mutating /api request also needs the session's CSRF token (x-csrf-token) and,
  * when the browser sends one, a same-site Origin. Host headers are checked against
- * allowedHosts so a DNS-rebinding page can't talk to the server.
+ * allowedHosts so a DNS-rebinding page can't talk to the server. The bots' POST /api/ingest
+ * authenticates with the bot token instead of the cookie (routes/ingest.ts).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -21,6 +22,7 @@ import type { Ingester } from "./ingest/ingester.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
 import { eventRoutes } from "./routes/events.js";
+import { INGEST_ROUTE, ingestRoutes } from "./routes/ingest.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { statsRoutes } from "./routes/stats.js";
 import { vaultRoutes } from "./routes/vault.js";
@@ -33,6 +35,8 @@ export interface AppContext {
   vault: Vault;
   /** Absent in tests that don't need it; routes then skip "rescan now" triggers. */
   ingester?: Ingester;
+  /** data/bot_token: what bots send to POST /api/ingest. Absent = pushes are refused. */
+  botToken?: string | null;
 }
 
 declare module "fastify" {
@@ -75,6 +79,7 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   app.addHook("preHandler", async (req) => {
     if (!req.url.startsWith("/api/")) return;
     const route = req.url.split("?", 1)[0]!;
+    if (route === INGEST_ROUTE) return;      // bot token, checked by the route
     req.auth = await lookupSession(ctx.db, req.cookies[COOKIE]);
     if (!SAFE_METHODS.has(req.method)) checkOrigin(req, allowed, anyHost);
     if (PUBLIC.has(route)) return;
@@ -104,6 +109,7 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   await vaultRoutes(app, ctx);
   await settingsRoutes(app, ctx);
   await eventRoutes(app, ctx);
+  await ingestRoutes(app, ctx);
   if (register) await register(app);
 
   const dist = ctx.config.webDist;

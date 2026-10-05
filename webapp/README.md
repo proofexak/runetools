@@ -2,7 +2,8 @@
 
 Per-account bot stats and an encrypted login vault, in the browser:
 
-- **Dashboard**: what is running right now (bot, current step), hours and runs for today and the last 7 days,
+- **Dashboard**: what is running right now (bot, the state it's in and for how long, paused or not, active time),
+  hours and runs for today and the last 7 days,
   crashes, a 14-day hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
 - **Sessions**: a filterable list (account, bot, status, dates). Each session's page has its step timeline, time per
   state, failed steps and tracebacks.
@@ -27,12 +28,24 @@ modification time.
 
 ## How the data gets in
 
-The bots don't talk to the app. The API **tails the session logs** the bots already write (`<bot>/log/*.jsonl` and
-`<group>/<bot>/log/*.jsonl`, see `lib/events.py`). It checks for changes every 2 s and reads only whole lines. Each
-file's read position is saved in the same transaction as the rows it produced. On the first start every existing log
-is backfilled, and a restart picks up where it left off. The numbers follow the same rules as
-`lib/logreport.summarize`: a session with no `session_end` either is still running (log written in the last 15 min)
-or was killed.
+The session logs the bots write (`<bot>/log/*.jsonl` and `<group>/<bot>/log/*.jsonl`, see `lib/events.py`) are the
+source of truth. The API **tails** them: it checks for changes every 2 s and reads only whole lines. Each file's read
+position (cursor) is saved in the same transaction as the rows it produced. On the first start every existing log is
+backfilled, and a restart picks up where it left off. The numbers follow the same rules as
+`lib/logreport.summarize`.
+
+For live status the bots also **push** each line right after writing it (`POST /api/ingest`), with the file's key
+and the line's byte offset, so the dashboard shows a new state or a pause within about a second. A pushed line is
+applied only if its offset is exactly the file's cursor: behind it, the tailer already had it; ahead of it, lines were
+missed and the file is re-read. Either way nothing counts twice. The push never slows a bot down: it runs on a
+background thread with a short timeout and no retries, and drops lines when the app is down (the tailer catches up
+from the file). Bots push to `RUNETOOLS_APP_URL` (default `http://127.0.0.1:8778`; compose sets
+`http://webapp:8778` for the bot container; empty turns pushing off) with the token the app writes to
+`data/bot_token` on start. If there's no token, they don't push.
+
+Sessions send a `heartbeat` every 30 s, so a session with no `session_end` is running while its log keeps being
+written (killed after 90 s of silence). Logs from before heartbeats keep the old rule: running if the log was written
+in the last 15 min.
 
 The active account goes the other way. The app writes it to `data/active_account`, and `lib/accounts.py` reads it at
 every session start and records it as `account` in `session_start`. `RUNETOOLS_ACCOUNT` overrides the file (one
@@ -51,6 +64,10 @@ the existing history too. Deleting one keeps its sessions under the old name.
   encrypted with a fresh nonce and bound to its account (AAD). The key lives only in the server's memory while the
   vault is unlocked. It locks after 10 minutes without use, on logout and on restart. **The master password can't be
   recovered.** If you forget it, Settings → *Reset the vault* deletes the stored logins (this needs the app password).
+- `POST /api/ingest` is the one route without the login cookie: it takes the bot token (`data/bot_token`, 256 random
+  bits, file mode 600) as `Authorization: Bearer …` instead, with no CSRF or Origin check, since bots send neither.
+  The Host check still applies (compose adds `webapp:8778` for the bot container). It only accepts lines of a session
+  log that exists under the first log folder.
 - The bots never use the stored logins. They log in through RuneLite's saved Jagex session.
 
 ## Develop
@@ -75,7 +92,9 @@ packages/shared   zod schemas + API types used by both sides
 apps/api          Fastify + Drizzle
   src/db/schema.ts      tables + the daily_activity view (hours/runs per account/bot/day, split at midnight)
   drizzle/              SQL migrations, applied at startup. After a schema change: pnpm db:generate
-  src/ingest/           parse.ts (logreport's line rules), apply.ts (events → rows), ingester.ts (polling, cursors)
+  src/ingest/           parse.ts (logreport's line rules), apply.ts (events → rows), ingester.ts (polling, cursors,
+                        pushed lines)
+  src/routes/ingest.ts  POST /api/ingest (bot token from src/bot-token.ts)
   src/stats.ts          overview / sessions / bot stats queries
   src/vault/            crypto.ts (argon2id + AES-GCM), vault.ts (in-memory key, auto-lock)
   src/accounts.ts       accounts + data/active_account

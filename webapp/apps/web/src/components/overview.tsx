@@ -1,13 +1,15 @@
 import type { LiveSession, Overview } from "@runetools/shared";
-import { Activity } from "lucide-react";
+import { Activity, Pause } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { SessionsTable, StatTile, Swatch } from "@/components/common";
 import { HoursChart } from "@/components/hours-chart";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { botColors } from "@/lib/bots";
-import { accountLabel, botLabel, fmtHours, fmtNumber, fmtSeconds } from "@/lib/format";
+import { accountLabel, botLabel, fmtClock, fmtHours, fmtNumber, fmtSeconds } from "@/lib/format";
+import { useLiveOverview } from "@/lib/live";
 import { useAllBots } from "@/lib/queries";
 import { useIsDark } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -15,12 +17,15 @@ import { cn } from "@/lib/utils";
 /**
  * Live sessions, tiles, 14-day chart, today by bot and recent sessions for one overview —
  * the whole dashboard, or one account's page. `account` undefined = every account.
+ * `live={false}` leaves the running sessions out, for a page that shows them elsewhere (LiveSessions).
  */
-export function OverviewView({ o, account, stale = false }: { o: Overview; account: string | undefined; stale?: boolean }) {
+export function OverviewView({ o: fetched, account, stale = false, live = true }:
+  { o: Overview; account: string | undefined; stale?: boolean; live?: boolean }) {
+  const o = useLiveOverview(fetched);
   const filter = account === undefined ? "" : `account=${encodeURIComponent(account)}`;
   return (
     <div className={cn("grid grid-cols-1 gap-4 transition-opacity", stale && "opacity-60")}>
-      <LiveCard live={o.live} showAccount={account === undefined} />
+      {live && <LiveCard live={o.live} account={account} />}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Today" value={fmtHours(o.today.hours)}
           sub={`${fmtNumber(o.today.runs)} runs · ${o.today.sessions} session${o.today.sessions === 1 ? "" : "s"}`} />
@@ -56,14 +61,23 @@ export function OverviewView({ o, account, stale = false }: { o: Overview; accou
   );
 }
 
-function LiveCard({ live, showAccount }: { live: LiveSession[]; showAccount: boolean }) {
+/** Just the running sessions of an overview (ticking), e.g. at the top of an account's page. */
+export function LiveSessions({ o: fetched, account }: { o: Overview; account: string | undefined }) {
+  const o = useLiveOverview(fetched);
+  return <LiveCard live={o.live} account={account} />;
+}
+
+/** `account` undefined: every account's sessions, each labelled with its account. */
+function LiveCard({ live, account }: { live: LiveSession[]; account: string | undefined }) {
   if (live.length === 0) {
     return (
       <Card className="text-muted-foreground flex-row items-center gap-3 px-5 py-4 text-sm">
-        <Activity className="size-4" /> Nothing running right now.
+        <Activity className="size-4" />
+        {account === undefined ? "Nothing running right now." : `Nothing running on ${accountLabel(account)} right now.`}
       </Card>
     );
   }
+  const showAccount = account === undefined;
   return (
     <Card className="gap-3">
       <CardHeader>
@@ -82,12 +96,25 @@ function LiveCard({ live, showAccount }: { live: LiveSession[]; showAccount: boo
               <span className="font-medium">{botLabel(s.bot)}</span>
               {showAccount && <span className="text-muted-foreground truncate text-sm">{accountLabel(s.account)}</span>}
             </div>
-            <div className="text-sm">
-              <span className="text-muted-foreground">last step </span>
-              <span className="font-mono text-[13px]">{s.lastStep ?? "starting"}</span>
+            <div className="flex items-center gap-2 text-sm" data-testid="live-state">
+              {s.state !== null ? (
+                <>
+                  <span className="font-mono text-[13px]">{s.state}</span>
+                  {s.stateSeconds !== null && (
+                    <span className="text-muted-foreground tabular-nums">for {fmtSeconds(s.stateSeconds)}</span>
+                  )}
+                </>
+              ) : (
+                // a log from before live status: only finished steps are known
+                <>
+                  <span className="text-muted-foreground">last step</span>
+                  <span className="font-mono text-[13px]">{s.lastStep ?? "starting"}</span>
+                </>
+              )}
+              {s.paused && <Badge variant="warning" className="ml-auto"><Pause />Paused</Badge>}
             </div>
             <div className="text-muted-foreground text-xs tabular-nums">
-              {fmtHours(s.activeSeconds / 3600)} active · run {s.runs} · last event {fmtSeconds(s.idleSeconds)} ago
+              {fmtClock(s.activeSeconds)} active · run {s.runs} · last event {fmtSeconds(s.idleSeconds)} ago
             </div>
           </Link>
         ))}

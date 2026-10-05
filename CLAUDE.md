@@ -17,7 +17,9 @@ lib/                    universal helpers used by all bots
   config_editor.py      generic point/region/point_color/number calibration UI; save_attr()
   pause.py              O-key pause/resume, P-key force-stop — used everywhere
   log.py                session text log (setup tees stdout/stderr) + say() timestamped print
-  events.py             structured JSON-lines session events + launcher error log + excepthooks
+  events.py             structured JSON-lines session events + launcher error log + excepthooks;
+                         also pushes each session line to the web app (Pusher, PRO-99)
+  heartbeat.py          per-session daemon thread: heartbeat every 30 s, pause_start / pause_end
   logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats / supervisor
   headless.py           unattended mode (`python -m lib.headless`, container main command when BOT
                          is set): keeps RuneLite logged in, runs one bot, restarts per policy;
@@ -55,10 +57,11 @@ lib/                    universal helpers used by all bots
 
 webapp/                 web app (PRO-88): per-account stats + encrypted login vault, not a bot —
                          TypeScript pnpm monorepo, see webapp/README.md. Reads the bots' *.jsonl
-                         logs, writes data/active_account; bots never talk to it
+                         logs, writes data/active_account + data/bot_token; bots only push log
+                         lines to it (POST /api/ingest, best effort — the files stay the truth)
   packages/shared       zod schemas + API types shared by api and web
-  apps/api              Fastify + Drizzle/Postgres: src/ingest (tail logs → sessions/steps/errors,
-                         logreport's rules, cursor per file), src/stats.ts, src/vault (argon2id →
+  apps/api              Fastify + Drizzle/Postgres: src/ingest (tail logs + pushed lines →
+                         sessions/steps/errors, logreport's rules, cursor per file), src/stats.ts, src/vault (argon2id →
                          AES-256-GCM, key only in memory), src/accounts.ts; drizzle/ = migrations
   apps/web              React + Vite + TanStack Query + Tailwind (shadcn-style ui/), Recharts
   e2e/                  Playwright specs (pnpm e2e)
@@ -190,6 +193,11 @@ reported, not fatal; a session that raises prints its traceback and returns to t
 next to its text `.log` (same stamp). Events: `session_start` (bot, params, account), `step` (state, result,
 seconds, run), `pause`, `soft_stop`, `force_stop`, `error` (type, message, traceback, state),
 `session_end` (always: final done/stopped/crashed/interrupted/…, reason, stats, active/paused time).
+Live status (PRO-99): `state_enter` (state, run — before each handler), `heartbeat` (state, run, paused —
+at start, then every 30 s), `pause_start` / `pause_end` (state — the moment O pauses / resumes, also
+inside an action's own wait; `pause` with seconds is still the runner's gate). From `lib/heartbeat.py`'s
+thread, which `run_session` stops before `session_end`. A session killed while paused stops its active
+clock at `pause_start` (logreport + app).
 They come from `run_session`/`run_machine` — bots only pass `bot=` and `params=`.
 - Errors always land in a log: in a session → `error` + `session_end` "crashed", then re-raised
   (menu returns via `run_guarded`); a bot failing before its session starts → `log/launcher.jsonl`
@@ -202,11 +210,17 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
 - Logging never raises into a bot (repr() for odd values, one warning if the file can't be written).
 - Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks),
   `stats [--bot B] [--since YYYY-MM-DD]` (per-bot totals; failures = results `fail`/`not_found`).
-- Tests never write the real launcher log (autouse fixture points `events.ROOT` at tmp).
+- Tests never write the real launcher log (autouse fixture points `events.ROOT` at tmp) and never
+  push (it sets `RUNETOOLS_APP_URL` empty; tests that push pass `EventLog(..., push=(url, token))`).
 - These files are an interface: the web app (webapp/) tails them. Adding fields is fine; renaming or
   dropping an event or field means updating webapp/apps/api/src/ingest/apply.ts too.
+- Written in binary mode ("\n" on every OS) so `tell()` is the exact byte offset each pushed line
+  carries. Push = `events.Pusher`: one daemon thread, bounded queue (full → drop), 1 s timeout, no
+  retries, 5 s backoff after a failure; to `RUNETOOLS_APP_URL` (default `http://127.0.0.1:8778`,
+  empty = off) with `data/bot_token` (no token = off). launcher.jsonl is never pushed.
 - Timestamps are naive local wall time. The web app splits days by them (its TZ must match the bots')
-  and decides "running" from the file's mtime instead (no session_end + written < 15 min ago).
+  and decides "running" from the file's mtime instead (no session_end + written < 90 s ago when the
+  session sends heartbeats, < 15 min for older logs).
 
 **Vision / pure logic (PRO-13).** Every decision made from the screen is a pure function that
 takes plain data; capture happens only in `lib/screen.grab`.
@@ -269,6 +283,7 @@ takes plain data; capture happens only in `lib/screen.grab`.
   DOES (safe side at the bank) — explicit via `needs_stamina(..., if_unreadable=)`.
 - Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/actions.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
 - Web app (PRO-88): dashboard, sessions, bot stats, accounts + active account, vault, settings;
+  live status (PRO-99: current state + time in it, Paused badge, ticking active time, pushed lines);
   unit tests (`pnpm test`, PGlite) + Playwright e2e (`pnpm e2e`). It replaced the stdlib Python
   prototype (`python -m dashboard`), which is deleted.
 - Woodcutter: WIP, don't touch.

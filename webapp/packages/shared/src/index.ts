@@ -68,8 +68,14 @@ export interface SessionRow {
   errors: number;
 }
 
+/** A running session. Durations are as of the response: the page ticks them on from there. */
 export interface LiveSession extends SessionRow {
-  idleSeconds: number;          // since the last logged event
+  idleSeconds: number;          // since the log was last written
+  /** The state whose handler is running (state_enter); null for logs from before PRO-99. */
+  state: string | null;
+  stateSeconds: number | null;  // time in `state` so far
+  paused: boolean;
+  // activeSeconds here runs up to now (not the last event), unless paused
 }
 
 export interface StepRow { ts: string; state: string; result: string | null; seconds: number; run: number | null }
@@ -163,6 +169,19 @@ export type FeedEvent =
   | { type: "accounts" }
   | { type: "vault"; unlocked: boolean };
 
+// ── bot push (POST /api/ingest, PRO-99) ──────────────────────────────────────
+
+/** One line a bot just wrote to its session log: file key (repo-relative), byte offset, the line. */
+export const IngestBody = z.object({
+  file: z.string().min(1).max(512),
+  offset: z.number().int().min(0),
+  line: z.string().max(4 * 1024 * 1024).regex(/^[^\r\n]*$/, "one line"),
+});
+export type IngestBody = z.infer<typeof IngestBody>;
+
+/** No session_end and the log written within this window: running (logs without heartbeats). */
 export const LIVE_WINDOW_SECONDS = 15 * 60;
+/** Same, for a session that sends heartbeats (every 30 s): it's gone after this long without one. */
+export const HEARTBEAT_WINDOW_SECONDS = 90;
 export const FAILURE_RESULTS = ["fail", "not_found"] as const;
 export const UNASSIGNED = "";

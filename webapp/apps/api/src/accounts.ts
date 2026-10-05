@@ -41,9 +41,15 @@ export async function writeActiveFile(dataDir: string, name: string | null) {
     await fs.rm(file, { force: true });
     return;
   }
+  await writeDataFile(dataDir, "active_account", `${name}\n`);
+}
+
+/** Write <dataDir>/<name> atomically (temp file + rename): a reader never sees half of it. */
+export async function writeDataFile(dataDir: string, name: string, text: string, mode = 0o644) {
+  const file = path.join(dataDir, name);
   await fs.mkdir(dataDir, { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, `${name}\n`, "utf8");
+  await fs.writeFile(tmp, text, { encoding: "utf8", mode });
   // Windows refuses to replace a file another process has open for a moment: retry briefly
   for (let attempt = 0; ; attempt++) {
     try {

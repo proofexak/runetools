@@ -33,6 +33,9 @@ services:
       - BOT=${BOT:-}
       - LAUNCH=${LAUNCH:-}
       - VALUE=${VALUE:-}
+      # live status (PRO-99): each session-log line is also pushed to the web app (with
+      # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
+      - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
     command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec sleep infinity; fi"]
     stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
     stdin_open: true
@@ -69,13 +72,15 @@ services:
     user: "${RUNETOOLS_UID:-1000}:${RUNETOOLS_GID:-1000}"
     volumes:
       - ..:/repo:ro              # session logs (*/log/*.jsonl) are tailed, never written
-      - ../data:/repo/data       # data/active_account — create data/ first on Linux
+      - ../data:/repo/data       # data/active_account + bot_token — create data/ first on Linux
     ports:
       - "127.0.0.1:8778:8778"   # localhost only: logins live in here
     environment:
       - DATABASE_URL=postgres://runetools:${POSTGRES_PASSWORD:-runetools}@postgres:5432/runetools
       - LOG_ROOTS=/repo
       - DATA_DIR=/repo/data
+      # the browser on the host, plus the bot container pushing to http://webapp:8778
+      - ALLOWED_HOSTS=127.0.0.1:8778,localhost:8778,webapp:8778
       # session logs hold local wall time without a zone: set TZ to the zone the bots run
       # in (e.g. Europe/Warsaw in docker/.env) so "today" and day splits line up
       - TZ=${TZ:-UTC}

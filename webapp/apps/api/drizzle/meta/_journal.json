@@ -15,6 +15,13 @@
       "when": 1791221560940,
       "tag": "0001_ordinary_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791227062866,
+      "tag": "0002_live_status",
+      "breakpoints": true
     }
   ]
 }

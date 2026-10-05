@@ -61,11 +61,14 @@ def test_normal_session(env):
     stats = {}
     assert _run(env, {"a": _counting(stats), "b": lambda: "ok"}, stats=stats) == "end"
     ev = _events(env)
-    assert [e["event"] for e in ev] == ["session_start", "step", "step", "session_end"]
+    assert [e["event"] for e in ev] == ["session_start", "state_enter", "step", "state_enter", "step",
+                                        "session_end"]
     assert all({"ts", "session", "bot", "event"} <= set(e) for e in ev)
     assert ev[0]["bot"] == "demo" and ev[0]["params"] == {"hide_type": "green"} and "pid" in ev[0]
-    assert ev[1]["state"] == "a" and ev[1]["result"] == "ok" and ev[1]["run"] == 1
-    assert ev[1]["seconds"] >= 0
+    assert ev[1]["state"] == "a" and ev[1]["run"] == 0          # entered before the handler ran
+    assert ev[2]["state"] == "a" and ev[2]["result"] == "ok" and ev[2]["run"] == 1
+    assert ev[2]["seconds"] >= 0
+    assert ev[3]["state"] == "b" and ev[3]["run"] == 1
     end = ev[-1]
     assert end["final"] == "end" and end["last_step"] == "b" and end["stats"]["run"] == 1
     assert end["paused_seconds"] == 0 and end["active_seconds"] >= 0

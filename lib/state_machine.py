@@ -24,7 +24,8 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
     always finishes — the bot's table must declare a "stop" trigger from each.
     ForceStop (P) is not caught.
     stats["step"] is left naming the last state whose handler ran.
-    Emits step / pause / soft_stop events to the session's event log, if any.
+    Emits state_enter / step / pause / soft_stop events to the session's event
+    log, if any.
     An event whose every row is blocked by its conditions raises MachineError
     (transitions itself would silently stay put and re-run the same handler).
     """
@@ -40,6 +41,8 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
             model.trigger("stop")
             continue
         stats["step"] = state = model.state
+        if log:
+            log.emit("state_enter", state=state, run=stats.get("run"))
         started = time.time()
         event = handlers[state]()
         if log:

@@ -21,7 +21,8 @@ export const useOverview = (account?: string, opts: { enabled?: boolean } = {}) 
   queryKey: keys.overview(account),
   queryFn: () => api.get<Overview>(`/api/overview${qs({ account })}`),
   placeholderData: keepPreviousData,
-  refetchInterval: 60_000,          // liveness ages out without any new log line
+  // liveness ages out without any new log line: a killed bot (90 s without a heartbeat) leaves within 2 min
+  refetchInterval: 30_000,
 });
 
 export const useSessions = (q: SessionsQuery) => useQuery({

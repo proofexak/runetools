@@ -2,11 +2,13 @@
  * Read side: session lists, one session in detail, the dashboard overview and per-bot
  * stats (logreport `stats` as data). "today" is the API process's local date, which has to
  * be the bots' zone (TZ) since the logs hold naive wall time; liveness instead compares
- * the log file's mtime with now(), which needs no zone at all.
+ * the log file's mtime with now(), which needs no zone at all. A session that sends
+ * heartbeats (every 30 s, PRO-99) is gone after 90 s without a write; older logs keep the
+ * 15-minute rule.
  */
 import {
-  FAILURE_RESULTS, LIVE_WINDOW_SECONDS, type BotStats, type DayRow, type LiveSession, type Overview,
-  type SessionDetail, type SessionRow, type SessionsQuery,
+  FAILURE_RESULTS, HEARTBEAT_WINDOW_SECONDS, LIVE_WINDOW_SECONDS, type BotStats, type DayRow, type LiveSession,
+  type Overview, type SessionDetail, type SessionRow, type SessionsQuery,
 } from "@runetools/shared";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
@@ -16,7 +18,9 @@ import { addDays, iso, localIso } from "./time.js";
 
 export const status = sql<string>`CASE
   WHEN ${sessions.final} IS NOT NULL THEN ${sessions.final}
-  WHEN ${sessions.fileMtime} > now() - interval '${sql.raw(String(LIVE_WINDOW_SECONDS))} seconds' THEN 'running'
+  WHEN ${sessions.fileMtime} > now() - CASE WHEN ${sessions.lastHeartbeat} IS NULL
+    THEN interval '${sql.raw(String(LIVE_WINDOW_SECONDS))} seconds'
+    ELSE interval '${sql.raw(String(HEARTBEAT_WINDOW_SECONDS))} seconds' END THEN 'running'
   ELSE 'killed' END`;
 
 const endedAt = sql<string>`coalesce(${sessions.endedAt}, ${sessions.lastEventAt})`;
@@ -133,7 +137,14 @@ export async function overview(db: Db, account: string | undefined, now = localI
     }).from(dailyActivity)
       .where(and(dailyAccountWhere(account), gte(dailyActivity.day, first), lte(dailyActivity.day, today)))
       .groupBy(dailyActivity.day, dailyActivity.bot),
-    db.select({ ...rowFields, idleSeconds: sql<number>`extract(epoch FROM now() - ${sessions.fileMtime})::float8` })
+    db.select({
+      ...rowFields,
+      idleSeconds: sql<number>`extract(epoch FROM now() - ${sessions.fileMtime})::float8`,
+      state: sessions.currentState,
+      // both naive wall times from one log: their difference needs no zone
+      stateSeconds: sql<number | null>`extract(epoch FROM ${sessions.lastEventAt} - ${sessions.stateSince})::float8`,
+      paused: sql<boolean>`${sessions.pausedSince} IS NOT NULL`,
+    })
       .from(sessions).where(and(acc, sql`${status} = 'running'`)).orderBy(desc(sessions.startedAt)),
     db.select(rowFields).from(sessions).where(acc).orderBy(desc(sessions.startedAt), desc(sessions.id)).limit(25),
     db.select({ seconds: sql<number>`coalesce(sum(${sessions.activeSeconds}), 0)::float8` }).from(sessions).where(acc),
@@ -152,9 +163,17 @@ export async function overview(db: Db, account: string | undefined, now = localI
     const bot = r.bot ?? "?";
     row.bots[bot] = (row.bots[bot] ?? 0) + r.hours;
   }
+  const t = days.get(today)!;
+  const live = liveRows.map((r) => liveRow(r as Parameters<typeof liveRow>[0]));
+  for (const s of live) {
+    // running now: its time since the last logged event belongs to today (logged time is in already)
+    const extra = s.paused ? 0 : s.idleSeconds / 3600;
+    const bot = s.bot ?? "?";
+    t.hours += extra;
+    t.bots[bot] = (t.bots[bot] ?? 0) + extra;
+  }
   const daily = [...days.values()];
   const week = daily.filter((d) => d.date >= weekStart);
-  const t = days.get(today)!;
 
   return {
     now,
@@ -166,8 +185,22 @@ export async function overview(db: Db, account: string | undefined, now = localI
     },
     totalHours: (totals?.seconds ?? 0) / 3600,
     daily,
-    live: liveRows.map((r) => ({ ...toRow(r as RawRow), idleSeconds: Math.max(0, r.idleSeconds) }) as LiveSession),
+    live,
     recent: recentRows.map((r) => toRow(r as RawRow)),
+  };
+}
+
+/** Durations brought from the last logged event up to now: the bot has been at it since. */
+function liveRow(r: RawRow & { idleSeconds: number; state: string | null; stateSeconds: number | null; paused: boolean }): LiveSession {
+  const idle = Math.max(0, r.idleSeconds ?? 0);
+  const row = toRow(r);
+  return {
+    ...row,
+    activeSeconds: row.activeSeconds + (r.paused ? 0 : idle),
+    idleSeconds: idle,
+    state: r.state,
+    stateSeconds: r.state !== null && r.stateSeconds !== null ? Math.max(0, r.stateSeconds) + idle : null,
+    paused: r.paused,
   };
 }
 

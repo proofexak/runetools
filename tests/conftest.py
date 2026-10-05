@@ -44,3 +44,6 @@ def _launcher_log_in_tmp(monkeypatch, tmp_path):
     import lib.accounts as accounts
     monkeypatch.setattr(accounts, "ROOT", str(tmp_path))
     monkeypatch.delenv(accounts.ENV_VAR, raising=False)
+    # ... nor push events to a web app running on this machine (ROOT has no
+    # data/bot_token either; tests that push pass push= explicitly)
+    monkeypatch.setenv(events.APP_URL_VAR, "")

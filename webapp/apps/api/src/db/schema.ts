@@ -94,8 +94,16 @@ export const sessions = pgTable("sessions", {
   runs: integer("runs").notNull().default(0),
   errorCount: integer("error_count").notNull().default(0),
   hasStart: boolean("has_start").notNull().default(false),  // a session_start line was read
-  /** Log file mtime as last seen. Liveness uses it, not the naive event times: zone-proof. */
+  /**
+   * When the log was last seen written: the file's mtime when tailed, the server's clock when
+   * a line is pushed. Liveness uses it, not the naive event times: zone-proof.
+   */
   fileMtime: timestamp("file_mtime", { withTimezone: true }),
+  // live status (PRO-99); stay null for logs from before state_enter / pause_start / heartbeat
+  currentState: text("current_state"),                      // last state_enter; null once ended
+  stateSince: wallTime("state_since"),
+  pausedSince: wallTime("paused_since"),                     // pause_start of a pause still going
+  lastHeartbeat: wallTime("last_heartbeat"),
 }, (t) => [
   index("sessions_started_at").on(t.startedAt),
   index("sessions_account").on(t.account),

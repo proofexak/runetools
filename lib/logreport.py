@@ -48,6 +48,18 @@ def _ts(event):
     return datetime.fromisoformat(event["ts"])
 
 
+def open_pause(events):
+    """The pause_start of a pause still going at the last event (no pause /
+    pause_end after it), or None. Logs from before PRO-99 never have one."""
+    since = None
+    for e in events:
+        if e["event"] == "pause_start":
+            since = since or e
+        elif e["event"] in ("pause", "pause_end", "session_end"):
+            since = None
+    return since
+
+
 def summarize(events):
     """One session's events (file order) -> summary dict. No session_end means
     the process was killed: final "killed", times taken from the last event."""
@@ -69,6 +81,9 @@ def summarize(events):
     else:
         paused = sum(p.get("seconds", 0.0) for p in pauses)
         active = (_ts(events[-1]) - _ts(start)).total_seconds() - paused
+        since = open_pause(events)
+        if since is not None:   # killed while paused: heartbeats went on, the bot didn't
+            active -= max(0.0, (_ts(events[-1]) - _ts(since)).total_seconds())
         runs = (steps[-1].get("run") if steps else 0) or 0
 
     return {
