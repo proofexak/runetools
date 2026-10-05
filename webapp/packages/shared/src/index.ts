@@ -162,12 +162,38 @@ export const SettingsBody = z.object({
 export type SettingsBody = z.infer<typeof SettingsBody>;
 export interface SettingsResponse extends SettingsBody { defaultLogRoots: string[] }
 
+// ── live view (PRO-89) ───────────────────────────────────────────────────────
+
+/** What the page needs to open the VNC stream (/api/live/vnc). */
+export interface LiveConfig {
+  /** x11vnc's password: handed to a logged-in page only, never put in a URL. */
+  password: string;
+}
+
+export const LiveControlBody = z.object({ action: z.enum(["take", "release"]) });
+export type LiveControlBody = z.infer<typeof LiveControlBody>;
+
+/**
+ * "Take control": the request the app wrote to data/live_control.json and the bot's
+ * answer (data/live_control_ack.json, lib/live_control.py) to that same request.
+ */
+export interface LiveControl {
+  /** A human has (asked for) the game. */
+  held: boolean;
+  id: string | null;
+  /** When the current request was made (ISO): no answer after a few seconds = no bot running. */
+  requestedAt: string | null;
+  /** The bot's answer to this request; null = none (yet). safe = no bot step is running. */
+  bot: { held: boolean; safe: boolean } | null;
+}
+
 // ── live feed (SSE /api/events) ──────────────────────────────────────────────
 
 export type FeedEvent =
   | { type: "sessions"; ids: number[] }      // ingestion changed these sessions
   | { type: "accounts" }
-  | { type: "vault"; unlocked: boolean };
+  | { type: "vault"; unlocked: boolean }
+  | { type: "live" };                         // take control / release
 
 // ── bot push (POST /api/ingest, PRO-99) ──────────────────────────────────────
 

@@ -16,6 +16,7 @@ Supervisor events go to log/launcher.jsonl (`python -m lib.logreport supervisor`
 import os, signal, sys, threading, time
 
 import lib.events as events
+import lib.live_control as live_control
 import lib.pause as pause
 from lib import supervisor as policy
 from lib.supervisor import Outcome, Backoff, Budget, decide
@@ -130,7 +131,8 @@ class Supervisor:
         self.operator = False
         began = self.clock()
         try:
-            self.start(self.stats)
+            with pause.session():
+                self.start(self.stats)
             final, reason, crashed = self.stats.get("step"), self.stats.get("reason"), False
         except Exception as e:
             final, reason, crashed = "crashed", f"{type(e).__name__}: {e}", True
@@ -161,7 +163,8 @@ class Supervisor:
                 self._idle("giving_up", f"missing client templates: {', '.join(missing)}")
                 continue
             try:
-                ok, reason = self.client.ensure_logged_in()
+                with pause.session():        # logging in clicks too (live_control's "safe")
+                    ok, reason = self.client.ensure_logged_in()
             except pause.ForceStop:          # P (or botctl kill / docker stop) while logging in
                 if not self.exiting:
                     self._idle("operator", "force-stopped during login")
@@ -224,6 +227,7 @@ def main():
             signal.pause()
 
     pause.setup(pause_hotkey="o", stop_hotkey="p")     # O/P still work over VNC
+    live_control.start()                               # web app "Take control" (PRO-89)
     sup = Supervisor(bot, start, RealClient())
     install_signals(sup)
     sup.run_forever()

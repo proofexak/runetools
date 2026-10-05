@@ -23,6 +23,7 @@ import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
 import { eventRoutes } from "./routes/events.js";
 import { INGEST_ROUTE, ingestRoutes } from "./routes/ingest.js";
+import { liveRoutes } from "./routes/live.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { statsRoutes } from "./routes/stats.js";
 import { vaultRoutes } from "./routes/vault.js";
@@ -110,6 +111,7 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   await settingsRoutes(app, ctx);
   await eventRoutes(app, ctx);
   await ingestRoutes(app, ctx);
+  await liveRoutes(app, ctx, (req) => checkOrigin(req, allowed, anyHost));
   if (register) await register(app);
 
   const dist = ctx.config.webDist;

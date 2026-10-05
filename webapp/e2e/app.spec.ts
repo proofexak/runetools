@@ -201,6 +201,37 @@ test("live status: a bot's pushed state and pause show within a second", async (
   expect(res.status()).toBe(401);
 });
 
+test("live view: take control waits for the bot's pause, release hands it back", async ({ page }) => {
+  await logIn(page);
+  const card = page.locator("[data-slot=card]", { hasText: "Live view" });
+  await expect(card.getByText("Can't reach the bot's screen")).toBeVisible({ timeout: 10_000 });   // no VNC here
+
+  // a bot answers (what lib/live_control.py writes): busy first, then parked in its pause
+  const data = path.join(ROOT, "data");
+  await card.getByRole("button", { name: "Take control" }).click();
+  await expect(card.getByText("Pausing the bot")).toBeVisible();
+  const request = JSON.parse(fs.readFileSync(path.join(data, "live_control.json"), "utf8"));
+  expect(request.held).toBe(true);
+  const ack = (safe: boolean) => fs.writeFileSync(path.join(data, "live_control_ack.json"),
+    JSON.stringify({ id: request.id, held: true, safe, pid: 1 }));
+  ack(false);
+  await page.waitForTimeout(4000);                           // past the no-answer window: still waiting
+  await expect(card.getByText("Pausing the bot")).toBeVisible();
+  ack(true);
+  await expect(card.getByText("the bot is paused until you release it")).toBeVisible();
+  await expect(card.getByText("In control")).toBeVisible();
+
+  await card.getByRole("button", { name: "Release" }).click();
+  await expect(card.getByRole("button", { name: "Take control" })).toBeVisible();
+  expect(JSON.parse(fs.readFileSync(path.join(data, "live_control.json"), "utf8")).held).toBe(false);
+
+  // nobody answers: no bot is running, so control is handed over anyway
+  await card.getByRole("button", { name: "Take control" }).click();
+  await expect(card.getByText("no bot answered")).toBeVisible({ timeout: 6000 });
+  await card.getByRole("button", { name: "Release" }).click();
+  await expect(card.getByRole("button", { name: "Take control" })).toBeVisible();
+});
+
 test("settings: change the app password; the old one stops working", async ({ page }) => {
   await logIn(page);
   await nav(page, "Settings");

@@ -11,11 +11,13 @@ import lib.events as events
 events.install_excepthooks()   # first: even import errors below get recorded
 
 import lib.pause as pause
+import lib.live_control as live_control
 import lib.overlay as overlay
 from lib.overlay import start as start_overlay
 from lib.bots import discover, build_menu, run_guarded
 
 pause.setup(pause_hotkey="o", stop_hotkey="p")
+live_control.start()   # web app "Take control" (PRO-89)
 
 stats     = {"run": 0, "step": "starting", "start": None, "stop": False}
 _selected = threading.Event()

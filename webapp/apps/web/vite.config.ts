@@ -15,9 +15,11 @@ export default defineConfig({
       "/api": {
         target: API,
         changeOrigin: true,          // the API checks Host
+        ws: true,                    // the live view's VNC stream (/api/live/vnc)
         configure: (proxy) => {
           // the browser's Origin is the dev server; the API only accepts its own
           proxy.on("proxyReq", (req) => req.removeHeader("origin"));
+          proxy.on("proxyReqWs", (req) => req.removeHeader("origin"));
         },
       },
     },

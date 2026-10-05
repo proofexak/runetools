@@ -91,6 +91,10 @@ Point your VNC client at `localhost:5900` (bound to localhost only). Password is
 `runetools` by default — override it in `docker/.env` with `VNC_PASSWORD=…`
 before starting the container.
 
+The web app's dashboard shows the same screen (**Live view**, view only; **Take control**
+pauses the bot first — see [webapp/README.md](../webapp/README.md#live-view)). It connects
+to x11vnc over the compose network, so it needs `VNC=1`.
+
 ### 4. Copy the login in, launch RuneLite
 
 From the repo folder (PowerShell on Windows — Git Bash rewrites the container
@@ -247,8 +251,8 @@ with Git for Windows) for the commands below.
 
 | variable | default | |
 |---|---|---|
-| `VNC` | `1` | `0` = no VNC server (fully unattended) |
-| `VNC_PASSWORD` | `runetools` | |
+| `VNC` | `1` | `0` = no VNC server (fully unattended; the web app's live view goes dark) |
+| `VNC_PASSWORD` | `runetools` | also handed to the web app for its live view |
 | `XVFB_RESOLUTION` | `1280x800x24` | keep depth 24 |
 | `RUNELITE_FPS` | `30` | frame cap seeded on a fresh RuneLite profile; `0` = no cap |
 | `RUNELITE_JAVA_OPTS` | `-Xmx512m -XX:+UseSerialGC` | client JVM flags |

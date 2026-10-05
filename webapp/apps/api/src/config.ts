@@ -21,6 +21,9 @@ export interface Config {
   envAccount: string | null;
   /** Password attempts (login, unlock, ...) per minute per client. */
   passwordRateLimit: number;
+  /** x11vnc in the bot container, bridged to the page's live view (/api/live/vnc). */
+  vnc: { host: string; port: number };
+  vncPassword: string;
 }
 
 function list(value: string | undefined): string[] {
@@ -45,5 +48,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     secureCookie: env.COOKIE_SECURE === "1",
     envAccount: env.RUNETOOLS_ACCOUNT || null,
     passwordRateLimit: Number(env.PASSWORD_RATE_LIMIT || 10),
+    vnc: hostPort(env.VNC_ADDR || "127.0.0.1:5900"),
+    vncPassword: env.VNC_PASSWORD ?? "runetools",
   };
+}
+
+function hostPort(value: string) {
+  const i = value.lastIndexOf(":");
+  return { host: value.slice(0, i), port: Number(value.slice(i + 1)) };
 }

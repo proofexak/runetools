@@ -2,9 +2,9 @@
 
 Per-account bot stats and an encrypted login vault, in the browser:
 
-- **Dashboard**: what is running right now (bot, the state it's in and for how long, paused or not, active time),
-  hours and runs for today and the last 7 days,
-  crashes, a 14-day hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
+- **Dashboard**: the bot container's screen live (view only, **Take control** to use it), what is running right now
+  (bot, the state it's in and for how long, paused or not, active time), hours and runs for today and the last 7
+  days, crashes, a 14-day hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
 - **Sessions**: a filterable list (account, bot, status, dates). Each session's page has its step timeline, time per
   state, failed steps and tracebacks.
 - **Bot stats**: `python -m lib.logreport stats` as a page: runs/h, failure rate per state, recoveries/h, stop reasons
@@ -52,6 +52,26 @@ every session start and records it as `account` in `session_start`. `RUNETOOLS_A
 container per account). Sessions logged without an account show as *Unassigned*. Renaming an account renames it in
 the existing history too. Deleting one keeps its sessions under the old name.
 
+## Live view
+
+The dashboard shows the bot container's screen through noVNC (`react-vnc`). Browsers can't speak VNC's TCP protocol,
+so the API bridges it: the page opens a WebSocket to `/api/live/vnc` on the app's own origin, and the API connects
+to x11vnc (`VNC_ADDR`, `runetools:5900` in Docker). The stream sits behind the app login, and no extra port is
+published. The VNC password comes from `/api/live/config` (logged-in page only), never from a URL.
+
+The view is read-only by default. The bot's pyautogui and the viewer share one X display, so a click in the viewer
+would move the bot's mouse mid-step. **Take control** first asks the bot to pause, and the viewer only takes mouse
+and keyboard once the bot is parked. The hand-over goes through files in `data/`, like the active account:
+
+- the app writes `data/live_control.json`: `{id, held, at}`;
+- `lib/live_control.py` (a thread in `run.py` and `lib.headless`) pauses the bot and ignores O/P while held, so you
+  can type into the game;
+- it answers in `data/live_control_ack.json` with `{id, held, safe}`, where `safe` means no bot step is running.
+
+If nothing answers within 3 s, no bot is running and control is handed over anyway. **Release** puts the pause back
+how it was before (normally: running). While held, nothing else resumes the bot: not O, not the overlay, not
+`botctl resume`, and not a session that starts in the meantime.
+
 ## Security
 
 - The server listens on 127.0.0.1 only (in Docker it binds 0.0.0.0, published on 127.0.0.1:8778 only). It refuses
@@ -60,6 +80,8 @@ the existing history too. Deleting one keeps its sessions under the old name.
 - App login: argon2id password hash and a random session cookie (`httpOnly`, `SameSite=Strict`, only its SHA-256 is
   stored). Every mutating request also needs the session's CSRF token, and a same-site `Origin` when the browser sends
   one. Password endpoints are rate-limited.
+- Live view: the VNC WebSocket needs the login and a same-site `Origin`, so another site can't open it in your
+  browser. The CSP stays `connect-src 'self'`.
 - Vault: the master password goes through argon2id (64 MiB, 3 passes) to make an AES-256-GCM key. Each login is
   encrypted with a fresh nonce and bound to its account (AAD). The key lives only in the server's memory while the
   vault is unlocked. It locks after 10 minutes without use, on logout and on restart. **The master password can't be
@@ -98,10 +120,13 @@ apps/api          Fastify + Drizzle
   src/stats.ts          overview / sessions / bot stats queries
   src/vault/            crypto.ts (argon2id + AES-GCM), vault.ts (in-memory key, auto-lock)
   src/accounts.ts       accounts + data/active_account
+  src/routes/live.ts    live view: VNC WebSocket bridge, take control (data/live_control*.json)
 apps/web          React + Vite + TanStack Query + React Router + Tailwind (shadcn-style components in src/components/ui)
 e2e/              Playwright specs + start-server.mjs
 ```
 
 API settings (environment variables): `DATABASE_URL` (Postgres, or `pglite:memory` / `pglite:<dir>`), `HOST`, `PORT`
 (8778), `LOG_ROOTS` (default: the repo; Settings can override it), `DATA_DIR` (default: `<repo>/data`),
-`ALLOWED_HOSTS`, `POLL_MS`, `COOKIE_SECURE=1` behind HTTPS, `PASSWORD_RATE_LIMIT` (per minute).
+`ALLOWED_HOSTS`, `POLL_MS`, `COOKIE_SECURE=1` behind HTTPS, `PASSWORD_RATE_LIMIT` (per minute), `VNC_ADDR`
+(x11vnc for the live view, default `127.0.0.1:5900`: the container's published port, for `pnpm dev`),
+`VNC_PASSWORD` (`runetools`).

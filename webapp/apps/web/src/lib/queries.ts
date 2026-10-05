@@ -1,10 +1,11 @@
 import type {
-  AccountsResponse, BotStatsResponse, FeedEvent, Overview, SessionDetail, SessionsQuery, SessionsResponse,
-  SettingsResponse, VaultStatus,
+  AccountsResponse, BotStatsResponse, FeedEvent, LiveConfig, LiveControl, Overview, SessionDetail, SessionsQuery,
+  SessionsResponse, SettingsResponse, VaultStatus,
 } from "@runetools/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, qs } from "./api";
+import { controlPhase } from "./live-view";
 
 export const keys = {
   overview: (account?: string) => ["overview", account ?? null] as const,
@@ -14,6 +15,8 @@ export const keys = {
   accounts: ["accounts"] as const,
   vault: ["vault"] as const,
   settings: ["settings"] as const,
+  liveConfig: ["live-config"] as const,
+  liveControl: ["live-control"] as const,
 };
 
 export const useOverview = (account?: string, opts: { enabled?: boolean } = {}) => useQuery({
@@ -58,6 +61,19 @@ export const useSettings = () => useQuery({
   queryFn: () => api.get<SettingsResponse>("/api/settings"),
 });
 
+export const useLiveConfig = () => useQuery({
+  queryKey: keys.liveConfig,
+  queryFn: () => api.get<LiveConfig>("/api/live/config"),
+  staleTime: Infinity,
+});
+
+/** Polled fast only while waiting for the bot to answer a take-control request. */
+export const useLiveControl = () => useQuery({
+  queryKey: keys.liveControl,
+  queryFn: () => api.get<LiveControl>("/api/live/control"),
+  refetchInterval: (q) => (controlPhase(q.state.data, Date.now()) === "pausing" ? 500 : 15_000),
+});
+
 /** Every bot that ever logged — the stable domain for bot colours. */
 export const useAllBots = () => useQuery({
   queryKey: ["all-bots"],
@@ -83,6 +99,8 @@ export function useLiveFeed(): boolean {
       } else if (e.type === "vault") {
         qc.invalidateQueries({ queryKey: keys.vault });
         if (!e.unlocked) qc.removeQueries({ queryKey: ["vault-entry"] });
+      } else if (e.type === "live") {
+        qc.invalidateQueries({ queryKey: keys.liveControl });
       }
     };
     return () => es.close();

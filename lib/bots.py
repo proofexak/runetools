@@ -67,8 +67,10 @@ def run_guarded(start, stats, bot=None):
     returns False instead of killing the launcher (e.g. an uncalibrated bot).
     A crash the session didn't already record (e.g. start() failing before the
     session began) goes to log/launcher.jsonl."""
+    import lib.pause as pause   # here: discovery stays import-light (tests/test_bots.py)
     try:
-        start(stats)
+        with pause.session():
+            start(stats)
         return True
     except Exception as e:
         if not events.was_logged(e):

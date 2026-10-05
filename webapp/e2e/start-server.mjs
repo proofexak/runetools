@@ -63,6 +63,7 @@ const server = spawn(process.execPath, ["--import", "tsx", path.join(here, "../a
     DATA_DIR: path.join(root, "data"),
     WEB_DIST: path.join(here, "../apps/web/dist"),
     POLL_MS: "5000",                // slow tailer: what shows up within ~1 s came by push
+    VNC_ADDR: "127.0.0.1:1",    // nothing listens: never the real bot container's VNC
     LOG_LEVEL: "warn",
   },
 });

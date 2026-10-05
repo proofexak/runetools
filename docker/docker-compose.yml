@@ -81,6 +81,10 @@ services:
       - DATA_DIR=/repo/data
       # the browser on the host, plus the bot container pushing to http://webapp:8778
       - ALLOWED_HOSTS=127.0.0.1:8778,localhost:8778,webapp:8778
+      # live view (PRO-89): the API bridges the page's VNC WebSocket to x11vnc over the
+      # compose network, so no extra port is published for it
+      - VNC_ADDR=runetools:5900
+      - VNC_PASSWORD=${VNC_PASSWORD:-runetools}
       # session logs hold local wall time without a zone: set TZ to the zone the bots run
       # in (e.g. Europe/Warsaw in docker/.env) so "today" and day splits line up
       - TZ=${TZ:-UTC}

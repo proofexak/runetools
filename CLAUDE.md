@@ -54,6 +54,9 @@ lib/                    universal helpers used by all bots
   energy_config_editor.py  config editor wired to energy_config.py
   accounts.py           active() = RUNETOOLS_ACCOUNT, else data/active_account (written by the web
                          app); run_session tags session_start with it as `account`
+  live_control.py       web app "Take control" (PRO-89): watcher thread (run.py, headless) reads
+                         data/live_control.json → pause.hold()/unhold() (paused, O/P ignored), answers
+                         in data/live_control_ack.json with `safe` = pause.idle() (no step running)
 
 webapp/                 web app (PRO-88): per-account stats + encrypted login vault, not a bot —
                          TypeScript pnpm monorepo, see webapp/README.md. Reads the bots' *.jsonl
@@ -286,4 +289,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
   live status (PRO-99: current state + time in it, Paused badge, ticking active time, pushed lines);
   unit tests (`pnpm test`, PGlite) + Playwright e2e (`pnpm e2e`). It replaced the stdlib Python
   prototype (`python -m dashboard`), which is deleted.
+- Live view (PRO-89): dashboard panel with noVNC (react-vnc); the API bridges the WebSocket to x11vnc
+  itself (`/api/live/vnc`, `VNC_ADDR`) — no websockify, no extra port. Take control / Release via
+  `lib/live_control.py` (see webapp/README.md "Live view"). Checked view-only against the real
+  container; take control against a real running bot not yet tried.
 - Woodcutter: WIP, don't touch.
