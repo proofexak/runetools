@@ -21,7 +21,7 @@ _ACTIONS    = _WALK_TRADE + ["banking"]
 
 TRANSITIONS = [
     {"trigger": "begin",   "source": "start",          "dest": "recover", "conditions": "start_from_ge"},
-    {"trigger": "begin",   "source": "start",          "dest": "walk_to_tanner"},
+    {"trigger": "begin",   "source": "start",          "dest": "walk_to_bank"},   # open the bank, deposit + withdraw first
 
     {"trigger": "ok",      "source": "walk_to_tanner", "dest": "trade_ellis"},
     {"trigger": "ok",      "source": "trade_ellis",    "dest": "tanning"},
@@ -115,3 +115,24 @@ def bank_event(result):
     if result == "restock":
         return "restock"
     return ok_or_fail(result)
+
+
+def recovery_drill(handlers, stats):
+    """Wrap a session's handlers for a test run of the glory recovery: the opening
+    bank and one full trip run as normal, then the trip's (real) bank reports
+    "fail" so the table goes to recover, and after recovery the session stops at
+    walk_to_tanner. Spends one charge. Used by tanner/checks/recovery_drill.py."""
+    banks = [0]
+    bank, recover = handlers["banking"], handlers["recover"]
+
+    def banking():
+        banks[0] += 1
+        event = bank()
+        return "fail" if banks[0] == 2 and event == "ok" else event
+
+    def recover_():
+        event = recover()
+        stats["stop"] = True
+        return event
+
+    return {**handlers, "banking": banking, "recover": recover_}

@@ -48,7 +48,8 @@ AMULET_SLOT   = (0, 0)
 AMULET_MENU_ROW = 4          # 5th right-click option (0-indexed) → Al Kharid teleport
 
 DOUBLE_DOORS_REGION = [(0, 0), (0, 0), (0, 0), (0, 0)]
-TP_BANK_REGION      = (0, 0, 0, 0)
+TP_BANK_REGION      = (0, 0, 0, 0)   # clicked after the doors: walk into the bank
+TP_BOOTH_REGION     = (0, 0, 0, 0)   # magenta booth searched here once the walk stopped
 
 # ── Retry limits ──────────────────────────────────────────────────────────────
 

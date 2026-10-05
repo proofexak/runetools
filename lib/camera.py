@@ -14,7 +14,8 @@ import pyautogui
 from lib.mouse import human_click, human_right_click, human_move, menu_click, jitter, hesitate
 
 ZOOM_NOTCHES = (40, 48)    # wheel notches down — more than the full zoom range
-TILT_DRAG    = (220, 280)  # px dragged down with the middle button — past the steepest pitch
+TILT_DRAG    = (220, 280)  # px dragged down with the middle button per pass
+TILT_PASSES  = 2           # one pass didn't reach the steepest pitch; extra passes just overshoot
 
 DIRECTIONS = ("north", "east", "south", "west")
 
@@ -46,10 +47,13 @@ def zoom_out_top_down(x, y, rng=random):
     for _ in range(rng.randint(*ZOOM_NOTCHES)):
         pyautogui.scroll(-1)
         time.sleep(rng.uniform(0.03, 0.08))
-    time.sleep(rng.uniform(0.2, 0.4))
-    pyautogui.mouseDown(button="middle")
-    try:
-        human_move(x + rng.randint(-15, 15), y + rng.randint(*TILT_DRAG))
-    finally:
-        pyautogui.mouseUp(button="middle")
+    for _ in range(TILT_PASSES):
+        time.sleep(rng.uniform(0.2, 0.4))
+        sx = x + rng.randint(-15, 15)
+        human_move(sx, y + rng.randint(-10, 10))
+        pyautogui.mouseDown(button="middle")
+        try:   # nearly vertical: a sideways drag would also rotate the camera
+            human_move(sx + rng.randint(-3, 3), y + rng.randint(*TILT_DRAG))
+        finally:
+            pyautogui.mouseUp(button="middle")
     time.sleep(rng.uniform(0.3, 0.6))

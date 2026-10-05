@@ -97,7 +97,7 @@ choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on
 tests/                  pytest suite (stub handlers, fake screen — no game needed):
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
-                         tanner (inventory_check, slot_check), golden_nuggets (struts),
+                         tanner (inventory_check, slot_check, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
                          choc (sequence), lib (read_energy, drink_stamina, drink_sequence)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
@@ -150,7 +150,10 @@ GE Config, Energy Config, Exit.
 `do_bank(skip_restock_check=True)` skips the empty-slot-2 check (used after GE restock to prevent infinite loop).
 
 **Recovery path** (amulet of glory, max 6 charges):
-Escape → F4 → right-click amulet → teleport Al Kharid → orient west → click double doors → find booth in `TP_BANK_REGION` → `do_bank(skip_restock_check=True)`
+Escape → F4 → right-click amulet → teleport Al Kharid → orient west → click double doors → wait stopped →
+click inside `TP_BANK_REGION` ("TP Walk Region") → wait stopped → find booth in `TP_BOOTH_REGION` → `do_bank(skip_restock_check=True)`.
+An uncalibrated (zero-size) `TP_BOOTH_REGION` fails recovery before the teleport, so no charge is spent.
+`save_attr` appends a field missing from an older calibrated config, so new fields can be captured in the editor.
 
 **Bot contract (standard for all bots).** A bot is a package (`__init__.py`) with:
 - `bot.py` — `BOT = Bot(name, launches=[Launch(label, start, colors, alt=, ask_int=, configure=)],
@@ -184,7 +187,7 @@ reported, not fatal; a session that raises prints its traceback and returns to t
 `lib.bots.run_guarded`).
 
 **Structured session logs (PRO-15).** Every scaffold session writes `<bot>/log/<name>_<stamp>.jsonl`
-next to its text `.log` (same stamp). Events: `session_start` (bot, params), `step` (state, result,
+next to its text `.log` (same stamp). Events: `session_start` (bot, params, account), `step` (state, result,
 seconds, run), `pause`, `soft_stop`, `force_stop`, `error` (type, message, traceback, state),
 `session_end` (always: final done/stopped/crashed/interrupted/…, reason, stats, active/paused time).
 They come from `run_session`/`run_machine` — bots only pass `bot=` and `params=`.
@@ -251,6 +254,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
   start — goes through the `recover` state and uses one of the 6 charges; a failed "Run from GE"
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).
+  A normal start (not "Run from GE") banks first: face west → `walk_to_bank` (click the booth) →
+  `banking` (deposit + withdraw, empty-slot check skipped) → the usual trip.
 - Golden Nuggets miner: on the state machine and the scaffold; O/P work inside long waits (walking,
   mining, sack processing) too, and a pause during mining doesn't count toward the idle timeout.
   A failed hopper deposit fixes struts and retries once; only a successful (re)try counts toward

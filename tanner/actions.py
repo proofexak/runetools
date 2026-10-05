@@ -131,6 +131,11 @@ def walk_to_bank():
 
 def recover():
     """Teleport to Al Kharid via amulet, walk to bank, do_bank. Returns True on success."""
+    booth_region = getattr(_cfg, "TP_BOOTH_REGION", (0, 0, 0, 0))
+    if not all(booth_region[2:]):
+        print("[RECOVERY] TP Booth Region not calibrated (Tanning → ⚙ Configure) — recovery failed.")
+        return False
+
     print("\n[RECOVERY] Escape...")
     pyautogui.press("escape")
     time.sleep(random.uniform(0.3, 0.5))
@@ -157,10 +162,15 @@ def recover():
     time.sleep(random.uniform(0.5, 1.0))
     _wait_stopped()
 
+    print("[RECOVERY] Walking into the bank...")
+    random_area_click(TP_BANK_REGION)
+    time.sleep(random.uniform(0.5, 1.0))
+    _wait_stopped()
+
     print("[RECOVERY] Looking for bank booth...")
     for attempt in range(MAX_BOOTH_TRIES):
         pause.wait()
-        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=TP_BANK_REGION)
+        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0, region=booth_region)
         if pos:
             bx, by = pos
             print(f"  [RECOVERY] Booth at ({bx:.0f}, {by:.0f})")
