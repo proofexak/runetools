@@ -9,12 +9,13 @@
 #   docker/botctl status     recent sessions + supervisor events
 #
 # Not in the docker group yet? Prefix with:  sg docker -c "docker/botctl …"
+# On Windows run it from Git Bash (comes with Git for Windows).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 dc() { docker compose -f docker/docker-compose.yml "$@"; }
 signal() {   # "docker compose kill" only sends the signal; its "Killed" wording is noise
-    if [ -z "$(dc ps --status running -q runetools 2>/dev/null)" ]; then
+    if ! running; then
         echo "the runetools container isn't running (docker compose -f docker/docker-compose.yml up -d)" >&2
         exit 1
     fi
@@ -25,7 +26,18 @@ signal() {   # "docker compose kill" only sends the signal; its "Killed" wording
         exit 1
     fi
 }
-py() { if [ -x .venv/bin/python ]; then .venv/bin/python "$@"; else python3 "$@"; fi; }
+running() { [ -n "$(dc ps --status running -q runetools 2>/dev/null)" ]; }
+# The report runs inside the container when it's up (no Python needed on the
+# host, e.g. Windows + Git Bash); otherwise with whatever Python the host has.
+report() {
+    if running; then
+        dc exec -T runetools python3 -m lib.logreport "$@"
+    elif [ -x .venv/bin/python ]; then .venv/bin/python -m lib.logreport "$@"
+    elif [ -x .venv/Scripts/python.exe ]; then .venv/Scripts/python.exe -m lib.logreport "$@"
+    elif command -v python3 >/dev/null; then python3 -m lib.logreport "$@"
+    else python -m lib.logreport "$@"
+    fi
+}
 
 case "${1:-}" in
     pause)        signal USR1 ;;
@@ -34,9 +46,9 @@ case "${1:-}" in
     kill)         signal INT ;;
     start)        signal HUP ;;
     status)
-        py -m lib.logreport sessions --last 5
+        report sessions --last 5
         echo
-        py -m lib.logreport supervisor --last 10
+        report supervisor --last 10
         ;;
     *)
         sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'

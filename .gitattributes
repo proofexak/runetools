@@ -1,0 +1,6 @@
+# Scripts that run inside the Linux container must stay LF even on a Windows
+# checkout (Git for Windows defaults to CRLF -> "/bin/bash^M: bad interpreter").
+*.sh            text eol=lf
+docker/runelite text eol=lf
+docker/botctl   text eol=lf
+docker/Dockerfile text eol=lf

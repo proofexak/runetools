@@ -209,6 +209,41 @@ after a session of 10+ minutes); at most **5 automatic restarts per hour** and
 and VNC stay up; `botctl start` resumes. Everything is logged to
 `log/launcher.jsonl`: `python -m lib.logreport supervisor` (or `botctl status`).
 
+## Testing on Windows
+
+Same container, Docker Desktop instead of Ubuntu's Docker. Use **Git Bash** (comes
+with Git for Windows) for the commands below.
+
+1. **Get the code** — `git clone https://github.com/proofexak/runetools` (or
+   `git pull`). If this clone existed *before* `.gitattributes` was added, re-check
+   out the container scripts once so they get LF line endings (CRLF breaks them
+   with `bad interpreter: /bin/bash^M`):
+   ```
+   rm docker/entrypoint.sh docker/runelite docker/botctl docker/measure.sh
+   git checkout -- docker/
+   ```
+2. **Docker Desktop** (WSL2 backend) running; Settings → Resources: ≥ 1.5 GB RAM.
+3. **Build and start in manual mode** (no `BOT` in `docker/.env` yet):
+   `docker compose -f docker/docker-compose.yml up -d --build`, then connect a VNC
+   viewer to `localhost:5900` (password `runetools`). `RUNETOOLS_UID/GID` don't
+   matter on Windows.
+4. **One-time setup** from "Unattended mode" above: `Bolt-Linux.zip` into
+   `docker/bolt/` (the Linux build — it runs inside the container), launch RuneLite
+   from Bolt once with `--insecure-write-credentials`, capture the 4 client
+   templates, set `BOT` / `LAUNCH` in `docker/.env`, `docker compose … up -d`.
+5. **The test** (PRO-85's "done when"):
+   - leave it running **1 h+** while you use the PC normally;
+   - `docker/botctl pause`, `resume`, `stop`, `start` — each should do what it says;
+   - `docker compose -f docker/docker-compose.yml restart` — it should relaunch
+     RuneLite, log back in and start the bot by itself, configs intact.
+6. **Bring back** (paste into the Claude chat on the Ubuntu machine):
+   ```
+   docker/botctl status
+   docker compose -f docker/docker-compose.yml exec runetools python3 -m lib.logreport session latest
+   docker compose -f docker/docker-compose.yml logs --tail 50
+   ```
+   The `.jsonl` session logs are also in your working tree (`<bot>/log/`).
+
 ## Settings (`docker/.env`)
 
 | variable | default | |
