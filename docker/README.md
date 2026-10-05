@@ -254,6 +254,11 @@ with Git for Windows) for the commands below.
 | `RUNELITE_JAVA_OPTS` | `-Xmx512m -XX:+UseSerialGC` | client JVM flags |
 | `RUNETOOLS_UID` / `RUNETOOLS_GID` | `1000` | your `id -u` / `id -g` on Linux |
 | `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above); unset = manual mode |
+| `TZ` | `UTC` | web app: the zone the bots' logs are in (decides when "today" starts) |
+| `POSTGRES_PASSWORD` | `runetools` | web app database (only reachable on localhost) |
+
+The compose file also has the web app (`postgres` + `webapp`, [webapp/README.md](../webapp/README.md)):
+`docker compose up -d` starts it along with the bot container; `up -d postgres webapp` starts only it.
 
 `RUNELITE_FPS` and "GPU plugin off" only apply to a **fresh** profile (RuneLite
 reads them once from `settings.properties`); on an existing one, set them in

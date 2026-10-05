@@ -35,25 +35,19 @@ The tanner bot can automatically withdraw and drink a stamina potion when run en
 
 Digit templates and the energy/stamina config are gitignored (per-user calibration data, tied to your specific screen/RuneLite rendering) — recalibrate on any new machine.
 
-## Dashboard
+## Web app (stats per account + login vault)
 
 ```
-pip install -r requirements-dashboard.txt     # cryptography, for the login vault
-.venv/bin/python -m dashboard                 # opens http://127.0.0.1:8777/
+docker compose -f docker/docker-compose.yml up -d postgres webapp    # then open http://127.0.0.1:8778/
 ```
 
-A local web page with bot time per account (today, last 7 days, 14-day chart), runs, crashes,
-recent sessions and what's running right now. All of it comes from the session logs.
-Add your accounts there and pick the one under **New sessions log to**: every session you
-start is tagged with it (`account` in `session_start`). Sessions from before that show as
-*Unassigned*. For a container per account, set `RUNETOOLS_ACCOUNT` instead.
-
-Logins (email + password) go in an encrypted vault, `data/vault.json`, unlocked with a master
-password that is never stored. There is no recovery if you forget it. `data/` is gitignored.
-The bots don't use these logins: they log in through RuneLite's saved Jagex session.
-
-The server listens on 127.0.0.1 only, and every API call needs a token baked into the page,
-so other websites open in your browser can't read it.
+Bot time per account (today, last 7 days, 14-day chart), runs, crashes, what's running right now,
+every session's timeline and tracebacks, and per-bot stats. It all comes from the session logs,
+which the app reads as the bots write them (old logs are backfilled). Add your accounts there and
+pick the one new sessions are tagged with (`account` in `session_start`, via `data/active_account`;
+`RUNETOOLS_ACCOUNT` overrides it). Logins can be stored in a vault encrypted with a master password
+that can't be recovered. The bots don't use these logins. Details, security and development:
+[webapp/README.md](webapp/README.md).
 
 ## Requirements
 - Python 3.8+

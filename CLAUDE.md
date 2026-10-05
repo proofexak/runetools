@@ -50,17 +50,18 @@ lib/                    universal helpers used by all bots
   energy_config.py      calibrated energy/stamina positions — GITIGNORED, copy from
                          energy_config.example.py
   energy_config_editor.py  config editor wired to energy_config.py
-  accounts.py           data/accounts.json (gitignored): account names + the active one;
-                         run_session tags session_start with `account` (RUNETOOLS_ACCOUNT overrides)
+  accounts.py           active() = RUNETOOLS_ACCOUNT, else data/active_account (written by the web
+                         app); run_session tags session_start with it as `account`
 
-dashboard/              local web dashboard, `python -m dashboard` (127.0.0.1:8777) — not a bot
-  stats.py              pure: per-account/day hours + runs (midnight split by wall time), live
-                         sessions (no session_end + event < 15 min old), from logreport summaries
-  vault.py              encrypted logins, data/vault.json — scrypt-derived Fernet key, master
-                         password never stored; needs requirements-dashboard.txt (cryptography)
-  server.py             stdlib ThreadingHTTPServer; /api needs the per-run X-Token from the page
-                         and a localhost Host header; vault auto-locks after 10 min unused
-  static/index.html     the whole UI (vanilla JS, inline SVG chart, light/dark)
+webapp/                 web app (PRO-88): per-account stats + encrypted login vault, not a bot —
+                         TypeScript pnpm monorepo, see webapp/README.md. Reads the bots' *.jsonl
+                         logs, writes data/active_account; bots never talk to it
+  packages/shared       zod schemas + API types shared by api and web
+  apps/api              Fastify + Drizzle/Postgres: src/ingest (tail logs → sessions/steps/errors,
+                         logreport's rules, cursor per file), src/stats.ts, src/vault (argon2id →
+                         AES-256-GCM, key only in memory), src/accounts.ts; drizzle/ = migrations
+  apps/web              React + Vite + TanStack Query + Tailwind (shadcn-style ui/), Recharts
+  e2e/                  Playwright specs (pnpm e2e)
 
 tanner/                 Al Kharid leather tanning bot
   bot.py                menu descriptor (4 hide launches + GE side buttons)
@@ -87,7 +88,8 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          `docker/botctl` controls unattended mode (see docker/README.md) and
                          saves/restores RuneLite's profile (`profile-save`/`profile-load` →
                          docker/runelite-profile/, gitignored; a fresh container seeds from it);
-                         `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%)
+                         `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%);
+                         compose also runs the web app: `postgres` + `webapp` (127.0.0.1:8778)
 
 choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine
                          (roadmap step 3)
@@ -110,6 +112,7 @@ launcher.sh / .bat      start run.py (RuneTools.desktop points at launcher.sh)
 ```
 ./launcher.sh        # Linux/macOS (or launcher.bat on Windows) — runs root run.py
 python crafting_run.py   # Path of Exile crafting bot (separate launcher)
+docker compose -f docker/docker-compose.yml up -d postgres webapp   # web app, http://127.0.0.1:8778/
 ```
 
 Press **O** to pause/resume, **P** to force-stop (O/P are ignored while the bot itself is
@@ -197,6 +200,10 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
 - Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks),
   `stats [--bot B] [--since YYYY-MM-DD]` (per-bot totals; failures = results `fail`/`not_found`).
 - Tests never write the real launcher log (autouse fixture points `events.ROOT` at tmp).
+- These files are an interface: the web app (webapp/) tails them. Adding fields is fine; renaming or
+  dropping an event or field means updating webapp/apps/api/src/ingest/apply.ts too.
+- Timestamps are naive local wall time. The web app splits days by them (its TZ must match the bots')
+  and decides "running" from the file's mtime instead (no session_end + written < 15 min ago).
 
 **Vision / pure logic (PRO-13).** Every decision made from the screen is a pure function that
 takes plain data; capture happens only in `lib/screen.grab`.
@@ -256,4 +263,7 @@ takes plain data; capture happens only in `lib/screen.grab`.
 - Energy reading unreadable (`None`): `maybe_drink_stamina` does NOT drink, `restock_stamina_at_bank`
   DOES (safe side at the bank) — explicit via `needs_stamina(..., if_unreadable=)`.
 - Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/actions.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.
+- Web app (PRO-88): dashboard, sessions, bot stats, accounts + active account, vault, settings;
+  unit tests (`pnpm test`, PGlite) + Playwright e2e (`pnpm e2e`). It replaced the stdlib Python
+  prototype (`python -m dashboard`), which is deleted.
 - Woodcutter: WIP, don't touch.

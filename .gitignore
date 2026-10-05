@@ -32,5 +32,5 @@ docker/runelite-profile/
 # full RuneLite home backups (docker/backups/*.tgz), local only
 docker/backups/
 
-# accounts + encrypted vault (lib/accounts.py, dashboard/vault.py), local only
+# data/active_account (written by the web app, read by lib/accounts.py), local only
 /data/
