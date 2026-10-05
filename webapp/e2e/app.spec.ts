@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 const ROOT = process.env.E2E_ROOT!;
 const PASSWORD = "correct horse";
@@ -30,12 +30,38 @@ async function logIn(page: Page) {
 
 const nav = (page: Page, name: string) => page.getByRole("navigation").getByRole("link", { name }).click();
 
+/** A bot session the way lib/events.py writes it: append the line, then POST it with its byte offset. */
+function botSession(request: APIRequestContext, dir: string, bot: string) {
+  const token = fs.readFileSync(path.join(ROOT, "data", "bot_token"), "utf8").trim();
+  const p = (n: number, w = 2) => String(n).padStart(w, "0");
+  const wall = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:` +
+    `${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+  const stamp = wall(new Date()).slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
+  const key = `${dir}/log/${bot}_${stamp}.jsonl`;
+  const file = path.join(ROOT, "repo", ...key.split("/"));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  return async (event: Record<string, unknown>) => {
+    const line = JSON.stringify({ ts: wall(new Date()), session: stamp, bot, ...event });
+    const offset = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    fs.appendFileSync(file, `${line}
+`);
+    const res = await request.post("/api/ingest", {
+      headers: { authorization: `Bearer ${token}` }, data: { file: key, offset, line },
+    });
+    expect(res.status()).toBe(200);
+    expect(["applied", "duplicate"]).toContain((await res.json()).result);   // duplicate: the tailer was quicker
+  };
+}
+
+/** A "Running now" card on the dashboard or an account page. */
+const sessionCard = (page: Page, bot: string) => page.getByTestId("live-session").filter({ hasText: bot }).first();
+
 test.describe.configure({ mode: "serial" });
 
 test("first run: create the app login, then the dashboard shows the backfilled logs", async ({ page }) => {
   await logIn(page);
   await expect(page.getByText("Running now")).toBeVisible();
-  const live = page.getByRole("link", { name: /Golden nuggets/ }).first();
+  const live = sessionCard(page, "Golden nuggets");
   await expect(live).toContainText("deposit");               // current step of the live session
   await expect(page.getByText("Hours per day")).toBeVisible();
   await expect(page.locator(".recharts-surface")).toBeVisible();
@@ -139,37 +165,18 @@ test("live: a new log line shows up without reloading", async ({ page }) => {
   const file = path.join(dir, fs.readdirSync(dir)[0]!);
   const last = JSON.parse(fs.readFileSync(file, "utf8").trim().split("\n").at(-1)!);
   fs.appendFileSync(file, JSON.stringify({ ...last, state: "walk_back", run: 3 }) + "\n");
-  await expect(page.getByRole("link", { name: /Golden nuggets/ }).first()).toContainText("walk_back", { timeout: 10_000 });
+  await expect(sessionCard(page, "Golden nuggets")).toContainText("walk_back", { timeout: 10_000 });
 });
 
 test("live status: a bot's pushed state and pause show within a second", async ({ page, request }) => {
   await logIn(page);
-  const token = fs.readFileSync(path.join(ROOT, "data", "bot_token"), "utf8").trim();
-  const p = (n: number, w = 2) => String(n).padStart(w, "0");
-  const wall = (d: Date) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:` +
-    `${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
-  const stamp = wall(new Date()).slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
-  const key = `choc/log/choc_${stamp}.jsonl`;
-  const file = path.join(ROOT, "repo", ...key.split("/"));
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-
-  // what lib/events.py does: write the line, then POST it with its byte offset
-  const emit = async (event: Record<string, unknown>) => {
-    const line = JSON.stringify({ ts: wall(new Date()), session: stamp, bot: "choc", ...event });
-    const offset = fs.existsSync(file) ? fs.statSync(file).size : 0;
-    fs.appendFileSync(file, `${line}\n`);
-    const res = await request.post("/api/ingest", {
-      headers: { authorization: `Bearer ${token}` }, data: { file: key, offset, line },
-    });
-    expect(res.status()).toBe(200);
-    expect(["applied", "duplicate"]).toContain((await res.json()).result);   // duplicate: the tailer was quicker
-  };
+  const emit = botSession(request, "choc", "choc");
 
   // started while Zezima is the active account (lib/accounts.py tags session_start)
   await emit({ event: "session_start", params: {}, pid: 9, account: "Zezima" });
   await emit({ event: "heartbeat", state: "starting", run: 0, paused: false });
   await emit({ event: "state_enter", state: "grind", run: 0 });
-  const card = page.getByRole("link", { name: /Choc/ }).first();
+  const card = sessionCard(page, "Choc");
   await expect(card.getByTestId("live-state")).toContainText("grind", { timeout: 2000 });
   await expect(card).toContainText("Zezima");
 
@@ -197,23 +204,39 @@ test("live status: a bot's pushed state and pause show within a second", async (
   await expect(page.getByText("Nothing running on Zezima right now.")).toBeVisible({ timeout: 2000 });
 
   // a push without the bot token is refused
-  const res = await request.post("/api/ingest", { data: { file: key, offset: 0, line: "{}" } });
+  const res = await request.post("/api/ingest", { data: { file: "choc/log/x.jsonl", offset: 0, line: "{}" } });
   expect(res.status()).toBe(401);
 });
 
-test("live view: take control waits for the bot's pause, release hands it back", async ({ page }) => {
+test("live view: Watch live on the running account's page; take control waits for the bot's pause", async ({ page, request }) => {
   await logIn(page);
+  // not on the dashboard any more: only behind a running session's "Watch live"
+  await expect(page.getByText("Running now")).toBeVisible();
+  await expect(page.locator("[data-slot=card]", { hasText: "Live view" })).toHaveCount(0);
+  await expect(sessionCard(page, "Golden nuggets").getByRole("link", { name: "Watch live" })).toHaveCount(0);  // unassigned
+
+  const emit = botSession(request, "miner/varrock_exp", "varrock_exp");
+  await emit({ event: "session_start", params: {}, pid: 11, account: "Zezima" });
+  await emit({ event: "state_enter", state: "mine", run: 0 });
+  await sessionCard(page, "Varrock exp").getByRole("link", { name: "Watch live" }).click();
+  await expect(page.getByRole("heading", { name: "Zezima" })).toBeVisible();
   const card = page.locator("[data-slot=card]", { hasText: "Live view" });
   await expect(card.getByText("Can't reach the bot's screen")).toBeVisible({ timeout: 10_000 });   // no VNC here
+
+  // collapsed again, then opened from the account page itself
+  await card.getByRole("button", { name: "Stop watching" }).click();
+  await expect(card.getByText("Can't reach the bot's screen")).toBeHidden();
+  await card.getByRole("button", { name: "Watch live" }).click();
+  await expect(card.getByText("Can't reach the bot's screen")).toBeVisible({ timeout: 10_000 });
 
   // a bot answers (what lib/live_control.py writes): busy first, then parked in its pause
   const data = path.join(ROOT, "data");
   await card.getByRole("button", { name: "Take control" }).click();
   await expect(card.getByText("Pausing the bot")).toBeVisible();
-  const request = JSON.parse(fs.readFileSync(path.join(data, "live_control.json"), "utf8"));
-  expect(request.held).toBe(true);
+  const asked = JSON.parse(fs.readFileSync(path.join(data, "live_control.json"), "utf8"));
+  expect(asked.held).toBe(true);
   const ack = (safe: boolean) => fs.writeFileSync(path.join(data, "live_control_ack.json"),
-    JSON.stringify({ id: request.id, held: true, safe, pid: 1 }));
+    JSON.stringify({ id: asked.id, held: true, safe, pid: 1 }));
   ack(false);
   await page.waitForTimeout(4000);                           // past the no-answer window: still waiting
   await expect(card.getByText("Pausing the bot")).toBeVisible();
@@ -230,6 +253,15 @@ test("live view: take control waits for the bot's pause, release hands it back",
   await expect(card.getByText("no bot answered")).toBeVisible({ timeout: 6000 });
   await card.getByRole("button", { name: "Release" }).click();
   await expect(card.getByRole("button", { name: "Take control" })).toBeVisible();
+
+  // another account's page has no screen: it isn't that account's bot
+  await nav(page, "Accounts");
+  await page.getByRole("link", { name: "Lynx Titan" }).click();
+  await expect(page.getByText("Nothing running on Lynx Titan right now.")).toBeVisible();
+  await expect(page.locator("[data-slot=card]", { hasText: "Live view" })).toHaveCount(0);
+
+  await emit({ event: "session_end", final: "stopped", reason: null, last_step: "mine", stats: { run: 0 },
+    active_seconds: 5, paused_seconds: 0 });
 });
 
 test("settings: change the app password; the old one stops working", async ({ page }) => {

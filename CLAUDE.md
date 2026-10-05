@@ -289,7 +289,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
   live status (PRO-99: current state + time in it, Paused badge, ticking active time, pushed lines);
   unit tests (`pnpm test`, PGlite) + Playwright e2e (`pnpm e2e`). It replaced the stdlib Python
   prototype (`python -m dashboard`), which is deleted.
-- Live view (PRO-89): dashboard panel with noVNC (react-vnc); the API bridges the WebSocket to x11vnc
+- Live view (PRO-89): noVNC (react-vnc) on the account page of the running session, collapsed
+  behind "Watch live" (dashboard session cards link there with `?watch=1`); the API bridges the WebSocket to x11vnc
   itself (`/api/live/vnc`, `VNC_ADDR`) — no websockify, no extra port. Take control / Release via
   `lib/live_control.py` (see webapp/README.md "Live view"). Checked view-only against the real
   container; take control against a real running bot not yet tried.

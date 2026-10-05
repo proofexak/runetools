@@ -91,7 +91,7 @@ Point your VNC client at `localhost:5900` (bound to localhost only). Password is
 `runetools` by default — override it in `docker/.env` with `VNC_PASSWORD=…`
 before starting the container.
 
-The web app's dashboard shows the same screen (**Live view**, view only; **Take control**
+The web app shows the same screen on the running account's page (**Watch live**, view only; **Take control**
 pauses the bot first — see [webapp/README.md](../webapp/README.md#live-view)). It connects
 to x11vnc over the compose network, so it needs `VNC=1`.
 

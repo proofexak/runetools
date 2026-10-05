@@ -1,6 +1,5 @@
 import { AccountFilter, ErrorNote, useAccountParam } from "@/components/common";
 import { PageHeader } from "@/components/layout";
-import { LiveView } from "@/components/live-view";
 import { OverviewSkeleton, OverviewView } from "@/components/overview";
 import { accountLabel } from "@/lib/format";
 import { useOverview } from "@/lib/queries";
@@ -14,12 +13,9 @@ export function DashboardPage() {
         <AccountFilter />
       </PageHeader>
       <ErrorNote error={overview.error} />
-      <div className="grid min-w-0 grid-cols-1 gap-4">
-        <LiveView />
-        {overview.data
-          ? <OverviewView o={overview.data} account={account} stale={overview.isPlaceholderData} />
-          : <OverviewSkeleton />}
-      </div>
+      {overview.data
+        ? <OverviewView o={overview.data} account={account} stale={overview.isPlaceholderData} />
+        : <OverviewSkeleton />}
     </>
   );
 }

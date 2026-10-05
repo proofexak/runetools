@@ -1,16 +1,17 @@
 import type { LiveSession, Overview } from "@runetools/shared";
-import { Activity, Pause } from "lucide-react";
+import { Activity, Pause, Play } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { SessionsTable, StatTile, Swatch } from "@/components/common";
 import { HoursChart } from "@/components/hours-chart";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { botColors } from "@/lib/bots";
 import { accountLabel, botLabel, fmtClock, fmtHours, fmtNumber, fmtSeconds } from "@/lib/format";
 import { useLiveOverview } from "@/lib/live";
-import { useAllBots } from "@/lib/queries";
+import { useAccounts, useAllBots } from "@/lib/queries";
 import { useIsDark } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ export function OverviewView({ o: fetched, account, stale = false, live = true }
   const filter = account === undefined ? "" : `account=${encodeURIComponent(account)}`;
   return (
     <div className={cn("grid grid-cols-1 gap-4 transition-opacity", stale && "opacity-60")}>
-      {live && <LiveCard live={o.live} account={account} />}
+      {live && <LiveCard live={o.live} account={account} watch />}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Today" value={fmtHours(o.today.hours)}
           sub={`${fmtNumber(o.today.runs)} runs · ${o.today.sessions} session${o.today.sessions === 1 ? "" : "s"}`} />
@@ -67,8 +68,13 @@ export function LiveSessions({ o: fetched, account }: { o: Overview; account: st
   return <LiveCard live={o.live} account={account} />;
 }
 
-/** `account` undefined: every account's sessions, each labelled with its account. */
-function LiveCard({ live, account }: { live: LiveSession[]; account: string | undefined }) {
+/**
+ * `account` undefined: every account's sessions, each labelled with its account.
+ * `watch`: each session links to its account's page with the live view open.
+ */
+function LiveCard({ live, account, watch = false }: { live: LiveSession[]; account: string | undefined; watch?: boolean }) {
+  const accounts = useAccounts();
+  const accountId = (name: string | null) => accounts.data?.accounts.find((a) => a.name === name)?.id;
   if (live.length === 0) {
     return (
       <Card className="text-muted-foreground flex-row items-center gap-3 px-5 py-4 text-sm">
@@ -90,10 +96,16 @@ function LiveCard({ live, account }: { live: LiveSession[]; account: string | un
         </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {live.map((s) => (
-          <Link key={s.id} to={`/sessions/${s.id}`} className="hover:bg-accent/60 grid gap-1 rounded-lg border px-4 py-3 transition-colors">
+        {live.map((s) => {
+          const id = watch ? accountId(s.account) : undefined;
+          return (
+          <div key={s.id} data-testid="live-session"
+            className="hover:bg-accent/60 relative grid gap-1 rounded-lg border px-4 py-3 transition-colors">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium">{botLabel(s.bot)}</span>
+              {/* the whole card opens the session; "Watch live" sits above that link */}
+              <Link to={`/sessions/${s.id}`} className="font-medium after:absolute after:inset-0 after:rounded-lg">
+                {botLabel(s.bot)}
+              </Link>
               {showAccount && <span className="text-muted-foreground truncate text-sm">{accountLabel(s.account)}</span>}
             </div>
             <div className="flex items-center gap-2 text-sm" data-testid="live-state">
@@ -116,8 +128,14 @@ function LiveCard({ live, account }: { live: LiveSession[]; account: string | un
             <div className="text-muted-foreground text-xs tabular-nums">
               {fmtClock(s.activeSeconds)} active · run {s.runs} · last event {fmtSeconds(s.idleSeconds)} ago
             </div>
-          </Link>
-        ))}
+            {id !== undefined && (
+              <Button asChild size="sm" variant="outline" className="relative z-10 mt-1 justify-self-start">
+                <Link to={`/accounts/${id}?watch=1`}><Play /> Watch live</Link>
+              </Button>
+            )}
+          </div>
+          );
+        })}
       </CardContent>
     </Card>
   );

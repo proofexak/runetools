@@ -1,6 +1,6 @@
 import type { LiveControl } from "@runetools/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Hand, Loader2, Maximize, Minimize, MonitorOff, Undo2 } from "lucide-react";
+import { EyeOff, Hand, Loader2, Maximize, Minimize, MonitorOff, Play, Undo2 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { VncScreenHandle } from "react-vnc";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +11,12 @@ import { controlPhase, isInteractive, NO_ANSWER_MS, vncUrl, type ControlPhase } 
 import { keys, useLiveConfig, useLiveControl } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
-// noVNC is most of the dashboard's weight: the stats render without waiting for it
+// noVNC is heavy: loaded only once someone watches
 const VncScreen = lazy(() => import("react-vnc").then((m) => ({ default: m.VncScreen })));
 
 type Conn = "connecting" | "live" | "disconnected";
 
 const RETRY_MS = 3000;
-const HIDDEN_KEY = "rt-live-hidden";
 // the small tile doesn't need full quality; fullscreen does (noVNC: 0-9)
 const TILE = { quality: 3, compression: 6 };
 const FULL = { quality: 6, compression: 2 };
@@ -25,33 +24,27 @@ const FULL = { quality: 6, compression: 2 };
 /**
  * The bot container's screen (x11vnc through /api/live/vnc), view-only unless a human has
  * taken control — then the bot is paused first (lib/live_control.py) so pyautogui and the
- * viewer never fight over the one mouse.
+ * viewer never fight over the one mouse. Collapsed until "Watch live": nothing connects to
+ * VNC before that. While a human has control it stays open until they release it.
  */
-export function LiveView() {
-  const [hidden, setHidden] = useState(() => readHidden());
+export function LiveView({ watch = false }: { watch?: boolean }) {
+  const [watching, setWatching] = useState(watch);
   const control = useLiveControl();
   const phase = usePhase(control.data);
-  const show = !hidden || phase !== "released";
-
-  const toggleHidden = () => {
-    setHidden(!hidden);
-    try { localStorage.setItem(HIDDEN_KEY, hidden ? "0" : "1"); } catch { /* private mode */ }
-  };
+  const show = watching || phase !== "released";
 
   return (
     <Card className="min-w-0 gap-3">
       <CardHeader className="items-center">
         <div className="grid gap-1.5">
           <CardTitle>Live view</CardTitle>
-          <CardDescription>{describe(phase)}</CardDescription>
+          <CardDescription>{show ? describe(phase) : "The bot's screen — connects when you watch"}</CardDescription>
         </div>
         <div className="flex items-center gap-2">
           {show && <ControlButtons phase={phase} />}
-          {phase === "released" && (
-            <Button variant="ghost" size="icon-sm" onClick={toggleHidden} title={hidden ? "Show" : "Hide"}
-              aria-label={hidden ? "Show live view" : "Hide live view"}>
-              {hidden ? <Eye /> : <EyeOff />}
-            </Button>
+          {!show && <Button size="sm" onClick={() => setWatching(true)}><Play /> Watch live</Button>}
+          {show && phase === "released" && (
+            <Button variant="ghost" size="sm" onClick={() => setWatching(false)}><EyeOff /> Stop watching</Button>
           )}
         </div>
       </CardHeader>
@@ -205,8 +198,4 @@ function Screen({ phase }: { phase: ControlPhase }) {
       </Button>
     </div>
   );
-}
-
-function readHidden() {
-  try { return localStorage.getItem(HIDDEN_KEY) === "1"; } catch { return false; }
 }

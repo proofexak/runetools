@@ -2,9 +2,9 @@
 
 Per-account bot stats and an encrypted login vault, in the browser:
 
-- **Dashboard**: the bot container's screen live (view only, **Take control** to use it), what is running right now
-  (bot, the state it's in and for how long, paused or not, active time), hours and runs for today and the last 7
-  days, crashes, a 14-day hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
+- **Dashboard**: what is running right now (bot, the state it's in and for how long, paused or not, active time, and
+  **Watch live** for a session on an account), hours and runs for today and the last 7 days, crashes, a 14-day
+  hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
 - **Sessions**: a filterable list (account, bot, status, dates). Each session's page has its step timeline, time per
   state, failed steps and tracebacks.
 - **Bot stats**: `python -m lib.logreport stats` as a page: runs/h, failure rate per state, recoveries/h, stop reasons
@@ -54,7 +54,10 @@ the existing history too. Deleting one keeps its sessions under the old name.
 
 ## Live view
 
-The dashboard shows the bot container's screen through noVNC (`react-vnc`). Browsers can't speak VNC's TCP protocol,
+An account's page shows the bot container's screen through noVNC (`react-vnc`), under its "Running now" card, while
+a session tagged with that account is running (or while someone holds control). It stays collapsed until
+**Watch live**: nothing connects to VNC before that. **Watch live** on a dashboard session card opens that account's
+page with the screen already open (`?watch=1`). A session without an account has no screen to watch. Browsers can't speak VNC's TCP protocol,
 so the API bridges it: the page opens a WebSocket to `/api/live/vnc` on the app's own origin, and the API connects
 to x11vnc (`VNC_ADDR`, `runetools:5900` in Docker). The stream sits behind the app login, and no extra port is
 published. The VNC password comes from `/api/live/config` (logged-in page only), never from a URL.
