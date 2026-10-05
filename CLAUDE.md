@@ -11,7 +11,8 @@ lib/                    universal helpers used by all bots
                          filled slots, frame/slot/menu diffs) — see "Vision / pure logic" below
   mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite, hesitate
   movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff; O/P-pausable
-  camera.py             face(direction, cfg) — compass camera orientation for every bot
+  camera.py             face(direction, cfg) — compass camera orientation for every bot;
+                         zoom_out_top_down(x, y) — wheel out + middle-drag down, run after login
   overlay.py            floating tkinter overlay with pause/menu/stats
   config_editor.py      generic point/region/point_color/number calibration UI; save_attr()
   pause.py              O-key pause/resume, P-key force-stop — used everywhere
@@ -23,7 +24,7 @@ lib/                    universal helpers used by all bots
                          signals from docker/botctl (USR1 pause, HUP resume/start, USR2 stop, INT kill,
                          TERM exit)
   supervisor.py         pure restart policy: decide(), Backoff (30 s→600 s), Budget (5/hour)
-  client.py, client_states.py  RuneLite lifecycle (launch → terms → Play → welcome → in game) by image
+  client.py, client_states.py  RuneLite lifecycle (launch → terms → Play → welcome → in game → camera) by image
                          templates (lib/client_templates/*.png, gitignored; vision.find_template)
   client_templates_editor.py  "⚙ Client Templates" capture tool in the menu
   state_machine.py      run_machine() — shared bot runner on the `transitions` library (see
@@ -72,7 +73,9 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          two-stage build, Temurin JRE, no window manager, Mesa removed (RuneLite's
                          GPU plugin must stay off — software GL burns CPU), runs as host UID 1000;
                          `docker/runelite` starts the client with FPS cap + JVM flags;
-                         `docker/botctl` controls unattended mode (see docker/README.md);
+                         `docker/botctl` controls unattended mode (see docker/README.md) and
+                         saves/restores RuneLite's profile (`profile-save`/`profile-load` →
+                         docker/runelite-profile/, gitignored; a fresh container seeds from it);
                          `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%)
 
 choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine

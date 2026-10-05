@@ -39,12 +39,13 @@ class Env(client.Env):
     """Scripted environment: screens change after clicks, time is fake."""
     def __init__(self, screens_after_clicks, running=False, templates=TEMPLATES):
         self.t = 0.0
-        self.clicks, self.started = [], 0
+        self.clicks, self.started, self.cameras = [], 0, []
         self._screens = list(screens_after_clicks)
         self._running = running
         super().__init__(templates=templates, grab=self._grab, click=self._click,
                          clock=lambda: self.t, wait=self._wait,
-                         running=lambda: self._running, start=self._start)
+                         running=lambda: self._running, start=self._start,
+                         camera=lambda x, y: self.cameras.append((x, y)))
 
     def _grab(self):
         return self._screens[0], (0, 0)
@@ -69,6 +70,12 @@ def test_full_login_clicks_play_then_welcome():
     assert env.clicks == [centre("login_play"), centre("welcome_play")]
 
 
+def test_camera_is_set_after_login_over_the_welcome_button():
+    env = Env([screen("login_play"), screen("welcome_play"), screen("in_game")])
+    client.ensure_logged_in(env)
+    assert env.cameras == [centre("welcome_play")]
+
+
 def test_terms_screen_is_accepted_first():
     env = Env([screen("terms_accept"), screen("login_play"), screen("welcome_play"), screen("in_game")])
     assert client.ensure_logged_in(env)[0] is True
@@ -78,7 +85,7 @@ def test_terms_screen_is_accepted_first():
 def test_already_in_game_does_nothing():
     env = Env([screen("in_game")], running=True)
     assert client.ensure_logged_in(env) == (True, None)
-    assert env.clicks == [] and env.started == 0
+    assert env.clicks == [] and env.started == 0 and env.cameras == []
 
 
 def test_does_not_start_a_second_client():

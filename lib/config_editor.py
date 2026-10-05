@@ -16,6 +16,7 @@ Usage (from a bot's config_editor.py):
         ), kwargs=dict(region_colors=REGION_COLORS)).start()
 """
 import re
+import sys
 import time
 import tkinter as tk
 import threading
@@ -70,7 +71,7 @@ def grab_pixel(x, y):
 
 # ── Capture overlays ──────────────────────────────────────────────────────────
 
-def _fullscreen_overlay():
+def _fullscreen_overlay(master):
     """Toplevel spanning the whole screen, without using real WM fullscreen —
     compositors (e.g. mutter) unredirect true-fullscreen windows for
     performance, which silently breaks the -alpha translucency below.
@@ -79,7 +80,7 @@ def _fullscreen_overlay():
     already-mapped Toplevel lets the WM's own placement logic grab it first,
     which on some WMs (e.g. mutter) leaves it positioned away from (0,0)
     instead of covering the whole screen."""
-    ov = tk.Toplevel()
+    ov = tk.Toplevel(master)   # the editor's own Tk — each editor runs one in its own thread
     ov.withdraw()
     ov.overrideredirect(True)
     sw, sh = ov.winfo_screenwidth(), ov.winfo_screenheight()
@@ -88,13 +89,61 @@ def _fullscreen_overlay():
     ov.configure(bg='black', cursor='crosshair')
     ov.deiconify()
     ov.update_idletasks()
+    _take_x_focus(ov)
     return ov
 
 
-def capture_point(root, with_color, callback):
+def _take_x_focus(win):
+    """Callers focus_force() the overlay for Esc/Enter. With no window manager
+    (Xvfb in Docker) that doesn't move X keyboard focus off RuneLite, which
+    keeps it, so Esc never arrives — set it on the X server directly."""
+    if not sys.platform.startswith("linux"):
+        return
+    win.wait_visibility()
+    try:
+        from Xlib import X, display
+        d = display.Display()
+        d.create_resource_object('window', win.winfo_id()).set_input_focus(X.RevertToPointerRoot, X.CurrentTime)
+        d.sync()
+        d.close()
+    except Exception:
+        pass        # no python-xlib / no X: Esc just behaves as before
+
+
+def _backdrop_overlay(root, alpha):
+    """Capture overlay with a snapshot of the screen drawn on it. Without a
+    compositor (Xvfb in Docker) -alpha does nothing and the overlay is solid
+    black, so the snapshot is what you see and pick from; with a compositor it
+    sits under the translucency and looks the same as the live screen.
+    Returns (overlay, canvas, snapshot)."""
     root.withdraw()
-    ov = _fullscreen_overlay()
-    ov.attributes('-alpha', 0.18)
+    root.update()
+    time.sleep(0.15)          # let the editor window / last overlay disappear first
+    snap = snapshot_screen()
+    ov = _fullscreen_overlay(root)
+    ov.attributes('-alpha', alpha)
+
+    canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
+    canvas.place(relwidth=1, relheight=1)
+    from PIL import Image, ImageTk
+    photo = ImageTk.PhotoImage(Image.fromarray(snap[:, :, ::-1].copy()), master=ov)
+    canvas.create_image(0, 0, image=photo, anchor="nw")
+    canvas.image = photo      # keep a reference so Tk doesn't drop it
+    return ov, canvas, snap
+
+
+def _snapshot_pixel(snap, x, y):
+    """(r, g, b) at screen (x, y) as the snapshot saw it — reading the live
+    screen right after the overlay closes can catch the game mid-repaint."""
+    h, w = snap.shape[:2]
+    if 0 <= x < w and 0 <= y < h:
+        b, g, r = snap[y, x]
+        return int(r), int(g), int(b)
+    return grab_pixel(x, y)
+
+
+def capture_point(root, with_color, callback):
+    ov, _, snap = _backdrop_overlay(root, 0.18)
 
     tk.Label(ov, text="Click the target position\n(ESC to cancel)",
              bg='#111133', fg='white', font=("Consolas", 13, "bold"),
@@ -104,8 +153,7 @@ def capture_point(root, with_color, callback):
         x, y = ov.winfo_pointerx(), ov.winfo_pointery()
         ov.destroy()
         if with_color:
-            r, g, b = grab_pixel(x, y)
-            callback((x, y, (r, g, b)))
+            callback((x, y, _snapshot_pixel(snap, x, y)))
         else:
             callback((x, y))
         root.deiconify()
@@ -132,23 +180,9 @@ def snapshot_screen():
 
 
 def capture_region(root, callback):
-    root.withdraw()
-    root.update()
-    time.sleep(0.15)          # let the editor window disappear before the snapshot
-    # Without a compositor (Xvfb in Docker) the "transparent" overlay is solid
-    # black, so draw a snapshot of the real screen on it — you see what you're
-    # selecting, and last_snapshot holds the pixels to crop from afterwards.
-    snap = snapshot_screen()
+    # last_snapshot holds the pixels to crop from afterwards (client templates)
+    ov, canvas, snap = _backdrop_overlay(root, 0.25)
     last_snapshot[0] = snap
-    ov = _fullscreen_overlay()
-    ov.attributes('-alpha', 0.25)
-
-    canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
-    canvas.place(relwidth=1, relheight=1)
-    from PIL import Image, ImageTk
-    photo = ImageTk.PhotoImage(Image.fromarray(snap[:, :, ::-1].copy()), master=ov)
-    canvas.create_image(0, 0, image=photo, anchor="nw")
-    canvas.image = photo      # keep a reference so Tk doesn't drop it
 
     lbl = tk.Label(ov, text="Click top-left corner\n(ESC to cancel)",
                    bg='#111133', fg='white', font=("Consolas", 13, "bold"),
@@ -185,12 +219,7 @@ def capture_region(root, callback):
 
 
 def capture_polygon(root, callback):
-    root.withdraw()
-    ov = _fullscreen_overlay()
-    ov.attributes('-alpha', 0.3)
-
-    canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
-    canvas.place(relwidth=1, relheight=1)
+    ov, canvas, _ = _backdrop_overlay(root, 0.3)
 
     lbl = tk.Label(ov,
                    text="Click to add vertices\nDouble-click or Enter to finish  ·  ESC to cancel",
@@ -272,11 +301,7 @@ def capture_3_points(root, callback):
             callback(points[:])
             return
 
-        ov = _fullscreen_overlay()
-        ov.attributes('-alpha', 0.18)
-
-        canvas = tk.Canvas(ov, bg='black', highlightthickness=0)
-        canvas.place(relwidth=1, relheight=1)
+        ov, canvas, _ = _backdrop_overlay(root, 0.18)
         for px, py in points:
             canvas.create_oval(px-6, py-6, px+6, py+6, fill='#00ff88', outline='')
 

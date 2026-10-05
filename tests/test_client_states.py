@@ -5,7 +5,7 @@ from lib.state_machine import run_machine
 from lib.client_states import build_machine, FINAL_STATES
 
 ALL = ["launch", "wait_login", "accept_terms", "click_play", "wait_welcome",
-       "click_welcome", "wait_in_game"]
+       "click_welcome", "wait_in_game", "set_camera"]
 
 
 @pytest.fixture(autouse=True)
@@ -27,13 +27,14 @@ def drive(script):
 
 
 def test_normal_login():
-    final, visited = drive(["ok", "ok", "ok", "ok", "ok", "ok"])
+    final, visited = drive(["ok", "ok", "ok", "ok", "ok", "ok", "ok"])
     assert final == "in_game"
-    assert visited == ["launch", "wait_login", "click_play", "wait_welcome", "click_welcome", "wait_in_game"]
+    assert visited == ["launch", "wait_login", "click_play", "wait_welcome", "click_welcome",
+                       "wait_in_game", "set_camera"]
 
 
 def test_terms_screen_first():
-    final, visited = drive(["ok", "terms", "ok", "ok", "ok", "ok", "ok", "ok"])
+    final, visited = drive(["ok", "terms", "ok", "ok", "ok", "ok", "ok", "ok", "ok"])
     assert visited[:4] == ["launch", "wait_login", "accept_terms", "wait_login"] and final == "in_game"
 
 

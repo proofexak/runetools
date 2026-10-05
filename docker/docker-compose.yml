@@ -1,3 +1,7 @@
+# Fixed project name: the container, image and volume are runetools-… whatever
+# folder compose is started from (default would be the folder name, "docker").
+name: runetools
+
 services:
   runetools:
     build:

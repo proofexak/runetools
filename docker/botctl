@@ -7,6 +7,8 @@
 #   docker/botctl kill       stop right now (same as P), then idle
 #   docker/botctl start      resume, or leave idle: log in if needed and start the bot
 #   docker/botctl status     recent sessions + supervisor events
+#   docker/botctl profile-save   copy RuneLite's + the game's settings to docker/runelite-profile/
+#   docker/botctl profile-load   put the saved profile back (close RuneLite first)
 #
 # Not in the docker group yet? Prefix with:  sg docker -c "docker/botctl …"
 # On Windows run it from Git Bash (comes with Git for Windows).
@@ -50,8 +52,30 @@ case "${1:-}" in
         echo
         report supervisor --last 10
         ;;
+    profile-save)
+        running || { echo "the runetools container isn't running" >&2; exit 1; }
+        # RuneLite writes changed settings to disk with a delay: close it (or
+        # wait ~30 s after the last change) so the copy has them.
+        # game/ = the OSRS client's own settings (Fixed/Resizable, …), which live
+        # in its cache folder, not in RuneLite's profile.
+        dc exec -T runetools sh -c '
+            D=/app/docker/runelite-profile
+            mkdir -p "$D/game" && find "$D" -type f -delete &&
+            cp "$HOME"/.runelite/profiles2/* "$D/" &&
+            cp "$HOME"/.runelite/jagexcache/oldschool/LIVE/preferences*.dat "$D/game/"'
+        echo "saved to docker/runelite-profile/ — new containers start with it"
+        ;;
+    profile-load)
+        running || { echo "the runetools container isn't running" >&2; exit 1; }
+        if dc exec -T runetools pgrep -f net.runelite >/dev/null; then
+            echo "close RuneLite first — it would overwrite the loaded profile on exit" >&2
+            exit 1
+        fi
+        dc exec -T runetools runelite --load-profile
+        echo "loaded — start RuneLite"
+        ;;
     *)
-        sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

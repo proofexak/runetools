@@ -95,11 +95,17 @@ def _human_click(x, y):
     human_click(x, y)
 
 
+def _set_camera(x, y):
+    from lib.camera import zoom_out_top_down
+    zoom_out_top_down(x, y)
+
+
 class Env:
     def __init__(self, templates=None, grab=grab_screen, click=_human_click, clock=time.time,
-                 wait=gated_sleep, running=running, start=start):
+                 wait=gated_sleep, running=running, start=start, camera=_set_camera):
         self.templates = load_templates() if templates is None else templates
         self.grab, self.click, self.clock, self.wait = grab, click, clock, wait
+        self.camera = camera
         self.running, self.start = running, start
 
 
@@ -133,6 +139,14 @@ def handlers(session, env):
         session.deadline = env.clock() + timeout
         return "ok"
 
+    def click_welcome():
+        session.view = session.target
+        return click_then(IN_GAME_TIMEOUT)
+
+    def set_camera():
+        env.camera(*session.view)
+        return "ok"
+
     def launch():
         frame, _ = env.grab()
         if logged_in(env.templates, frame):
@@ -150,8 +164,9 @@ def handlers(session, env):
         "click_play":    lambda: click_then(WELCOME_TIMEOUT),
         "wait_welcome":  lambda: wait_for([("in_game", "in_game"), ("ok", "welcome_play")],
                                           "welcome screen never appeared"),
-        "click_welcome": lambda: click_then(IN_GAME_TIMEOUT),
+        "click_welcome": click_welcome,
         "wait_in_game":  lambda: wait_for([("ok", "in_game")], "game view never appeared"),
+        "set_camera":    set_camera,
     }
 
 

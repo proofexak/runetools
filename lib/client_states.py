@@ -4,7 +4,7 @@ Handlers (launching RuneLite, finding screens by template, clicking) live in
 lib/client.py; this module stays pure so it can be tested with stub handlers.
 
   launch → wait_login → [accept_terms → wait_login] → click_play → wait_welcome
-         → click_welcome → wait_in_game → in_game
+         → click_welcome → wait_in_game → set_camera → in_game
   any wait that times out → failed; "already in game" short-circuits to in_game
 """
 from transitions import Machine
@@ -12,7 +12,7 @@ from transitions import Machine
 FINAL_STATES = {"in_game", "failed"}
 
 STATES = ["launch", "wait_login", "accept_terms", "click_play", "wait_welcome",
-          "click_welcome", "wait_in_game", "in_game", "failed"]
+          "click_welcome", "wait_in_game", "set_camera", "in_game", "failed"]
 
 _WAITS = ["wait_login", "wait_welcome", "wait_in_game"]
 
@@ -24,7 +24,8 @@ TRANSITIONS = [
     {"trigger": "ok",      "source": "click_play",    "dest": "wait_welcome"},
     {"trigger": "ok",      "source": "wait_welcome",  "dest": "click_welcome"},
     {"trigger": "ok",      "source": "click_welcome", "dest": "wait_in_game"},
-    {"trigger": "ok",      "source": "wait_in_game",  "dest": "in_game"},
+    {"trigger": "ok",      "source": "wait_in_game",  "dest": "set_camera"},
+    {"trigger": "ok",      "source": "set_camera",    "dest": "in_game"},
     {"trigger": "in_game", "source": ["launch"] + _WAITS, "dest": "in_game"},
     {"trigger": "timeout", "source": _WAITS,          "dest": "failed"},
 ]
@@ -34,6 +35,8 @@ class ClientSession:
     def __init__(self, stats):
         self.stats = stats
         self.target = None      # where the next click goes (set by a wait handler)
+        self.view = None        # a point in the game view for the camera: where
+                                # "Click here to play" was
         self.deadline = None    # when the current wait gives up
         self.reason = None      # why the login failed
 

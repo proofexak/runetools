@@ -1,18 +1,45 @@
 #!/bin/sh
 # Start RuneLite inside the container: `runelite` (extra args go to the launcher).
+# `runelite --load-profile` only copies docker/runelite-profile/ into ~/.runelite
+# (used by `docker/botctl profile-load`; RuneLite must not be running).
 #
 # RUNELITE_FPS        frame cap seeded on a fresh RuneLite home (default 30, 0 = no cap)
 # RUNELITE_JAVA_OPTS  JVM flags for the client (default "-Xmx512m -XX:+UseSerialGC")
 #
-# The FPS cap and "GPU plugin off" are written to ~/.runelite/settings.properties,
+# A fresh RuneLite home gets the saved profile if there is one. Otherwise the
+# FPS cap and "GPU plugin off" are written to ~/.runelite/settings.properties,
 # which RuneLite migrates into its profile on first start only — on an existing
 # profile, change them in RuneLite's settings (FPS Control plugin) instead.
 set -e
 
 FPS="${RUNELITE_FPS:-30}"
 RL="$HOME/.runelite"
+SAVED=/app/docker/runelite-profile   # `docker/botctl profile-save` writes it
+GAME="$RL/jagexcache/oldschool/LIVE" # the game's own settings (Fixed/Resizable, …)
 
-if [ ! -d "$RL/profiles2" ] && [ ! -e "$RL/settings.properties" ]; then
+# The saved profile (plugins on/off, their settings, Plugin Hub list) replaces
+# this container's, and game/ holds the OSRS client's preferences*.dat.
+# GPU plugin forced off: no GPU here, see docker/README.md.
+seed_profile() {
+    mkdir -p "$RL/profiles2"
+    rm -f "$RL/profiles2/"*
+    cp "$SAVED/profiles.json" "$SAVED/"*.properties "$RL/profiles2/"
+    sed -i 's/^runelite\.gpuplugin=true$/runelite.gpuplugin=false/' "$RL/profiles2/"*.properties
+    if ls "$SAVED/game/"preferences*.dat >/dev/null 2>&1; then
+        mkdir -p "$GAME"
+        cp "$SAVED/game/"preferences*.dat "$GAME/"
+    fi
+}
+
+if [ "${1:-}" = "--load-profile" ]; then
+    [ -f "$SAVED/profiles.json" ] || { echo "no saved profile in docker/runelite-profile/" >&2; exit 1; }
+    seed_profile
+    exit 0
+fi
+
+if [ ! -d "$RL/profiles2" ] && [ -f "$SAVED/profiles.json" ]; then
+    seed_profile
+elif [ ! -d "$RL/profiles2" ] && [ ! -e "$RL/settings.properties" ]; then
     mkdir -p "$RL"
     {
         echo "runelite.gpuplugin=false"

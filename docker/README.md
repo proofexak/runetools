@@ -3,8 +3,8 @@
 This runs RuneLite + the bot against a **virtual display inside the container**
 (Xvfb), not your real screen — the bot's mouse/clicks never touch your actual
 desktop, so it can run in the background while you use your PC normally. A VNC
-viewer lets you look into that virtual display when you need to (Bolt login,
-recalibration), then you disconnect and it keeps running.
+viewer lets you look into that virtual display when you need to (calibration,
+watching it), then you disconnect and it keeps running.
 
 Builds on the setup already validated in [OSRS_ON_UBUNTU.md](../OSRS_ON_UBUNTU.md)
 (RuneLite + Bolt on X11) — same constraints apply (X11 only, not Wayland; that's
@@ -60,24 +60,21 @@ write into the repo — logs, saved calibration — stays owned by you. If `id -
 
 ## One-time setup
 
-### 1. Get Bolt (Jagex login)
+### 1. Get your Jagex login (`credentials.properties`)
 
-Codeberg blocks automated downloads of Bolt's release assets (tarpits bot
-requests — see OSRS_ON_UBUNTU.md), so this has to be a manual browser download:
+The container logs in with RuneLite alone, using the Jagex session RuneLite saves
+when it's started with `--insecure-write-credentials`. Get that file once on a
+desktop and copy it in (step 4). Bolt no longer ships a Linux zip (Linux builds
+are Flatpak only), so it isn't run inside the container.
 
-1. In a browser, go to https://codeberg.org/Adamcake/Bolt/releases and download
-   the Linux zip (`Bolt-Linux.zip`) from the latest release.
-2. Unzip it into `docker/bolt/` in this repo, so the `Bolt` executable ends up
-   somewhere under there. Find it with:
-   ```
-   find docker/bolt -maxdepth 2 -type f
-   ```
-3. `docker/bolt/*.zip` and the unzipped folder are gitignored — this is
-   per-machine, not checked in.
+- **Windows (Jagex Launcher):** Start menu → **RuneLite (configure)** → add
+  `--insecure-write-credentials` to *Client arguments* → Save. Launch RuneLite from
+  the Jagex Launcher and log in once. The file is
+  `%USERPROFILE%\.runelite\credentials.properties`.
+- **Linux:** Bolt's Flatpak (`flatpak install flathub com.adamcake.Bolt`) with the
+  same argument in its RuneLite launch options → `~/.runelite/credentials.properties`.
 
-Ubuntu 24.04 (the container's base image) ships glibc/libstdc++ new enough for
-Bolt's raw binary, so unlike the bare-Ubuntu-20.04 case in OSRS_ON_UBUNTU.md,
-no Flatpak workaround is needed here.
+Then remove the argument again, so the desktop RuneLite stops writing it.
 
 ### 2. Build and start
 
@@ -94,27 +91,34 @@ Point your VNC client at `localhost:5900` (bound to localhost only). Password is
 `runetools` by default — override it in `docker/.env` with `VNC_PASSWORD=…`
 before starting the container.
 
-### 4. Log into Jagex via Bolt, launch RuneLite
+### 4. Copy the login in, launch RuneLite
 
-Open a shell inside the container (separate from the VNC session — this is where
-you type commands, the VNC window is where the GUI appears):
-
-```
-docker compose -f docker/docker-compose.yml exec runetools bash
-```
-
-Inside that shell (`DISPLAY=:1` is already set):
+From the repo folder (PowerShell on Windows — Git Bash rewrites the container
+paths), then delete the desktop copy:
 
 ```
-/opt/bolt/Bolt &          # adjust path to whatever `find` showed above
+docker compose -f docker/docker-compose.yml exec runetools mkdir -p /home/runetools/.runelite
+docker compose -f docker/docker-compose.yml cp <path to>/credentials.properties runetools:/home/runetools/.runelite/credentials.properties
+docker compose -f docker/docker-compose.yml exec -u 0 runetools chown -R 1000:1000 /home/runetools/.runelite
+docker compose -f docker/docker-compose.yml exec runetools chmod 600 /home/runetools/.runelite/credentials.properties
 ```
 
-Log into your Jagex account in the VNC window and launch RuneLite from Bolt — or
-start it directly with `runelite &` once you have a session. `runelite` applies
-the container defaults (FPS cap, JVM flags, GPU plugin off) on a fresh RuneLite
-profile; see "Settings" below.
+⚠ That file holds your session tokens **in plain text**. Inside the container it
+lives only in the local `runetools-userhome` Docker volume; don't keep other copies.
+Deleting it (or `docker compose down -v`) logs the container out.
 
-RuneLite's and Bolt's state live in `/home/runetools`, a named Docker volume
+Start RuneLite (it appears in the VNC window; click **Play Now** — no Jagex login
+prompt):
+
+```
+docker compose -f docker/docker-compose.yml exec -d runetools runelite
+```
+
+`runelite` applies the container defaults (FPS cap, JVM flags, GPU plugin off) —
+or, if `docker/runelite-profile/` exists, your saved RuneLite and game settings —
+on a fresh RuneLite home; see "Keeping RuneLite's settings" below.
+
+RuneLite's state lives in `/home/runetools`, a named Docker volume
 (`runetools-userhome`) — it survives `docker compose down` / restarts, so you
 shouldn't need to log in again. (`down -v` would wipe it — don't use `-v` unless
 you mean to.)
@@ -124,11 +128,12 @@ you mean to.)
 The virtual display defaults to 1280x800 (`XVFB_RESOLUTION` in `docker/.env`,
 e.g. `XVFB_RESOLUTION=1920x1080x24`; keep the depth at 24 — the bots match exact
 colours). Without a window manager RuneLite opens undecorated and centred, so
-positions won't match configs calibrated on a normal desktop. Start the menu
-from the exec shell and use each bot's **⚙ Configure** (and GE / Energy Config):
+positions won't match configs calibrated on a normal desktop — and pin the window
+position before calibrating ("Window position" below). Start the menu and use
+each bot's **⚙ Configure** (and GE / Energy Config):
 
 ```
-python3 run.py
+docker compose -f docker/docker-compose.yml exec -d runetools python3 run.py
 ```
 
 The repo is bind-mounted at `/app`, so configs land back in your working tree,
@@ -137,7 +142,7 @@ calibrate_energy_digits.py` (see the main README's "Stamina potions" section).
 
 ## Running the bot
 
-From the exec shell: `python3 run.py`, pick a bot in the overlay (via VNC). Then
+Start the menu (as above), pick a bot in the overlay (via VNC). Then
 disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 **P** to force-stop. Session logs land in `<bot>/log/` in your working tree —
 `python -m lib.logreport` on the host reads them.
@@ -146,20 +151,14 @@ disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 
 Set a bot in `docker/.env` and the container runs it with nobody watching:
 `lib.headless` keeps RuneLite logged in, runs the bot, restarts it after crashes
-and logouts, and comes back by itself after a container or host restart.
+and logouts, and comes back by itself after a container or host restart. After
+every fresh login it zooms the camera all the way out and tilts it to look from
+the top (`lib.camera.zoom_out_top_down`) — the view to calibrate the bots in.
 
 ### One-time setup
 
-1. **Save your login.** RuneLite can store the Jagex session it gets from Bolt so
-   it can log in later without Bolt: launch RuneLite **once from Bolt with the
-   extra RuneLite argument `--insecure-write-credentials`** (in Bolt's RuneLite
-   launch options). Check it worked from the exec shell:
-   ```
-   ls ~/.runelite/credentials.properties
-   ```
-   ⚠ That file holds your session tokens **in plain text**. It lives only in the
-   local `runetools-userhome` Docker volume; don't copy it anywhere. Deleting it
-   (or `docker compose down -v`) logs the container out.
+1. **Save your login** — `credentials.properties` in the container, see
+   "One-time setup" steps 1 and 4 above.
 2. **Capture the login templates** (once, and again if Jagex restyles a screen):
    `python3 run.py` → **⚙ Client Templates**, then drag a rectangle (via VNC) over
    each element while it is on screen:
@@ -169,7 +168,7 @@ and logouts, and comes back by itself after a container or host restart.
    | `terms_accept` | the terms dialog's **Accept** button (first start of a fresh profile only; optional) |
    | `login_play` | the login screen's **Play Now** button |
    | `welcome_play` | the red **CLICK HERE TO PLAY** button after logging in |
-   | `in_game` | a **fixed** in-game element: a minimap frame ornament or a side-panel tab icon. **Not the compass** (it rotates with the camera, which the bots turn) and nothing with changing numbers (orbs, XP) |
+   | `in_game` | a **fixed** in-game element: the bottom row of side-panel tab icons works (it still matches whichever tab is open). **Not the compass** (it rotates with the camera, which the bots turn) and nothing with changing numbers (orbs, XP) |
 
    Crops land in `lib/client_templates/` (gitignored, per user). Select only the
    element, with nothing on top of it.
@@ -191,6 +190,7 @@ and logouts, and comes back by itself after a container or host restart.
 | `docker/botctl kill` | stop right now (same as P), then idle |
 | `docker/botctl start` | resume, or leave idle: log in if needed and start the bot |
 | `docker/botctl status` | recent sessions + supervisor events |
+| `docker/botctl profile-save` / `profile-load` | save / restore RuneLite's plugins + settings (see "Keeping RuneLite's settings") |
 | `docker compose … stop` / `down` | stop now and exit cleanly |
 
 ### What it does when a session ends
@@ -227,10 +227,9 @@ with Git for Windows) for the commands below.
    `docker compose -f docker/docker-compose.yml up -d --build`, then connect a VNC
    viewer to `localhost:5900` (password `runetools`). `RUNETOOLS_UID/GID` don't
    matter on Windows.
-4. **One-time setup** from "Unattended mode" above: `Bolt-Linux.zip` into
-   `docker/bolt/` (the Linux build — it runs inside the container), launch RuneLite
-   from Bolt once with `--insecure-write-credentials`, capture the 4 client
-   templates, set `BOT` / `LAUNCH` in `docker/.env`, `docker compose … up -d`.
+4. **One-time setup**: your login into the container ("One-time setup" steps 1
+   and 4 — RuneLite (configure) + Jagex Launcher), capture the 4 client templates,
+   set `BOT` / `LAUNCH` in `docker/.env`, `docker compose … up -d`.
 5. **The test** (PRO-85's "done when"):
    - leave it running **1 h+** while you use the PC normally;
    - `docker/botctl pause`, `resume`, `stop`, `start` — each should do what it says;
@@ -259,6 +258,41 @@ with Git for Windows) for the commands below.
 `RUNELITE_FPS` and "GPU plugin off" only apply to a **fresh** profile (RuneLite
 reads them once from `settings.properties`); on an existing one, set them in
 RuneLite's settings (FPS Control plugin, GPU plugin).
+
+## Keeping RuneLite's settings across containers
+
+RuneLite's profile — which plugins are on, every plugin's settings, the Plugin
+Hub list (RuneLite re-downloads those plugins itself), window/game size — lives
+in the `runetools-userhome` volume, so a new volume (new machine, `down -v`)
+starts from scratch. Save it into the repo once it's how you want it:
+
+```
+docker/botctl profile-save    # → docker/runelite-profile/ (gitignored, per user)
+```
+
+RuneLite writes changed settings to disk with a delay — close it, or wait ~30 s
+after the last change, before saving. A container whose RuneLite home is fresh
+starts with the saved profile automatically (`RUNELITE_FPS` is then not applied —
+the saved FPS Control settings are). To put it back into an existing container:
+close RuneLite, `docker/botctl profile-load`, start RuneLite. Either way the GPU
+plugin is forced off.
+
+**Window position.** Calibrated points are absolute screen coordinates, so the
+RuneLite window must open in the same place every time. RuneLite only stores its
+position on a normal window close (never in a container, where it's stopped by a
+signal), so without a stored position it opens centred — wherever the window
+happened to be when you calibrated is lost on the next restart. Pin it in the
+saved profile, `x\:y\:width\:height` as `xwininfo` reports the window:
+
+```
+docker compose -f docker/docker-compose.yml exec runetools sh -c 'xwininfo -root -tree | grep "RuneLite -"'
+# … 1231x668+369+199 …  →  in docker/runelite-profile/default-*.properties:
+runelite.clientBounds=369\:199\:1231\:668
+```
+
+Profile files from a desktop RuneLite (`%USERPROFILE%\.runelite\profiles2\` on
+Windows) can be dropped into `docker/runelite-profile/` the same way — copy the
+whole folder (`profiles.json` + all `.properties`), never `credentials.properties`.
 
 ## Alternatives considered
 

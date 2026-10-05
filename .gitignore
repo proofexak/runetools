@@ -22,3 +22,12 @@ docker/bolt/*.zip
 docker/bolt/Bolt-Linux/
 /log/
 lib/client_templates/
+
+# per-machine container settings (docker/README.md), may hold VNC_PASSWORD
+docker/.env
+
+# saved RuneLite profile for containers (docker/botctl profile-save), per user
+docker/runelite-profile/
+
+# full RuneLite home backups (docker/backups/*.tgz), local only
+docker/backups/
