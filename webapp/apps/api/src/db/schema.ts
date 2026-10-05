@@ -93,6 +93,9 @@ export const sessions = pgTable("sessions", {
   pauses: integer("pauses").notNull().default(0),
   runs: integer("runs").notNull().default(0),
   errorCount: integer("error_count").notNull().default(0),
+  hasStart: boolean("has_start").notNull().default(false),  // a session_start line was read
+  /** Log file mtime as last seen. Liveness uses it, not the naive event times: zone-proof. */
+  fileMtime: timestamp("file_mtime", { withTimezone: true }),
 }, (t) => [
   index("sessions_started_at").on(t.startedAt),
   index("sessions_account").on(t.account),

@@ -17,12 +17,15 @@ import type { Bus } from "./bus.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { HttpError } from "./http.js";
+import type { Ingester } from "./ingest/ingester.js";
 import { authRoutes } from "./routes/auth.js";
 
 export interface AppContext {
   db: Db;
   config: Config;
   bus: Bus;
+  /** Absent in tests that don't need it; routes then skip "rescan now" triggers. */
+  ingester?: Ingester;
 }
 
 declare module "fastify" {
