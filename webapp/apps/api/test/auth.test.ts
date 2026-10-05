@@ -87,3 +87,25 @@ describe("auth", () => {
     await expect(login(t.app, "admin", "battery staple")).resolves.toBeTruthy();
   });
 });
+
+describe("serving the UI", () => {
+  it("SPA routes get index.html, missing assets 404", async () => {
+    const dist = (await import("./helpers.js")).tmpDir();
+    const fs = await import("node:fs");
+    fs.mkdirSync(`${dist}/assets`);
+    fs.writeFileSync(`${dist}/index.html`, "<!doctype html><div id=root></div>");
+    fs.writeFileSync(`${dist}/assets/app.js`, "console.log(1)");
+    const u = await makeApp({ webDist: dist });
+    try {
+      const page = await u.app.inject({ url: "/sessions/12", headers: { host: HOST } });
+      expect(page.statusCode).toBe(200);
+      expect(page.headers["content-type"]).toContain("text/html");
+      const js = await u.app.inject({ url: "/assets/app.js", headers: { host: HOST } });
+      expect(js.headers["content-type"]).toContain("javascript");
+      expect((await u.app.inject({ url: "/assets/gone.js", headers: { host: HOST } })).statusCode).toBe(404);
+      expect((await u.app.inject({ url: "/api/nope", headers: { host: HOST } })).statusCode).toBe(401);
+    } finally {
+      await u.close();
+    }
+  });
+});

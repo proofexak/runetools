@@ -43,6 +43,8 @@ export interface AccountsResponse {
   envOverride: string | null;
   /** Names tagged in session logs that no account row has (renamed/deleted). */
   orphanNames: string[];
+  /** Some sessions carry no account (logged before tagging, or with none active). */
+  hasUnassigned: boolean;
 }
 
 // ── sessions + stats ─────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { BarChart3, History, LayoutDashboard, LogOut, Monitor, Moon, Settings, S
 import { NavLink, Outlet } from "react-router";
 import { useLogout, useMe } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { useLiveFeed } from "@/lib/queries";
 import { useTheme, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ export function Layout() {
   const logout = useLogout();
   const [theme, setTheme] = useTheme();
   const ThemeIcon = THEME_ICON[theme];
+  const live = useLiveFeed();
 
   return (
     <div className="flex min-h-svh flex-col md:flex-row">
@@ -28,6 +30,10 @@ export function Layout() {
         <div className="flex items-center gap-2 px-4 py-4">
           <img src="/favicon.svg" alt="" className="size-6" />
           <span className="font-semibold tracking-tight">RuneTools</span>
+          <span
+            className={cn("ml-auto size-2 rounded-full", live ? "bg-success" : "bg-muted-foreground/40")}
+            title={live ? "Live updates on" : "Live updates reconnecting…"}
+          />
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-0">
           {NAV.map(({ to, label, icon: Icon, end }) => (

@@ -34,3 +34,15 @@ export function useTheme(): [Theme, (t: Theme) => void] {
     setTheme(t);
   }];
 }
+
+/** Whether dark mode is in effect right now (follows the html.dark class). */
+export function useIsDark(): boolean {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  useEffect(() => {
+    const el = document.documentElement;
+    const obs = new MutationObserver(() => setDark(el.classList.contains("dark")));
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  return dark;
+}

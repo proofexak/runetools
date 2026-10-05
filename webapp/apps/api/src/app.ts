@@ -11,14 +11,17 @@ import path from "node:path";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { COOKIE, lookupSession, safeEqual, type AuthedSession } from "./auth/auth.js";
 import type { Bus } from "./bus.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { HttpError } from "./http.js";
 import type { Ingester } from "./ingest/ingester.js";
+import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
+import { eventRoutes } from "./routes/events.js";
+import { statsRoutes } from "./routes/stats.js";
 
 export interface AppContext {
   db: Db;
@@ -51,7 +54,7 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
     logger: process.env.NODE_ENV === "test" ? false : { level: process.env.LOG_LEVEL || "info" },
     bodyLimit: 64 * 1024,
     trustProxy: false,
-    disableRequestLogging: true,
+    logController: new LogController({ disableRequestLogging: true }),
   });
   const allowed = new Set(ctx.config.allowedHosts);
   const anyHost = allowed.has("*");
@@ -92,14 +95,20 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
 
   app.get("/api/health", async () => ({ ok: true }));
   await authRoutes(app, ctx);
+  await statsRoutes(app, ctx);
+  await accountRoutes(app, ctx);
+  await eventRoutes(app, ctx);
   if (register) await register(app);
 
   const dist = ctx.config.webDist;
   if (dist && fs.existsSync(path.join(dist, "index.html"))) {
-    await app.register(fastifyStatic, { root: dist, wildcard: false, index: ["index.html"] });
-    // client-side routes (/sessions/12 ...) get the SPA shell
+    await app.register(fastifyStatic, { root: dist, index: ["index.html"] });
+    // client-side routes (/sessions/12 ...) get the SPA shell; a missing file is a 404
     app.setNotFoundHandler((req, reply) => {
-      if (req.method === "GET" && !req.url.startsWith("/api/")) return reply.sendFile("index.html");
+      const route = req.url.split("?", 1)[0]!;
+      if (req.method === "GET" && !route.startsWith("/api/") && !path.extname(route)) {
+        return reply.header("cache-control", "no-cache").sendFile("index.html");
+      }
       return reply.status(404).send({ error: "not found" });
     });
   } else {
