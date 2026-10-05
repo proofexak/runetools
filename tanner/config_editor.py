@@ -23,7 +23,8 @@ FIELDS = [
     ("Navigation",  "Ellis Region",     "ELLIS_REGION",         "region"),
     ("Recovery",    "Amulet Slot",      "AMULET_SLOT",          "point"),
     ("Recovery",    "Double Doors",     "DOUBLE_DOORS_REGION",  "region"),
-    ("Recovery",    "TP Bank Region",   "TP_BANK_REGION",       "region"),
+    ("Recovery",    "TP Walk Region",   "TP_BANK_REGION",       "region"),
+    ("Recovery",    "TP Booth Region",  "TP_BOOTH_REGION",      "region"),
     ("Bank",        "Bank Check",       "BANK_CHECK",           "point_color"),
     ("Bank",        "Inventory Check",  "INVENTORY_CHECK",      "point_color"),
     ("Bank",        "Deposit Button",   "DEPOSIT_BTN",          "point"),
@@ -50,6 +51,7 @@ REGION_COLORS = {
     "MOVEMENT_REGION":    "#ffff00",
     "DOUBLE_DOORS_REGION":"#44ff88",
     "TP_BANK_REGION":     "#ff4444",
+    "TP_BOOTH_REGION":    "#cc44ff",
 }
 
 

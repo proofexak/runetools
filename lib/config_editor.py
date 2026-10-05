@@ -425,11 +425,14 @@ def create_item_overlay(root, attr, label, ftype, sx, sy, get_fn, region_colors=
 # ── Editor window ─────────────────────────────────────────────────────────────
 
 def save_attr(path, attr, val):
-    """Rewrite the `ATTR = ...` line of a config module with repr(val)."""
+    """Rewrite the `ATTR = ...` line of a config module with repr(val), or append
+    it if the config predates the field."""
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
     pattern = rf"^({re.escape(attr)}\s*=\s*).*$"
-    content = re.sub(pattern, lambda m: m.group(1) + repr(val), content, flags=re.MULTILINE)
+    content, n = re.subn(pattern, lambda m: m.group(1) + repr(val), content, flags=re.MULTILINE)
+    if n == 0:
+        content += ("" if content.endswith("\n") or not content else "\n") + f"{attr} = {val!r}\n"
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 

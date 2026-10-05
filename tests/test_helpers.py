@@ -24,6 +24,13 @@ def test_save_attr_keeps_other_lines(tmp_path):
         '"""doc"""', "A = 1   # comment kept? no - value line replaced", "B = [3]"]
 
 
+def test_save_attr_appends_attr_missing_from_an_older_config(tmp_path):
+    p = tmp_path / "config.py"
+    p.write_text("A = 1", encoding="utf-8")   # no trailing newline
+    save_attr(str(p), "NEW_REGION", (1, 2, 3, 4))
+    assert p.read_text(encoding="utf-8") == "A = 1\nNEW_REGION = (1, 2, 3, 4)\n"
+
+
 def test_release_key_survives_pyautogui_failsafe(monkeypatch):
     import lib.mouse as mouse
     released = []
