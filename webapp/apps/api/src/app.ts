@@ -1,0 +1,118 @@
+/**
+ * The Fastify app, built from its dependencies so tests can drive it with app.inject().
+ *
+ * Every /api route except health and the auth entry points needs a logged-in session;
+ * every mutating /api request also needs the session's CSRF token (x-csrf-token) and,
+ * when the browser sends one, a same-site Origin. Host headers are checked against
+ * allowedHosts so a DNS-rebinding page can't talk to the server.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import { COOKIE, lookupSession, safeEqual, type AuthedSession } from "./auth/auth.js";
+import type { Bus } from "./bus.js";
+import type { Config } from "./config.js";
+import type { Db } from "./db/index.js";
+import { HttpError } from "./http.js";
+import { authRoutes } from "./routes/auth.js";
+
+export interface AppContext {
+  db: Db;
+  config: Config;
+  bus: Bus;
+}
+
+declare module "fastify" {
+  interface FastifyRequest { auth: AuthedSession | null }
+}
+
+const PUBLIC = new Set(["/api/health", "/api/auth/me", "/api/auth/setup", "/api/auth/login"]);
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+const SECURITY_HEADERS = {
+  "x-frame-options": "DENY",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  "cross-origin-opener-policy": "same-origin",
+  "content-security-policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+    "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; " +
+    "frame-ancestors 'none'",
+};
+
+export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance) => Promise<void>) {
+  const app = Fastify({
+    logger: process.env.NODE_ENV === "test" ? false : { level: process.env.LOG_LEVEL || "info" },
+    bodyLimit: 64 * 1024,
+    trustProxy: false,
+    disableRequestLogging: true,
+  });
+  const allowed = new Set(ctx.config.allowedHosts);
+  const anyHost = allowed.has("*");
+
+  await app.register(cookie);
+  await app.register(rateLimit, { global: false });
+  app.decorateRequest("auth", null);
+
+  app.addHook("onRequest", async (req) => {
+    if (req.url === "/api/health") return;
+    if (!anyHost && !allowed.has(req.headers.host ?? "")) throw new HttpError(403, "bad host");
+  });
+
+  app.addHook("preHandler", async (req) => {
+    if (!req.url.startsWith("/api/")) return;
+    const route = req.url.split("?", 1)[0]!;
+    req.auth = await lookupSession(ctx.db, req.cookies[COOKIE]);
+    if (!SAFE_METHODS.has(req.method)) checkOrigin(req, allowed, anyHost);
+    if (PUBLIC.has(route)) return;
+    if (!req.auth) throw new HttpError(401, "not logged in");
+    if (!SAFE_METHODS.has(req.method)) {
+      const sent = req.headers["x-csrf-token"];
+      if (typeof sent !== "string" || !safeEqual(sent, req.auth.csrf)) throw new HttpError(403, "bad csrf token");
+    }
+  });
+
+  app.addHook("onSend", async (req, reply) => {
+    reply.headers(SECURITY_HEADERS);
+    if (req.url.startsWith("/api/")) reply.header("cache-control", "no-store");
+  });
+
+  app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
+    if (err instanceof HttpError) return reply.status(err.status).send({ error: err.message });
+    if (err.statusCode && err.statusCode < 500) return reply.status(err.statusCode).send({ error: err.message });
+    req.log.error(err);
+    return reply.status(500).send({ error: "internal error" });
+  });
+
+  app.get("/api/health", async () => ({ ok: true }));
+  await authRoutes(app, ctx);
+  if (register) await register(app);
+
+  const dist = ctx.config.webDist;
+  if (dist && fs.existsSync(path.join(dist, "index.html"))) {
+    await app.register(fastifyStatic, { root: dist, wildcard: false, index: ["index.html"] });
+    // client-side routes (/sessions/12 ...) get the SPA shell
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === "GET" && !req.url.startsWith("/api/")) return reply.sendFile("index.html");
+      return reply.status(404).send({ error: "not found" });
+    });
+  } else {
+    app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: "not found" }));
+  }
+  return app;
+}
+
+function checkOrigin(req: FastifyRequest, allowed: Set<string>, anyHost: boolean) {
+  const origin = req.headers.origin;
+  if (!origin || anyHost) return;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    throw new HttpError(403, "bad origin");
+  }
+  if (!allowed.has(host) || host !== req.headers.host) throw new HttpError(403, "bad origin");
+}

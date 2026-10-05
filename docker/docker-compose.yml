@@ -39,5 +39,48 @@ services:
     tty: true
     restart: unless-stopped
 
+  # ── web app (webapp/, PRO-88): account stats + login vault ─────────────────
+  # `docker compose up -d postgres webapp`, then open http://127.0.0.1:8778/
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=runetools
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-runetools}
+      - POSTGRES_DB=runetools
+    volumes:
+      - runetools-pgdata:/var/lib/postgresql/data
+    ports:
+      # localhost only; lets `pnpm dev` on the host use this database
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U runetools -d runetools"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  webapp:
+    build:
+      context: ../webapp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # same host user as the bots: it writes data/active_account, which they read
+    user: "${RUNETOOLS_UID:-1000}:${RUNETOOLS_GID:-1000}"
+    volumes:
+      - ..:/repo:ro              # session logs (*/log/*.jsonl) are tailed, never written
+      - ../data:/repo/data       # data/active_account — create data/ first on Linux
+    ports:
+      - "127.0.0.1:8778:8778"   # localhost only: logins live in here
+    environment:
+      - DATABASE_URL=postgres://runetools:${POSTGRES_PASSWORD:-runetools}@postgres:5432/runetools
+      - LOG_ROOTS=/repo
+      - DATA_DIR=/repo/data
+      # session logs hold local wall time without a zone: set TZ to the zone the bots run
+      # in (e.g. Europe/Warsaw in docker/.env) so "today" and day splits line up
+      - TZ=${TZ:-UTC}
+    restart: unless-stopped
+
 volumes:
   runetools-userhome:
+  runetools-pgdata:
