@@ -75,7 +75,22 @@ def test_active_account_file_env_and_garbage(tmp_path, monkeypatch):
     assert accounts.active() == "Alt"
     monkeypatch.delenv(accounts.ENV_VAR)
     (tmp_path / "data" / "accounts.json").write_text("[1, 2")
+    assert accounts.active() == "Main"            # data/active_account still says so
+    (tmp_path / "data" / "active_account").unlink()
     assert accounts.active() is None
+
+
+def test_active_account_written_by_the_web_app(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "active_account").write_text("Lynx Titan\n")
+    assert accounts.active() == "Lynx Titan"      # no accounts.json needed
+    monkeypatch.setenv(accounts.ENV_VAR, "Alt")
+    assert accounts.active() == "Alt"
+    monkeypatch.delenv(accounts.ENV_VAR)
+    (tmp_path / "data" / "active_account").write_text("\n")
+    assert accounts.active() is None
+    accounts.save({"active": None, "accounts": []})  # prototype clearing it removes the file
+    assert not (tmp_path / "data" / "active_account").exists()
 
 
 def test_session_start_records_active_account(tmp_path, monkeypatch):

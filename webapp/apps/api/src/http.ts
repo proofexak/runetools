@@ -16,3 +16,6 @@ export function parse<T extends ZodType>(schema: T, value: unknown): z.output<T>
 }
 
 export const ok = (reply: FastifyReply) => reply.send({ ok: true });
+
+/** Route options for endpoints that take a password: rate-limited per client. */
+export const passwordLimited = (max: number) => ({ config: { rateLimit: { max, timeWindow: "1 minute" } } });

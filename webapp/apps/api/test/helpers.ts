@@ -7,6 +7,10 @@ import { Bus } from "../src/bus.js";
 import { loadConfig, type Config } from "../src/config.js";
 import { sql } from "drizzle-orm";
 import { openDb, type DbHandle } from "../src/db/index.js";
+import { Vault } from "../src/vault/vault.js";
+
+// cheap argon2 for tests: the real parameters cost ~0.3 s per derivation
+export const TEST_KDF = { memoryCost: 1024, timeCost: 1, parallelism: 1 };
 
 process.env.NODE_ENV = "test";
 
@@ -43,11 +47,13 @@ export async function makeApp(overrides: Partial<Config> = {},
     logRoots: [root],
     dataDir: path.join(root, "data"),
     webDist: null,
+    passwordRateLimit: 1000,
     ...overrides,
   };
-  const ctx: AppContext = { db: handle.db, config, bus: new Bus() };
+  const bus = new Bus();
+  const ctx: AppContext = { db: handle.db, config, bus, vault: new Vault(handle.db, bus, undefined, TEST_KDF) };
   const app = await buildApp(ctx, register ? (a) => register(a, ctx) : undefined);
-  return { app, ctx, handle, close: async () => { await app.close(); } };
+  return { app, ctx, handle, close: async () => { ctx.vault.lock(); await app.close(); } };
 }
 
 export interface Client {

@@ -19,6 +19,8 @@ export interface Config {
   secureCookie: boolean;
   /** RUNETOOLS_ACCOUNT as seen by this process — shown in the UI as an override. */
   envAccount: string | null;
+  /** Password attempts (login, unlock, ...) per minute per client. */
+  passwordRateLimit: number;
 }
 
 function list(value: string | undefined): string[] {
@@ -42,5 +44,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     pollMs: Number(env.POLL_MS || 2000),
     secureCookie: env.COOKIE_SECURE === "1",
     envAccount: env.RUNETOOLS_ACCOUNT || null,
+    passwordRateLimit: Number(env.PASSWORD_RATE_LIMIT || 10),
   };
 }

@@ -6,12 +6,12 @@ import {
   startSession, userCount, verifyPassword,
 } from "../auth/auth.js";
 import { users } from "../db/schema.js";
-import { HttpError, ok, parse } from "../http.js";
+import { HttpError, ok, parse, passwordLimited } from "../http.js";
 import { eq } from "drizzle-orm";
 
-const LIMITED = { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } };
 
-export async function authRoutes(app: FastifyInstance, { db, config }: AppContext) {
+export async function authRoutes(app: FastifyInstance, { db, config, vault }: AppContext) {
+  const LIMITED = passwordLimited(config.passwordRateLimit);
   const setCookie = (reply: FastifyReply, value: string) =>
     reply.setCookie(COOKIE, value, {
       path: "/", httpOnly: true, sameSite: "strict", secure: config.secureCookie,
@@ -42,6 +42,7 @@ export async function authRoutes(app: FastifyInstance, { db, config }: AppContex
 
   app.post("/api/auth/logout", async (req, reply) => {
     await endSession(db, req.auth!.sid);
+    vault.lock();
     reply.clearCookie(COOKIE, { path: "/" });
     return ok(reply);
   });

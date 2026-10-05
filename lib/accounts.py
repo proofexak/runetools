@@ -1,8 +1,10 @@
 """
-Account list + the active account sessions are tagged with.
+The active account sessions are tagged with (+ the prototype dashboard's account list).
 
-data/accounts.json (gitignored) holds only non-secret fields — display name and
-notes. Logins live encrypted in data/vault.json (dashboard/vault.py).
+data/active_account (gitignored) is one line, the account name. The web app (webapp/)
+writes it whenever the active account changes; bots only read it. The prototype
+dashboard keeps its list in data/accounts.json and mirrors its active one into
+data/active_account too:
 
     {"active": "Zezima", "accounts": [{"name": "Zezima", "notes": "main"}]}
 
@@ -19,6 +21,10 @@ def path(root=None):
     return os.path.join(root or ROOT, "data", "accounts.json")
 
 
+def active_path(root=None):
+    return os.path.join(root or ROOT, "data", "active_account")
+
+
 def load(root=None):
     """The account file as a dict; an empty one if missing or unreadable."""
     try:
@@ -33,19 +39,35 @@ def load(root=None):
     return data
 
 
-def save(data, root=None):
+def _replace(p, text):
     """Write atomically, so a session start never reads half a file."""
-    p = path(root)
     os.makedirs(os.path.dirname(p), exist_ok=True)
     tmp = p + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        f.write(text)
     os.replace(tmp, p)
+
+
+def save(data, root=None):
+    _replace(path(root), json.dumps(data, indent=2))
+    if data.get("active"):
+        _replace(active_path(root), data["active"] + "\n")
+    elif os.path.exists(active_path(root)):
+        os.remove(active_path(root))
+
+
+def _read_active_file(root=None):
+    try:
+        with open(active_path(root), encoding="utf-8") as f:
+            return f.readline().strip() or None
+    except (OSError, ValueError):
+        return None
 
 
 def active(root=None):
     """Account to tag the starting session with, or None."""
     try:
-        return os.environ.get(ENV_VAR) or load(root).get("active") or None
+        return (os.environ.get(ENV_VAR) or _read_active_file(root)
+                or load(root).get("active") or None)
     except Exception:
         return None

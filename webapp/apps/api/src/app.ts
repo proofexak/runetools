@@ -21,12 +21,16 @@ import type { Ingester } from "./ingest/ingester.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
 import { eventRoutes } from "./routes/events.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { statsRoutes } from "./routes/stats.js";
+import { vaultRoutes } from "./routes/vault.js";
+import type { Vault } from "./vault/vault.js";
 
 export interface AppContext {
   db: Db;
   config: Config;
   bus: Bus;
+  vault: Vault;
   /** Absent in tests that don't need it; routes then skip "rescan now" triggers. */
   ingester?: Ingester;
 }
@@ -97,6 +101,8 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   await authRoutes(app, ctx);
   await statsRoutes(app, ctx);
   await accountRoutes(app, ctx);
+  await vaultRoutes(app, ctx);
+  await settingsRoutes(app, ctx);
   await eventRoutes(app, ctx);
   if (register) await register(app);
 
