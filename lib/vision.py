@@ -97,6 +97,15 @@ def nearest_cluster_point(frame, rgb, tol, near, radius=30, jitter_pct=0.15, rng
     return click_point(xs[best], ys[best], jitter_pct, rng), len(xs)
 
 
+def find_targets(frame, targets, radius=40, jitter_pct=0.25, rng=random):
+    """What's visible, for a bot deciding where it is: `targets` maps a name to
+    (rgb, tol, near) and each comes back as the click point (frame-local) of its
+    rgb cluster nearest `near`, or None if that colour isn't in the frame."""
+    return {name: nearest_cluster_point(frame, rgb, tol, near, radius=radius,
+                                        jitter_pct=jitter_pct, rng=rng)[0]
+            for name, (rgb, tol, near) in targets.items()}
+
+
 def region_center(region):
     """Centre (x, y) of a (left, top, width, height) rect or of a polygon's bounding box."""
     if isinstance(region[0], (tuple, list)):

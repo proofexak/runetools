@@ -37,12 +37,27 @@ def screen_rect():
         return 0, 0, mon["width"], mon["height"]
 
 
+def _whole_screen():
+    """(frame, offset) of all of monitor 1, with the excluded areas painted black."""
+    rect = screen_rect()
+    frame, offset = grab(rect)
+    return vision.blank_rects(frame, list(_excluded.values()), origin=(rect[0], rect[1])), offset
+
+
+def look_for(targets, jitter_pct=0.25):
+    """One look at the whole screen (minus excluded areas) for several colours,
+    for a bot working out where it is: `targets` maps a name to (rgb, tol, near)
+    and each comes back as a screen point in its cluster nearest `near`, or None."""
+    frame, (off_x, off_y) = _whole_screen()
+    local = {name: (rgb, tol, (near[0] - off_x, near[1] - off_y)) for name, (rgb, tol, near) in targets.items()}
+    found = vision.find_targets(frame, local, radius=WHOLE_SCREEN_CLUSTER_RADIUS, jitter_pct=jitter_pct, rng=random)
+    return {name: None if p is None else (p[0] + off_x, p[1] + off_y) for name, p in found.items()}
+
+
 def find_color_anywhere(rgb, tol=10, near=(0, 0), jitter_pct=0.25):
     """Search the whole screen (minus excluded areas) for rgb; return a point in
     the matching cluster nearest `near`, as (point, pixel_count) or (None, 0)."""
-    rect = screen_rect()
-    frame, (off_x, off_y) = grab(rect)
-    frame = vision.blank_rects(frame, list(_excluded.values()), origin=(rect[0], rect[1]))
+    frame, (off_x, off_y) = _whole_screen()
     point, count = vision.nearest_cluster_point(
         frame, rgb, tol, (near[0] - off_x, near[1] - off_y),
         radius=WHOLE_SCREEN_CLUSTER_RADIUS, jitter_pct=jitter_pct, rng=random)

@@ -4,6 +4,13 @@ Tanner control flow — states, transition table and per-session model.
 Handlers live in tanner/run.py; this module stays free of screen/config
 imports so it can be tested without a game or calibrated config.
 Same-trigger transitions are evaluated in the order listed below.
+
+A failed walk / trade / bank first goes to `look_around`: one look at the whole
+screen for Ellis (blue) and the bank booth (purple), and the bot goes to
+whichever it needs — Ellis while carrying hides, the booth while carrying
+leather; the booth also works as a way back while carrying hides. Only when that
+look finds nothing useful ("lost") does it spend a glory charge (`recover`).
+One look per problem: it is allowed again after a tan or a recovery.
 """
 from transitions import Machine
 
@@ -14,7 +21,7 @@ CYCLE_START  = "walk_to_tanner"
 FINAL_STATES = {"done", "stopped"}
 
 STATES = ["start", "walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank",
-          "banking", "restock", "recover", "done", "stopped"]
+          "banking", "restock", "look_around", "recover", "done", "stopped"]
 
 _WALK_TRADE = ["walk_to_tanner", "trade_ellis", "walk_to_bank"]
 _ACTIONS    = _WALK_TRADE + ["banking"]
@@ -39,6 +46,18 @@ TRANSITIONS = [
     {"trigger": "ok",      "source": "restock",        "dest": "stopped", "after": "reason_no_charges"},
     {"trigger": "fail",    "source": "restock",        "dest": "stopped", "after": "reason_restock_failed"},
 
+    # a failure: look around first (once per problem), the glory teleport only if that finds nothing
+    {"trigger": "fail",    "source": ["walk_to_tanner", "trade_ellis"], "dest": "look_around",
+     "conditions": "can_look", "after": "need_ellis"},
+    {"trigger": "fail",    "source": "walk_to_bank",   "dest": "look_around", "conditions": "can_look",
+     "after": "need_bank"},
+    {"trigger": "fail",    "source": "banking",        "dest": "look_around", "conditions": "can_look",
+     "after": ["set_skip_restock", "need_bank"]},
+    {"trigger": "tanned",  "source": "look_around",    "dest": "tanning"},     # found Ellis and traded
+    {"trigger": "bank",    "source": "look_around",    "dest": "banking"},     # clicked the booth
+    {"trigger": "lost",    "source": "look_around",    "dest": "recover", "conditions": "has_charges"},
+    {"trigger": "lost",    "source": "look_around",    "dest": "stopped", "after": "reason_no_charges"},
+
     {"trigger": "fail",    "source": _WALK_TRADE,      "dest": "recover", "conditions": "has_charges"},
     {"trigger": "fail",    "source": "banking",        "dest": "recover", "conditions": "has_charges",
      "after": "set_skip_restock"},
@@ -59,9 +78,26 @@ class TannerSession:
         self.skip_restock    = True   # first bank of a session skips the empty-slot check
         self.runs            = 0
         self.stop_reason     = None   # set when the session reaches done/stopped
+        self.looked          = False  # looked around since the last tan / recovery
+        self.need            = None   # what look_around goes for: "ellis" or "bank"
 
     def has_charges(self):
         return self.charges > 0
+
+    def can_look(self):
+        return not self.looked
+
+    def need_ellis(self):
+        self.need = "ellis"    # failed on the way to / at Ellis: carrying hides
+
+    def need_bank(self):
+        self.need = "bank"     # failed on the way to / at the bank: carrying leather
+
+    def on_enter_look_around(self):
+        self.looked = True
+
+    def on_enter_tanning(self):
+        self.looked = False    # a trip worked: a later problem gets its own look
 
     def on_enter_walk_to_tanner(self):
         self.runs += 1
@@ -70,6 +106,7 @@ class TannerSession:
     def on_enter_recover(self):
         # Every glory teleport — failure recovery, post-GE return, Run-from-GE start.
         self.charges -= 1
+        self.looked = False    # a fresh start at the bank: a later problem gets its own look
 
     def set_skip_restock(self):
         # Only after a bank failure or GE restock (as the pre-state-machine loop did).
@@ -120,8 +157,9 @@ def bank_event(result):
 def recovery_drill(handlers, stats):
     """Wrap a session's handlers for a test run of the glory recovery: the opening
     bank and one full trip run as normal, then the trip's (real) bank reports
-    "fail" so the table goes to recover, and after recovery the session stops at
-    walk_to_tanner. Spends one charge. Used by tanner/checks/recovery_drill.py."""
+    "fail" and the look-around reports "lost" (without looking) so the table goes
+    to recover, and after recovery the session stops at walk_to_tanner. Spends one
+    charge. Used by tanner/checks/recovery_drill.py."""
     banks = [0]
     bank, recover = handlers["banking"], handlers["recover"]
 
@@ -135,4 +173,4 @@ def recovery_drill(handlers, stats):
         stats["stop"] = True
         return event
 
-    return {**handlers, "banking": banking, "recover": recover_}
+    return {**handlers, "banking": banking, "look_around": lambda: "lost", "recover": recover_}

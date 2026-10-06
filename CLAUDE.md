@@ -162,6 +162,14 @@ choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never
 
 `do_bank(skip_restock_check=True)` skips the empty-slot-2 check (used after GE restock to prevent infinite loop).
 
+**Look around before recovering.** A bot that's lost first looks at the whole screen once and goes by what it
+sees: `lib.screen.look_for({name: (rgb, tol, near)})` → `{name: point | None}` (one grab, overlay excluded,
+cluster nearest `near`; pure part `vision.find_targets`). Tanner: a failed walk / trade / bank → state
+`look_around` (need = Ellis while carrying hides, the bank while carrying leather): blue (Ellis) seen and needed →
+click + tan → `tanning`; purple (booth) seen → click → `banking` (banking again also puts it back on its usual
+spot); nothing useful → `lost` → glory `recover`. One look per problem (`looked`, reset by a tan or a recovery),
+so it can't loop. Other bots: add the same state with their own colours / decision table.
+
 **Recovery path** (amulet of glory, max 6 charges):
 Escape → F4 → right-click amulet → teleport Al Kharid → orient west → click double doors → wait stopped →
 click inside `TP_BANK_REGION` ("TP Walk Region") → wait stopped → find booth in `TP_BOOTH_REGION` → `do_bank(skip_restock_check=True)`.

@@ -8,7 +8,8 @@ import time, random, sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as config
-from tanner.actions import orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover, _wait_stopped
+from tanner.actions import (orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, look_around,
+                            recover, _wait_stopped)
 from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
 from lib.state_machine import ok_or_fail
 from lib.session import run_session
@@ -43,6 +44,7 @@ def _handlers(session):
         "walk_to_bank":   lambda: ok_or_fail(walk_to_bank()),
         "banking":        banking,
         "restock":        restock,
+        "look_around":    lambda: look_around(session.need),
         "recover":        recover_,
     }
 

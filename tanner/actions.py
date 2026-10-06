@@ -7,7 +7,7 @@ import pyautogui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.mouse    import human_click, human_move, human_right_click, menu_click, jitter, random_area_click
-from lib.screen   import find_color, pixel_matches
+from lib.screen   import find_color, look_for, pixel_matches
 from lib.movement import wait_until_stopped
 from lib.camera import face
 import lib.pause as pause
@@ -129,6 +129,39 @@ def walk_to_bank():
         return True
     print("  Bank booth not found.")
     return False
+
+
+def _where(point):
+    return f"at ({point[0]:.0f}, {point[1]:.0f})" if point else "not visible"
+
+
+def look_around(need):
+    """After a failed walk / trade / bank: one look at the whole screen for Ellis
+    (blue) and the bank booth (purple), each the one nearest the character.
+    need "ellis" (carrying hides): Ellis if seen — click him and tan → "tanned";
+    else the booth — click it → "bank" (banking again puts the bot back on its
+    usual spot). need "bank" (carrying leather): the booth → "bank".
+    Nothing useful in sight → "lost" (the state table then uses the glory)."""
+    print(f"\n[LOOK] Looking around for {'Ellis' if need == 'ellis' else 'the bank booth'}...")
+    seen = look_for({"ellis": (BLUE, BLUE_TOL, CHARACTER), "booth": (MAGENTA, MAGENTA_TOL, CHARACTER)})
+    ellis, booth = seen["ellis"], seen["booth"]
+    print(f"  Ellis (blue) {_where(ellis)}, booth (purple) {_where(booth)}")
+
+    if need == "ellis" and ellis:
+        print("  Going to Ellis...")
+        human_click(*ellis)
+        _wait_stopped()
+        if click_tan_all():
+            return "tanned"
+        print("  Ellis didn't open the tanning window.")
+        return "lost"
+    if booth:
+        print("  Going to the bank booth...")
+        human_click(*booth)
+        _wait_stopped()
+        return "bank"
+    print("  Nothing useful in sight — glory recovery.")
+    return "lost"
 
 
 def recover():

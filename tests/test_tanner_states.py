@@ -7,7 +7,7 @@ from tanner.states import (
 )
 
 ACTION_STATES = ["walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank",
-                 "banking", "restock", "recover"]
+                 "banking", "restock", "look_around", "recover"]
 
 
 @pytest.fixture(autouse=True)
@@ -61,9 +61,11 @@ def test_begin_normal_banks_first_then_walks_and_counts_run():
 
 
 @pytest.mark.parametrize("before", [[], ["ok"]])   # booth not found / bank failed
-def test_opening_bank_failure_recovers(before):
+def test_opening_bank_failure_looks_around_then_recovers(before):
     s = build_machine({}, True, False)
     step(s, *before, "fail")
+    assert s.state == "look_around" and s.need == "bank" and s.charges == 6
+    step(s, "lost")
     assert s.state == "recover" and s.charges == 5
 
 
@@ -95,17 +97,20 @@ def test_happy_trip_loops_back():
     assert s.charges == 6
 
 
-@pytest.mark.parametrize("before,state", [
-    ([], "walk_to_tanner"),
-    (["ok"], "trade_ellis"),
-    (["ok", "ok", "ok"], "walk_to_bank"),
-    (["ok", "ok", "ok", "ok"], "banking"),
+@pytest.mark.parametrize("before,state,need", [
+    ([], "walk_to_tanner", "ellis"),
+    (["ok"], "trade_ellis", "ellis"),
+    (["ok", "ok", "ok"], "walk_to_bank", "bank"),
+    (["ok", "ok", "ok", "ok"], "banking", "bank"),
 ])
-def test_fail_in_action_state_goes_to_recover(before, state):
+def test_fail_in_action_state_looks_around_then_recovers(before, state, need):
     s = started({}, True, False)
     step(s, *before)
     assert s.state == state
     step(s, "fail")
+    assert s.state == "look_around" and s.need == need
+    assert s.charges == 6                    # looking around costs no glory charge
+    step(s, "lost")
     assert s.state == "recover"
     assert s.charges == 5
 
@@ -113,16 +118,16 @@ def test_fail_in_action_state_goes_to_recover(before, state):
 def test_six_recoveries_then_stopped():
     s = started({}, True, False)
     for _ in range(6):
-        step(s, "fail", "ok")
+        step(s, "fail", "lost", "ok")
         assert s.state == "walk_to_tanner"
     assert s.charges == 0
-    step(s, "fail")
+    step(s, "fail", "lost")
     assert s.state == "stopped"
 
 
 def test_recover_fail_stops():
     s = started({}, True, False)
-    step(s, "fail", "fail")
+    step(s, "fail", "lost", "fail")
     assert s.state == "stopped"
 
 
@@ -151,8 +156,8 @@ def test_restock_without_charges_stops_before_ge():
 
 
 @pytest.mark.parametrize("events,charges,reason", [
-    (["fail"],                                  0, "no glory charges left to recover"),
-    (["fail", "fail"],                          6, "recovery failed"),
+    (["fail", "lost"],                          0, "no glory charges left to recover"),
+    (["fail", "lost", "fail"],                  6, "recovery failed"),
     (["ok", "ok", "ok", "ok", "restock", "fail"], 6, "GE restock failed"),
 ])
 def test_stop_reason(events, charges, reason):
@@ -190,9 +195,9 @@ def test_skip_restock_lifecycle():
     assert s.skip_restock is True             # the opening bank skips the empty-slot check
     step(s, "ok", "ok", *TRIP)
     assert s.skip_restock is False
-    step(s, "ok", "ok", "ok", "ok", "fail")   # banking fails -> recover
+    step(s, "ok", "ok", "ok", "ok", "fail")   # banking fails -> look around
     assert s.skip_restock is True
-    step(s, "ok", *TRIP)
+    step(s, "lost", "ok", *TRIP)              # -> recover -> a normal trip
     assert s.skip_restock is False
 
 
@@ -200,7 +205,7 @@ def test_skip_restock_lifecycle():
 def test_non_bank_failure_recovery_keeps_restock_check(before):
     # Old loop only skipped the next restock check after a bank failure or GE restock.
     s = started({}, True, False)
-    step(s, *TRIP, *before, "fail")
+    step(s, *TRIP, *before, "fail", "lost")
     assert s.state == "recover"
     assert s.skip_restock is False
 
@@ -249,3 +254,57 @@ def test_recovery_drill_runs_one_trip_then_recovers_and_stops():
                     "walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank", "banking",
                     "recover"]                                        # forced after the trip's bank
     assert s.charges == 5
+
+
+# ── look around before the glory (blue = Ellis, purple = booth) ──────────────
+
+def test_look_around_finds_ellis_and_the_trip_goes_on_without_a_charge():
+    s = started({}, True, False)
+    step(s, "ok", "fail")                     # trade_ellis: Ellis not found
+    assert s.state == "look_around" and s.need == "ellis"
+    step(s, "tanned")                         # saw him, clicked him, tanned
+    assert s.state == "tanning" and s.charges == 6
+    step(s, "ok", "ok", "ok")
+    assert s.state == "walk_to_tanner" and s.runs == 2
+
+
+def test_look_around_goes_to_the_booth():
+    s = started({}, True, False)
+    step(s, "ok", "ok", "ok", "fail")         # walk_to_bank: booth not found
+    assert s.need == "bank"
+    step(s, "bank")
+    assert s.state == "banking" and s.charges == 6
+    step(s, "ok")
+    assert s.state == "walk_to_tanner"
+
+
+def test_one_look_per_problem_then_the_glory():
+    s = started({}, True, False)
+    step(s, "fail", "bank", "ok")             # walk failed -> booth -> banked, back at walk_to_tanner
+    assert s.state == "walk_to_tanner" and s.looked
+    step(s, "fail")                           # fails again before any tan: no second look
+    assert s.state == "recover" and s.charges == 5
+
+
+def test_a_tan_or_a_recovery_allows_a_new_look():
+    s = started({}, True, False)
+    step(s, "ok", "fail", "tanned", "ok", "fail")   # looked, tanned, then walk_to_bank fails
+    assert s.state == "look_around"
+    step(s, "lost", "ok", "fail")             # glory, back at walk_to_tanner, fails again
+    assert s.state == "look_around"
+
+
+def test_without_charges_a_look_still_happens_and_lost_stops():
+    s = started({}, True, False, charges=0)
+    step(s, "ok", "fail")
+    assert s.state == "look_around"
+    step(s, "tanned", "ok", "ok", "ok")       # the look saved the session
+    assert s.state == "walk_to_tanner"
+    step(s, "fail", "lost")
+    assert s.state == "stopped" and s.stop_reason == "no glory charges left to recover"
+
+
+def test_runner_drives_look_around_through_its_handler():
+    s = started({}, True, False)
+    final, visited = drive(s, ["ok", "fail", "lost", "fail"])
+    assert final == "stopped" and visited == ["walk_to_tanner", "trade_ellis", "look_around", "recover"]
