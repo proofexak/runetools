@@ -101,3 +101,26 @@ def test_do_bank_normal_still_withdraws(tanner, monkeypatch):
     assert actions.do_bank(skip_restock_check=True) is True
     assert _withdrew(actions, calls)
     assert seen["bank_open"] is actions.bank_is_open
+
+
+def _near(c, point, tol=10):
+    return c[0] == "click" and abs(c[1] - point[0]) <= tol and abs(c[2] - point[1]) <= tol
+
+
+@pytest.mark.parametrize("stamina", [False, True])
+def test_every_bank_switches_to_the_hide_tab_before_reading_or_withdrawing(tanner, monkeypatch, stamina):
+    # the bank reopens on whatever tab it was left on — the potion tab after a stamina
+    # trip that failed — so the hide tab is clicked on every visit, not only after a top-up
+    actions, energy, calls = tanner
+    reads = []
+    monkeypatch.setattr(actions, "bank_is_open", lambda timeout=5.0: True)
+    monkeypatch.setattr(energy, "restock_stamina_at_bank", lambda **k: stamina)
+    monkeypatch.setattr(actions, "pixel_matches", lambda *a, **k: reads.append(len(calls)) or False)
+    assert actions.do_bank() is True                         # a session's first bank
+    del calls[:], reads[:]
+    monkeypatch.setattr(energy, "restock_stamina_at_bank", lambda **k: False)
+    assert actions.do_bank() is True                         # a later one: no top-up this time
+    tab = next(i for i, c in enumerate(calls) if _near(c, actions.HIDE_TAB))
+    withdraw = next(i for i, c in enumerate(calls) if _near(c, actions.BANK_SLOT_1))
+    assert tab < withdraw
+    assert reads and all(r > tab for r in reads)             # slot-2 check reads the hide tab

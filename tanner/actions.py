@@ -13,8 +13,6 @@ from lib.camera import face
 import lib.pause as pause
 import lib.energy as energy
 
-_need_hide_tab = True
-
 import tanner.config as _cfg
 from tanner.config import (
     BLUE, BLUE_TOL, MAGENTA, MAGENTA_TOL,
@@ -274,13 +272,7 @@ def do_bank(skip_restock_check=False):
         print("  Bank never opened.")
         return False
 
-    global _need_hide_tab
     time.sleep(0.5)
-    if _need_hide_tab:
-        print("  Switching to hide tab...")
-        human_click(*jitter(*HIDE_TAB))
-        time.sleep(0.4)
-        _need_hide_tab = False
     print("  Depositing inventory...")
     human_click(*jitter(*DEPOSIT_BTN))
     time.sleep(0.6)
@@ -292,14 +284,18 @@ def do_bank(skip_restock_check=False):
         return False
     if stamina:
         print("  Topped up stamina.")
-        print("  Switching back to hide tab...")
-        human_click(*jitter(*HIDE_TAB))
-        time.sleep(1.4)
 
     # never click bank slots on the game world (and never read "slot 2 empty" off it)
     if not bank_is_open(timeout=2.0):
         print("  Bank isn't open — banking failed.")
         return False
+
+    # Always the hide tab before reading slot 2 / withdrawing: the bank reopens on whatever
+    # tab it was left on (the potion tab after a stamina trip, even one that failed), and
+    # slot 1 there is a potion. Clicking the tab that's already open does nothing.
+    print("  Switching to hide tab...")
+    human_click(*jitter(*HIDE_TAB))
+    time.sleep(1.4 if stamina else 0.5)
 
     if not skip_restock_check:
         human_move(*jitter(*BANK_SLOT_1))
