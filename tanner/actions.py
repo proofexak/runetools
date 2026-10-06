@@ -65,12 +65,32 @@ def click_tan_all(timeout=5.0):
     return False
 
 
+MAX_PANEL_CLOSES = 3
+
+
+def close_side_panel():
+    """Close the side panel before clicking the game world under it (TANNER_AREA
+    lies where it opens). INVENTORY_CHECK sees the panel's frame, so it can't
+    tell which tab is open, and Escape is the inventory key: on another tab
+    (e.g. worn equipment after a glory teleport) it switches to the inventory,
+    on the inventory it closes it. So: Escape, look again, until it's gone.
+    Returns False if it is still open after MAX_PANEL_CLOSES presses."""
+    for press in range(1, MAX_PANEL_CLOSES + 1):
+        if not inventory_open():
+            return True
+        print(f"  Side panel open — Escape ({press}/{MAX_PANEL_CLOSES})...")
+        pyautogui.press("escape")
+        time.sleep(random.uniform(0.35, 0.5))
+    if inventory_open():
+        print("  Side panel won't close.")
+        return False
+    return True
+
+
 def walk_to_tanner():
     print("\n── Walk to tanner ──")
-    if inventory_open():
-        print("  Inventory open — closing...")
-        pyautogui.press("escape")
-        time.sleep(random.uniform(0.15, 0.25))
+    if not close_side_panel():
+        return False                     # don't click into the panel: look around / recover
     random_area_click(TANNER_AREA)
     time.sleep(random.uniform(2.0, 4.0))
     human_move(
