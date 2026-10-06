@@ -261,11 +261,21 @@ def do_bank(skip_restock_check=False):
     human_click(*jitter(*DEPOSIT_BTN))
     time.sleep(0.6)
 
-    if energy.restock_stamina_at_bank():
+    stamina = energy.restock_stamina_at_bank(bank_open=bank_is_open)
+    if stamina == energy.BANK_CLOSED:
+        # the potion is still in the inventory: banking again (look around → booth) deposits it
+        print("  Bank didn't reopen after the potion — banking failed.")
+        return False
+    if stamina:
         print("  Topped up stamina.")
         print("  Switching back to hide tab...")
         human_click(*jitter(*HIDE_TAB))
         time.sleep(1.4)
+
+    # never click bank slots on the game world (and never read "slot 2 empty" off it)
+    if not bank_is_open(timeout=2.0):
+        print("  Bank isn't open — banking failed.")
+        return False
 
     if not skip_restock_check:
         human_move(*jitter(*BANK_SLOT_1))

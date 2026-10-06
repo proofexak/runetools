@@ -61,7 +61,10 @@ def maybe_drink_stamina(threshold=None):
     return False
 
 
-def restock_stamina_at_bank(force=False):
+BANK_CLOSED = "bank_closed"
+
+
+def restock_stamina_at_bank(force=False, bank_open=None):
     """
     Full sequence to run while standing at an *already open* bank: check
     energy, and if below DRINK_THRESHOLD, withdraw + drink a stamina
@@ -74,6 +77,13 @@ def restock_stamina_at_bank(force=False):
     Returns True if a potion was withdrawn + drunk, False if energy was
     fine (or force=False and above threshold) or the booth couldn't be
     found again afterwards.
+
+    bank_open: the caller's "is the bank interface open?" check (waits a few
+    seconds). Given, the bank must really reopen after the drink before the
+    deposit click — one more booth click if it didn't — and a drink after
+    which it can't be reopened returns BANK_CLOSED instead, so the caller
+    doesn't go on clicking bank buttons on the game world (the potion would
+    stay in the inventory and no materials would be withdrawn).
     """
     # Unlike maybe_drink_stamina, an unreadable energy value drinks here —
     # we're already at the bank, so topping up is the safe side.
@@ -97,6 +107,9 @@ def restock_stamina_at_bank(force=False):
     drink_stamina()
     time.sleep(0.6)
 
+    if bank_open is not None:
+        return BANK_CLOSED if not _reopen_bank(bank_open) else _deposit()
+
     pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0,
                          region=cfg.BANK_BOOTH_REGION, whole_screen=True)   # the only try
     if not pos:
@@ -105,5 +118,25 @@ def restock_stamina_at_bank(force=False):
     human_click(bx, by)
     time.sleep(1.0)
 
+    human_click(*jitter(*cfg.DEPOSIT_BTN))
+    return True
+
+
+def _reopen_bank(bank_open, tries=2):
+    """Click the booth until bank_open() confirms the interface (`tries` clicks)."""
+    for attempt in range(tries):
+        pos, _ = find_color(MAGENTA, MAGENTA_TOL, outside_pad=0,
+                            region=cfg.BANK_BOOTH_REGION, whole_screen=True)
+        if not pos:
+            print("  [STAMINA] Booth not found to reopen the bank.")
+            return False
+        human_click(*pos)
+        if bank_open():
+            return True
+        print(f"  [STAMINA] Bank didn't reopen after the potion (click {attempt + 1}/{tries}).")
+    return False
+
+
+def _deposit():
     human_click(*jitter(*cfg.DEPOSIT_BTN))
     return True
