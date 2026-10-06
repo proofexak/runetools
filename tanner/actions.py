@@ -179,11 +179,15 @@ def recover():
     pyautogui.press("f4")
     time.sleep(random.uniform(0.6, 1.0))
 
-    print("[RECOVERY] Right-clicking amulet slot...")
     ax, ay = jitter(*AMULET_SLOT, n=3)
-    ax, ay = human_right_click(ax, ay)
-    time.sleep(random.uniform(0.35, 0.55))
-    menu_click(ax + 5, ay + MENU_HEADER + AMULET_MENU_ROW * MENU_ROW_H + MENU_ROW_H // 2)
+    if getattr(_cfg, "AMULET_LEFT_CLICK_TP", False):
+        print("[RECOVERY] Clicking amulet slot (left-click teleport)...")
+        human_click(ax, ay)
+    else:
+        print("[RECOVERY] Right-clicking amulet slot...")
+        ax, ay = human_right_click(ax, ay)
+        time.sleep(random.uniform(0.35, 0.55))
+        menu_click(ax + 5, ay + MENU_HEADER + AMULET_MENU_ROW * MENU_ROW_H + MENU_ROW_H // 2)
 
     print("[RECOVERY] Waiting for teleport...")
     time.sleep(random.uniform(2.5, 3.5))

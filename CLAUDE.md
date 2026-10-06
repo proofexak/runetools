@@ -151,7 +151,7 @@ choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never
 **smart_right_click(x, y, menu_scan_region)** takes a before/after screenshot diff limited to `menu_scan_region` to find where the right-click menu actually appeared (handles menus that open upward). Always pass `menu_scan_region` — without it the diff covers a huge area and picks up game animation noise.
 
 **GE flow** (`lib/ge.py`):
-1. F4 → right-click ring → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
+1. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
 2. Orient camera west
 3. Find banker (BLUE) in `GE_APPROACH_REGION` → click → confirm bank opened via `BANK_CHECK` pixel
 4. Second tab → enable notes → withdraw slot 1 → disable notes → close bank
@@ -171,7 +171,8 @@ spot); nothing useful → `lost` → glory `recover`. One look per problem (`loo
 so it can't loop. Other bots: add the same state with their own colours / decision table.
 
 **Recovery path** (amulet of glory, max 6 charges):
-Escape → F4 → right-click amulet → teleport Al Kharid → orient west → click double doors → wait stopped →
+Escape → F4 → left-click amulet (`AMULET_LEFT_CLICK_TP`, swapped to "Al Kharid" in RuneLite's Menu Entry Swapper —
+unswapped a left-click *removes* it, so a config without the flag keeps the right-click menu) → teleport Al Kharid → orient west → click double doors → wait stopped →
 click inside `TP_BANK_REGION` ("TP Walk Region") → wait stopped → find booth in `TP_BOOTH_REGION` → `do_bank(skip_restock_check=True)`.
 An uncalibrated (zero-size) `TP_BOOTH_REGION` fails recovery before the teleport, so no charge is spent.
 `save_attr` appends a field missing from an older calibrated config, so new fields can be captured in the editor.

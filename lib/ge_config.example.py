@@ -14,6 +14,10 @@ MAGENTA_TOL = 10
 RING_SLOT        = (0, 0)
 RING_MENU_ROW    = 2        # 3rd right-click option (0-indexed) → GE teleport
 RING_MENU_REGION = (0, 0, 0, 0)
+# True: a left-click on the worn ring of wealth teleports to the GE — set that in RuneLite's
+# Menu Entry Swapper first (unswapped, a left-click REMOVES the ring). False: right-click
+# menu, RING_MENU_ROW / RING_MENU_REGION. A config without this line keeps the right-click menu.
+RING_LEFT_CLICK_TP = True
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 

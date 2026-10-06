@@ -121,9 +121,13 @@ def _ge_attempt(hide_type):
     time.sleep(random.uniform(0.3, 0.5))
     pyautogui.press("f4")
     time.sleep(random.uniform(0.6, 1.0))
-    _, _, mx, my = smart_right_click(*cfg.RING_SLOT, menu_scan_region=cfg.RING_MENU_REGION)
-    time.sleep(random.uniform(0.35, 0.55))
-    menu_click(mx + 5, my + cfg.MENU_HEADER + cfg.RING_MENU_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
+    if getattr(cfg, "RING_LEFT_CLICK_TP", False):
+        print("[GE] Clicking ring slot (left-click teleport)...")
+        human_click(*jitter(*cfg.RING_SLOT, n=3))
+    else:
+        _, _, mx, my = smart_right_click(*cfg.RING_SLOT, menu_scan_region=cfg.RING_MENU_REGION)
+        time.sleep(random.uniform(0.35, 0.55))
+        menu_click(mx + 5, my + cfg.MENU_HEADER + cfg.RING_MENU_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
     print("[GE] Waiting for teleport animation...")
     time.sleep(random.uniform(4.5, 5.5))
 

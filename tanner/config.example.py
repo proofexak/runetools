@@ -46,6 +46,10 @@ TANNER_AREA   = [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)]
 LOOK_WEST_ROW = 3
 AMULET_SLOT   = (0, 0)
 AMULET_MENU_ROW = 4          # 5th right-click option (0-indexed) → Al Kharid teleport
+# True: a left-click on the worn glory teleports to Al Kharid — set that in RuneLite's
+# Menu Entry Swapper first (unswapped, a left-click REMOVES the amulet). False: right-click
+# menu, AMULET_MENU_ROW. A config without this line keeps the right-click menu.
+AMULET_LEFT_CLICK_TP = True
 
 DOUBLE_DOORS_REGION = [(0, 0), (0, 0), (0, 0), (0, 0)]
 TP_BANK_REGION      = (0, 0, 0, 0)   # clicked after the doors: walk into the bank

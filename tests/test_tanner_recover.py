@@ -9,6 +9,7 @@ BOOTH = (300, 400, 60, 30)
 
 @pytest.fixture
 def recover_env(with_example_config, monkeypatch):
+    with_example_config("lib", "energy", config="energy_config")   # tanner imports it
     actions = with_example_config("tanner", "actions")
     calls = []
     monkeypatch.setattr(actions, "DOUBLE_DOORS_REGION", DOORS)
@@ -49,7 +50,8 @@ def test_booth_not_found_fails_after_retries(recover_env, monkeypatch):
     monkeypatch.setattr(actions, "find_color", lambda *a, **k: tries.append(k.get("whole_screen")) or (None, None))
     assert actions.recover() is False
     assert ("bank",) not in calls
-    assert sum(1 for c in calls if c[0] == "click") == 0
+    after_west = calls[calls.index(("west",)) + 1:]
+    assert sum(1 for c in after_west if c[0] == "click") == 0     # never clicked a booth
     # only the last try looks beyond TP_BOOTH_REGION, over the whole screen
     assert tries == [False] * (actions.MAX_BOOTH_TRIES - 1) + [True]
 
