@@ -112,7 +112,7 @@ tests/                  pytest suite (stub handlers, fake screen — no game nee
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
                          tanner (inventory_check, slot_check, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
-                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, offer_bar)
+                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, offer_bar, follow_buy)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
                          bot.py is never picked up by discovery)
