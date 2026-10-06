@@ -4,7 +4,8 @@ restock trip (run_ge_flow).
 
 Building blocks (positions from lib/ge_config.py, the GE interface is the same for
 every bot): open_bank / open_ge, withdraw_noted, sell / buy / wait_offer / collect,
-and trade(), which sells the first inventory item then buys a lib.restock.Restock.
+follow_buy (re-prices a buy that sits unfilled), and trade(), which sells the first
+inventory item then buys a lib.restock.Restock.
 What to buy, how many and at what price is the bot's, not this module's.
 """
 import time, random
@@ -17,7 +18,7 @@ from lib.screen    import pixel_matches, grab
 from lib.interface import open_interface, close_interface, wait_for, shows
 from lib.camera    import face
 from lib.log       import say
-from lib.restock   import buy_offer_price
+from lib.restock   import buy_offer_price, reprice, still_to_buy
 import lib.vision    as vision
 import lib.prices    as prices
 import lib.ge_config as cfg
@@ -126,6 +127,66 @@ def close_ge():
     close_interface(still_open=shows(cfg.GE_CHECK))
 
 
+# ── Following a buy that doesn't fill ─────────────────────────────────────────
+# There's no editing a live offer: abort it, collect what it bought and the coins
+# back, put the rest in again at the new price.
+
+def _can_follow():
+    bar, abort = getattr(cfg, "OFFER_BAR", (0, 0, 0, 0)), getattr(cfg, "ABORT_BTN", (0, 0))
+    return bar[2] > 0 and bar[3] > 0 and tuple(abort) != (0, 0)
+
+
+def offer_progress():
+    """How far slot 1's offer got (0..1), from its bar on the overview; None = no offer there."""
+    frame, _ = grab(cfg.OFFER_BAR)
+    return vision.bar_fraction(frame, cfg.OFFER_BAR_EMPTY, cfg.OFFER_BAR_FILL)
+
+
+def abort_and_collect():
+    """Open slot 1's offer, abort it, collect what it bought and the coins back."""
+    x, y, _ = cfg.OFFER_COMPLETE
+    _click((x, y), 0.6, 0.9)
+    _click(cfg.ABORT_BTN, 1.2, 1.6)      # the abort lands on the next game tick
+    collect(both=True)
+
+
+def follow_buy(restock, price):
+    """The buy is in slot 1 at `price`: wait for it and collect. With re-pricing on (and
+    calibrated), every reprice_minutes it hasn't completed: read how much it bought,
+    abort, collect, put the rest back in at reprice(). Ends on the overview with
+    everything collected. (True, None) or (False, reason)."""
+    if not restock.reprice_minutes or not _can_follow():
+        if not wait_offer(restock.offer_timeout):
+            return False, f"buy offer never completed ({price} gp)"
+        collect(both=True)
+        return True, None
+
+    left = restock.quantity
+    for round_ in range(restock.reprice_rounds + 1):
+        if wait_offer(restock.reprice_minutes * 60):
+            collect(both=True)
+            return True, None
+        if round_ == restock.reprice_rounds:
+            break
+        quote = prices.latest(restock.buy_item, max_age=60) if restock.live_prices else None
+        new, source = reprice(restock, price, quote)
+        if new is None:
+            say(f"[GE] {source} — the offer stays at {price} gp")
+            continue
+        done = offer_progress()
+        if done is None:
+            return False, "no buy offer in GE slot 1"
+        left = still_to_buy(left, done)
+        say(f"[GE] Buy {done:.0%} done after {restock.reprice_minutes} min — "
+            f"re-pricing the other {left} at {new} gp ({source})")
+        abort_and_collect()
+        if left == 0:
+            return True, None
+        buy(restock.buy_item, left, new)
+        price = new
+    return False, f"buy offer not complete after {restock.reprice_rounds} re-prices ({price} gp)"
+
+
 def offer_price(restock):
     """(price, source) for the buy — live when enabled — or (None, reason) above the cap."""
     return buy_offer_price(restock, prices.latest(restock.buy_item) if restock.live_prices else None)
@@ -143,10 +204,7 @@ def trade(restock):
         return False, "sell offer never completed"
     collect()
     buy(restock.buy_item, restock.quantity, price)
-    if not wait_offer(restock.offer_timeout):
-        return False, f"buy offer never completed ({price} gp)"
-    collect(both=True)
-    return True, None
+    return follow_buy(restock, price)
 
 
 # ── Tanner's restock trip ─────────────────────────────────────────────────────

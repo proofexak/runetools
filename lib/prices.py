@@ -54,13 +54,14 @@ def item_id(name, opener=None):
     return _mapping.get(key)
 
 
-def latest(name, opener=None, clock=time.monotonic):
-    """{"high": int|None, "low": int|None} for `name`, or None if unknown/unreachable."""
+def latest(name, opener=None, clock=time.monotonic, max_age=CACHE_SECONDS):
+    """{"high": int|None, "low": int|None} for `name`, or None if unknown/unreachable.
+    A cached quote younger than `max_age` seconds is reused."""
     iid = item_id(name, opener)
     if iid is None:
         return None
     hit = _cache.get(iid)
-    if hit and clock() - hit[0] < CACHE_SECONDS:
+    if hit and clock() - hit[0] < max_age:
         return hit[1]
     try:
         data = _get_json(f"latest?{urllib.parse.urlencode({'id': iid})}", opener)["data"].get(str(iid))

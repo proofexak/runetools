@@ -36,6 +36,10 @@ FIELDS = [
     ("GE",         "Search Result",        "BUY_SEARCH_RESULT",    "point"),
     ("GE",         "Quantity Button",      "BUY_QUANTITY_BTN",     "point"),
     ("GE",         "Retrieve Slot 2",      "RETRIEVE_SLOT_2",      "point"),
+    ("Re-price",   "Offer Bar (slot 1)",   "OFFER_BAR",            "region"),
+    ("Re-price",   "Bar Empty Colour",     "OFFER_BAR_EMPTY",      "color"),
+    ("Re-price",   "Bar Fill Colour",      "OFFER_BAR_FILL",       "color"),
+    ("Re-price",   "Abort Button",         "ABORT_BTN",            "point"),
 ]
 
 REGION_COLORS = {
@@ -43,6 +47,7 @@ REGION_COLORS = {
     "GE_APPROACH_REGION": "#ff8800",
     "GE_REGION":        "#0088ff",
     "GE_BANK_AREA":     "#44ff88",
+    "OFFER_BAR":        "#ff8800",
 }
 
 

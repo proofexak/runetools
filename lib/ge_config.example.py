@@ -58,6 +58,14 @@ BUY_SEARCH_RESULT    = (0, 0)
 BUY_QUANTITY_BTN     = (0, 0)
 RETRIEVE_SLOT_2      = (0, 0)
 
+# ── Following a buy that doesn't fill (lib.ge.follow_buy) ─────────────────────
+# Calibrate with an offer in progress in GE slot 1. Left at zero, a buy just waits.
+
+OFFER_BAR       = (0, 0, 0, 0)   # region: just the inside of slot 1's progress bar (overview)
+OFFER_BAR_EMPTY = (0, 0, 0)      # colour of the bar's unfilled part
+OFFER_BAR_FILL  = (0, 0, 0)      # colour of the filled part of an offer in progress (orange)
+ABORT_BTN       = (0, 0)         # Abort button in the offer's detail view
+
 # What to buy, how many and at what price (GE_QUANTITY, GE_BUY_PRICE, GE_MAX_PRICE,
 # GE_LIVE_PRICES, …) is each bot's own config — see lib/restock.py.
 

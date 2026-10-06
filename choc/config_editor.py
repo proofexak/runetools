@@ -28,6 +28,8 @@ FIELDS = [
     ("GE", "Live Prices", "GE_LIVE_PRICES", "bool"),
     ("GE", "Live Margin %", "GE_MARGIN_PCT", "number"),
     ("GE", "Offer Timeout (s)", "GE_OFFER_TIMEOUT", "number"),
+    ("GE", "Re-price Every (min)", "GE_REPRICE_MINUTES", "number"),
+    ("GE", "Re-price Rounds", "GE_REPRICE_ROUNDS", "number"),
 ]
 
 REGION_COLORS = {

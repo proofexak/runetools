@@ -45,8 +45,10 @@ CHOC_INV_SLOT = (0, 0)
 GRIND_COUNT = 27
 
 # ── GE restock (lib/restock.py) ───────────────────────────────────────────────
-GE_BUY_PRICE     = 40      # per bar, when live prices are off or the API can't be reached
-GE_MAX_PRICE     = 60      # never offer more per bar (0 = no cap)
-GE_LIVE_PRICES   = True    # price the buy from prices.runescape.wiki: instant-buy + GE_MARGIN_PCT
-GE_MARGIN_PCT    = 5
-GE_OFFER_TIMEOUT = 360     # seconds per offer — a big buy can take minutes to fill
+GE_BUY_PRICE       = 40      # per bar, when live prices are off or the API can't be reached
+GE_MAX_PRICE       = 60      # never offer more per bar (0 = no cap)
+GE_LIVE_PRICES     = True    # price the buy from prices.runescape.wiki: instant-buy + GE_MARGIN_PCT
+GE_MARGIN_PCT      = 5
+GE_OFFER_TIMEOUT   = 360     # seconds to wait for the sell (and the buy when re-pricing is off)
+GE_REPRICE_MINUTES = 5       # buy not complete after this long: collect, re-price the rest (0 = off)
+GE_REPRICE_ROUNDS  = 6       # re-prices before the restock gives up

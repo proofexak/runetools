@@ -166,6 +166,18 @@ def filled_slot_count(frame, slots, bg_rgb, tol, box=7, min_pixels=5):
     return filled
 
 
+def bar_fraction(frame, empty_rgb, fill_rgb, tol=30, min_known=0.7):
+    """How full a horizontal progress bar is (frame = just the inside of the bar,
+    e.g. a GE offer's): fill-coloured columns / (fill + empty) on the middle row.
+    None when under `min_known` of the columns are either colour — no bar there."""
+    row = frame[frame.shape[0] // 2:frame.shape[0] // 2 + 1]
+    fill = int(color_mask(row, fill_rgb, tol).sum())
+    empty = int(color_mask(row, empty_rgb, tol).sum())
+    if fill + empty == 0 or fill + empty < min_known * row.shape[1]:
+        return None
+    return fill / (fill + empty)
+
+
 # ── Frame differences ─────────────────────────────────────────────────────────
 
 def frame_difference(a, b):

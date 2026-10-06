@@ -112,7 +112,7 @@ tests/                  pytest suite (stub handlers, fake screen — no game nee
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
                          tanner (inventory_check, slot_check, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
-                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence)
+                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, offer_bar)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
                          bot.py is never picked up by discovery)
@@ -169,6 +169,13 @@ through at the price of the offer that was already waiting, so selling at 1 stil
 `GE_MARGIN_PCT` from the Wiki API (`lib/prices.py`), falling back to `GE_BUY_PRICE` when it can't be reached,
 never above `GE_MAX_PRICE` (then it stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take
 focus (typed too early they go to public chat); offer waits are `GE_OFFER_TIMEOUT` seconds, O/P working.
+A buy that sits unfilled is followed (`follow_buy`): every `GE_REPRICE_MINUTES` it reads slot 1's progress
+bar (`OFFER_BAR`, `vision.bar_fraction`), aborts (`ABORT_BTN`), collects, and puts the rest back in at
+`restock.reprice` — fresh live price + margin but at least the old price + margin (an unfilled offer is under the
+market; it only goes up), never past `GE_MAX_PRICE` (then the offer stays as it is). Gives up after
+`GE_REPRICE_ROUNDS`. No live offer edit exists in OSRS, hence abort + re-place. Sells (1 gp) aren't followed.
+Uncalibrated `OFFER_BAR` / `ABORT_BTN` (or `GE_REPRICE_MINUTES = 0`) → the plain wait. Live check:
+`lib.checks.offer_bar`.
 Tanner's trip, `run_ge_flow(restock)`:
 1. Price check (over the cap → stop before spending a ring teleport)
 2. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
