@@ -36,7 +36,9 @@ services:
       # live status (PRO-99): each session-log line is also pushed to the web app (with
       # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
       - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
-    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec sleep infinity; fi"]
+    # Manual mode (BOT unset) runs lib.manual: it starts RuneLite + the bot menu when the web
+    # app's Start button asks (PRO-90, through data/manual_request.json) and idles otherwise.
+    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]
     stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
     stdin_open: true
     tty: true
@@ -91,6 +93,27 @@ services:
       # session logs hold local wall time without a zone: set TZ to the zone the bots run
       # in (e.g. Europe/Warsaw in docker/.env) so "today" and day splits line up
       - TZ=${TZ:-UTC}
+      # start / stop the bot container from the page (PRO-90), only through the allowlist proxy
+      - DOCKER_PROXY_URL=http://dockerproxy:2375
+      - BOT_CONTAINER=runetools-runetools-1
+    restart: unless-stopped
+
+  # The only container with the Docker socket (root on the host): it lets the web app
+  # inspect / start / stop runetools-runetools-1 and nothing else (webapp/apps/api/src/
+  # docker-proxy.ts). Same image as the web app; on the compose network only, no port.
+  dockerproxy:
+    image: runetools-webapp
+    pull_policy: never         # built by the webapp service
+    depends_on:
+      - webapp
+    user: "0:0"                # the socket belongs to root
+    command: ["node", "dist/docker-proxy.js"]
+    environment:
+      - BOT_CONTAINER=runetools-runetools-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      disable: true
     restart: unless-stopped
 
 volumes:

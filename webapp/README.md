@@ -93,6 +93,32 @@ If nothing answers within 3 s, no bot is running and control is handed over anyw
 how it was before (normally: running). While held, nothing else resumes the bot: not O, not the overlay, not
 `botctl resume`, and not a session that starts in the meantime.
 
+## Bot container: Start / Stop
+
+The **Bot container** panel (dashboard, and the active account's page) gets a bot ready to drive by hand:
+
+- **Start** wakes the bot container if it's stopped (`docker start` of the existing container, never a new one),
+  then starts what's missing in manual mode: RuneLite, then the bot menu once RuneLite's window is up. Pressing it
+  again never starts a second RuneLite or menu. When it says **Ready**, **Watch live** opens the active account's
+  page with the screen; take control there and pick a bot in the overlay.
+- **Stop** (asks first) stops the container with `docker stop -t 30`: a running bot ends its session (`interrupted`,
+  with its teardown) before RuneLite and the menu close. The container stays, so Start can wake it again.
+- A container in unattended mode (`BOT` set in `docker/.env`) is only started: `lib.headless` logs in and runs the
+  bot. If the container doesn't exist (`docker compose down`), the panel says so; `docker compose … up -d` creates it.
+
+How it's wired:
+
+- Docker: the app talks to **`dockerproxy`**, a tiny allowlist proxy (`apps/api/src/docker-proxy.ts`, same image, run
+  as its own compose service) and the only container holding `/var/run/docker.sock`. It lets through
+  `GET /containers/<BOT_CONTAINER>/json`, `POST …/start` and `POST …/stop[?t=N]` and nothing else (no create,
+  remove or exec): the socket is root on the host, and the app can be public through Funnel.
+- Manual mode: the bot container's main process is `lib/manual.py` when `BOT` is unset. Like Take control it uses
+  files in `data/`: the app writes `data/manual_request.json` `{id, action: "start"}`, and `lib/manual.py` reports
+  every 2 s in `data/manual_status.json` `{ts, runelite, menu, phase, handled, error}`. A report older than 10 s
+  means manual mode isn't running.
+- Settings: `DOCKER_PROXY_URL` (compose: `http://dockerproxy:2375`; unset = no panel) and `BOT_CONTAINER`
+  (`runetools-runetools-1`).
+
 ## Security
 
 - The server listens on 127.0.0.1 only (in Docker it binds 0.0.0.0, published on 127.0.0.1:8778 only). It refuses
@@ -111,6 +137,8 @@ how it was before (normally: running). While held, nothing else resumes the bot:
   bits, file mode 600) as `Authorization: Bearer …` instead, with no CSRF or Origin check, since bots send neither.
   The Host check still applies (compose adds `webapp:8778` for the bot container). It only accepts lines of a session
   log that exists under the first log folder.
+- Bot container Start / Stop: logged in + CSRF like every change. The app never gets the Docker socket, only the
+  allowlist proxy (inspect / start / stop of the one bot container), which isn't published outside compose.
 - The bots never use the stored logins. They log in through RuneLite's saved Jagex session.
 
 ## Develop

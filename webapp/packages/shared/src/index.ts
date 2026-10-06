@@ -187,13 +187,32 @@ export interface LiveControl {
   bot: { held: boolean; safe: boolean } | null;
 }
 
+// ── bot container: start / stop, manual mode (PRO-90) ────────────────────────
+
+/** running / stopped; missing = no such container (compose down); unknown = docker proxy unreachable. */
+export type ContainerState = "running" | "stopped" | "missing" | "unknown";
+
+export interface BotStatus {
+  /** The app can reach Docker (DOCKER_PROXY_URL is set); false = the panel has nothing to control. */
+  enabled: boolean;
+  container: ContainerState;
+  /** From the container's BOT: unattended runs lib.headless, manual runs lib.manual. */
+  mode: "manual" | "unattended" | null;
+  bot: string | null;
+  /** lib/manual.py's last report (data/manual_status.json); null = not running / not fresh. */
+  manual: { runelite: boolean; menu: boolean; phase: string; error: string | null } | null;
+  /** The start / stop the app is doing now (or did last); null = none since it started. */
+  job: { action: "start" | "stop"; phase: string; error: string | null; done: boolean } | null;
+}
+
 // ── live feed (SSE /api/events) ──────────────────────────────────────────────
 
 export type FeedEvent =
   | { type: "sessions"; ids: number[] }      // ingestion changed these sessions
   | { type: "accounts" }
   | { type: "vault"; unlocked: boolean }
-  | { type: "live" };                         // take control / release
+  | { type: "live" }                          // take control / release
+  | { type: "bot" };                          // bot container start / stop progress
 
 // ── bot push (POST /api/ingest, PRO-99) ──────────────────────────────────────
 

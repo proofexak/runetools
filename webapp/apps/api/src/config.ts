@@ -27,6 +27,10 @@ export interface Config {
   /** x11vnc in the bot container, bridged to the page's live view (/api/live/vnc). */
   vnc: { host: string; port: number };
   vncPassword: string;
+  /** The docker allowlist proxy (PRO-90, src/docker-proxy.ts); null = no bot start / stop here. */
+  dockerProxyUrl: string | null;
+  /** The bot container the proxy lets through (compose: runetools-runetools-1). */
+  botContainer: string;
 }
 
 function list(value: string | undefined): string[] {
@@ -54,6 +58,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     passwordRateLimit: Number(env.PASSWORD_RATE_LIMIT || 10),
     vnc: hostPort(env.VNC_ADDR || "127.0.0.1:5900"),
     vncPassword: env.VNC_PASSWORD ?? "runetools",
+    dockerProxyUrl: env.DOCKER_PROXY_URL ? env.DOCKER_PROXY_URL.replace(/\/+$/, "") : null,
+    botContainer: env.BOT_CONTAINER || "runetools-runetools-1",
   };
 }
 

@@ -1,7 +1,8 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/server.ts"],
+  // server = the API; docker-proxy = the allowlist proxy container (PRO-90), same image
+  entry: { server: "src/server.ts", "docker-proxy": "src/docker-proxy-main.ts" },
   format: ["esm"],
   platform: "node",
   target: "node22",

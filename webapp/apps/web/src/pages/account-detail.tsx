@@ -3,6 +3,7 @@ import { ArrowLeft, BarChart3, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { AccountDialog, DeleteDialog } from "@/components/account-dialogs";
+import { BotControlCard } from "@/components/bot-control";
 import { ErrorNote } from "@/components/common";
 import { PageHeader } from "@/components/layout";
 import { LiveView } from "@/components/live-view";
@@ -13,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoginCell, VaultCard } from "@/components/vault";
 import { api } from "@/lib/api";
-import { keys, useAccounts, useLiveControl, useOverview, useVault } from "@/lib/queries";
+import { botView } from "@/lib/bot-control";
+import { keys, useAccounts, useBotStatus, useLiveControl, useOverview, useVault } from "@/lib/queries";
 
 /** One account: its stats (the dashboard, filtered), its login and its actions. */
 export function AccountDetailPage() {
@@ -26,7 +28,10 @@ export function AccountDetailPage() {
   const ready = !!overview.data && !overview.isPlaceholderData;
   // the bot's screen belongs to the account whose session is running (or to whoever holds control)
   const control = useLiveControl();
-  const showScreen = (ready && overview.data!.live.length > 0) || !!control.data?.held;
+  // the bot container tags new sessions with the active account: its screen belongs here
+  const bot = useBotStatus();
+  const botUp = !!account?.active && !!bot.data?.enabled && botView(bot.data).watchable;
+  const showScreen = (ready && overview.data!.live.length > 0) || !!control.data?.held || botUp;
   const [params] = useSearchParams();
   const vault = useVault();
   const [editing, setEditing] = useState(false);
@@ -74,6 +79,8 @@ export function AccountDetailPage() {
             {ready
               ? <LiveSessions o={overview.data!} account={account.name} />
               : <Skeleton className="h-14" />}
+            {/* the active account's bot container: start / stop it (PRO-90) */}
+            {account.active && <BotControlCard watchLink={false} />}
             {/* then its screen, behind "Watch live" (?watch=1 from the dashboard opens it) */}
             {showScreen && <LiveView key={account.id} watch={params.get("watch") === "1"} />}
             <Card className="gap-3">

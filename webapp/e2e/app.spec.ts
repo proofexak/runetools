@@ -264,6 +264,33 @@ test("live view: Watch live on the running account's page; take control waits fo
     active_seconds: 5, paused_seconds: 0 });
 });
 
+test("bot container: Start wakes it and starts RuneLite + the menu, Watch live, Stop", async ({ page }) => {
+  await logIn(page);
+  const panel = page.getByTestId("bot-control");
+  await expect(panel).toContainText("The bot container is stopped");
+  await expect(panel.getByRole("button", { name: "Stop" })).toHaveCount(0);
+
+  await panel.getByRole("button", { name: "Start" }).click();
+  await expect(panel.getByText(/Starting|Waiting|Checking/)).toBeVisible();          // progress while it runs
+  await expect(panel).toContainText("Ready — pick a bot in the live view", { timeout: 20_000 });
+  await expect(panel).toContainText("RuneLite: running");
+  await expect(panel).toContainText("Bot menu: running");
+  await expect(panel.getByRole("button", { name: "Start" })).toHaveCount(0);       // nothing left to start
+
+  // the active account's page (Zezima): the panel, and the screen even with no session yet
+  await panel.getByRole("link", { name: "Watch live" }).click();
+  await expect(page.getByRole("heading", { name: "Zezima" })).toBeVisible();
+  await expect(page.getByTestId("bot-control")).toContainText("Ready");
+  const screen = page.locator("[data-slot=card]", { hasText: "Live view" });
+  await expect(screen.getByText("Can't reach the bot's screen")).toBeVisible({ timeout: 10_000 });   // no VNC here
+
+  // Stop asks first, then the container goes down (never removed: Start can wake it again)
+  await page.getByTestId("bot-control").getByRole("button", { name: "Stop" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Stop" }).click();
+  await expect(page.getByTestId("bot-control")).toContainText("The bot container is stopped", { timeout: 15_000 });
+  await expect(page.getByTestId("bot-control").getByRole("button", { name: "Start" })).toBeVisible();
+});
+
 test("settings: change the app password; the old one stops working", async ({ page }) => {
   await logIn(page);
   await nav(page, "Settings");

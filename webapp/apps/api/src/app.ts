@@ -14,6 +14,7 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from "fastify";
 import { COOKIE, lookupSession, safeEqual, type AuthedSession } from "./auth/auth.js";
+import { BotControl } from "./bot-control.js";
 import type { Bus } from "./bus.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
@@ -21,6 +22,7 @@ import { HttpError } from "./http.js";
 import type { Ingester } from "./ingest/ingester.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
+import { botRoutes } from "./routes/bot.js";
 import { eventRoutes } from "./routes/events.js";
 import { INGEST_ROUTE, ingestRoutes } from "./routes/ingest.js";
 import { liveRoutes } from "./routes/live.js";
@@ -38,6 +40,8 @@ export interface AppContext {
   ingester?: Ingester;
   /** data/bot_token: what bots send to POST /api/ingest. Absent = pushes are refused. */
   botToken?: string | null;
+  /** Bot container start / stop (PRO-90); built from the config when absent. */
+  botControl?: BotControl;
 }
 
 declare module "fastify" {
@@ -112,6 +116,10 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   await eventRoutes(app, ctx);
   await ingestRoutes(app, ctx);
   await liveRoutes(app, ctx, (req) => checkOrigin(req, allowed, anyHost));
+  ctx.botControl ??= new BotControl({
+    proxyUrl: ctx.config.dockerProxyUrl, container: ctx.config.botContainer, dataDir: ctx.config.dataDir, bus: ctx.bus,
+  });
+  await botRoutes(app, { ...ctx, botControl: ctx.botControl });
   if (register) await register(app);
 
   const dist = ctx.config.webDist;

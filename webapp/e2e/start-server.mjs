@@ -3,6 +3,7 @@
 // Everything lives under E2E_ROOT (set by playwright.config.ts), wiped on every run.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +54,42 @@ write("miner/golden_nuggets", "golden_nuggets", new Date(now - 20 * 60_000), [
   [600, { event: "step", state: "deposit", result: "ok", seconds: 20, run: 2 }],
 ]);
 
+// ── a stand-in bot container (PRO-90): the docker proxy + lib/manual.py's data/ files ──
+// Docker: one container, stopped at first. Once running, "manual mode" reports in
+// data/manual_status.json every 300 ms and answers a start request in ~2 s (RuneLite, then menu).
+const container = "runetools-runetools-1";
+const bot = { running: false, since: 0, runelite: false, menu: false, request: null, requestAt: 0, handled: null };
+const proxy = http.createServer((req, res) => {
+  const m = /^\/containers\/([^/]+)\/(json|start|stop)/.exec(req.url ?? "");
+  if (!m || m[1] !== container) return res.writeHead(403).end("{}");
+  if (m[2] === "json") {
+    res.writeHead(200, { "content-type": "application/json" });
+    return res.end(JSON.stringify({ State: { Running: bot.running }, Config: { Env: ["BOT="] } }));
+  }
+  const want = m[2] === "start";
+  if (bot.running === want) return res.writeHead(304).end();
+  Object.assign(bot, { running: want, since: Date.now(), runelite: false, menu: false });
+  return res.writeHead(204).end();
+});
+proxy.listen(Number(process.env.E2E_PORT) + 1, "127.0.0.1");
+const statusFile = path.join(root, "data", "manual_status.json");
+setInterval(() => {
+  if (!bot.running || Date.now() - bot.since < 800) return;
+  let phase = "idle";
+  try {
+    const req = JSON.parse(fs.readFileSync(path.join(root, "data", "manual_request.json"), "utf8"));
+    if (req.id !== bot.request && req.id !== bot.handled) Object.assign(bot, { request: req.id, requestAt: Date.now() });
+  } catch { /* no request yet */ }
+  if (bot.request) {
+    const t = Date.now() - bot.requestAt;
+    if (t > 1000) bot.runelite = true;
+    if (t > 2000) Object.assign(bot, { menu: true, handled: bot.request, request: null });
+    else phase = bot.runelite ? "starting_menu" : "starting_runelite";
+  }
+  fs.writeFileSync(statusFile, JSON.stringify({ pid: 1, ts: Date.now() / 1000, runelite: bot.runelite, menu: bot.menu,
+    phase, handled: bot.handled, error: null }));
+}, 300);
+
 const server = spawn(process.execPath, ["--import", "tsx", path.join(here, "../apps/api/src/server.ts")], {
   stdio: "inherit",
   env: {
@@ -64,6 +101,10 @@ const server = spawn(process.execPath, ["--import", "tsx", path.join(here, "../a
     WEB_DIST: path.join(here, "../apps/web/dist"),
     POLL_MS: "5000",                // slow tailer: what shows up within ~1 s came by push
     VNC_ADDR: "127.0.0.1:1",    // nothing listens: never the real bot container's VNC
+    DOCKER_PROXY_URL: `http://127.0.0.1:${Number(process.env.E2E_PORT) + 1}`,   // the stand-in above
+    BOT_CONTAINER: container,
+    // every spec logs in again, all from 127.0.0.1: the login rate limit (10/min) isn't under test here
+    PASSWORD_RATE_LIMIT: "100",
     LOG_LEVEL: "warn",
   },
 });

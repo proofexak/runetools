@@ -1,5 +1,5 @@
 import type {
-  AccountsResponse, BotStatsResponse, FeedEvent, LiveConfig, LiveControl, Overview, SessionDetail, SessionsQuery,
+  AccountsResponse, BotStatsResponse, BotStatus, FeedEvent, LiveConfig, LiveControl, Overview, SessionDetail, SessionsQuery,
   SessionsResponse, SettingsResponse, VaultStatus,
 } from "@runetools/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ export const keys = {
   settings: ["settings"] as const,
   liveConfig: ["live-config"] as const,
   liveControl: ["live-control"] as const,
+  bot: ["bot"] as const,
 };
 
 export const useOverview = (account?: string, opts: { enabled?: boolean } = {}) => useQuery({
@@ -74,6 +75,13 @@ export const useLiveControl = () => useQuery({
   refetchInterval: (q) => (controlPhase(q.state.data, Date.now()) === "pausing" ? 500 : 15_000),
 });
 
+/** The bot container + manual mode (PRO-90): polled fast while a start / stop runs. */
+export const useBotStatus = () => useQuery({
+  queryKey: keys.bot,
+  queryFn: () => api.get<BotStatus>("/api/bot"),
+  refetchInterval: (q) => (q.state.data?.job && !q.state.data.job.done ? 1500 : 10_000),
+});
+
 /** Every bot that ever logged — the stable domain for bot colours. */
 export const useAllBots = () => useQuery({
   queryKey: ["all-bots"],
@@ -101,6 +109,8 @@ export function useLiveFeed(): boolean {
         if (!e.unlocked) qc.removeQueries({ queryKey: ["vault-entry"] });
       } else if (e.type === "live") {
         qc.invalidateQueries({ queryKey: keys.liveControl });
+      } else if (e.type === "bot") {
+        qc.invalidateQueries({ queryKey: keys.bot });
       }
     };
     return () => es.close();

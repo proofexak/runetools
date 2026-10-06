@@ -83,7 +83,10 @@ docker compose -f docker/docker-compose.yml build
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-It boots Xvfb + x11vnc, then idles — it doesn't auto-launch anything.
+It boots Xvfb + x11vnc, then idles in manual mode (`lib/manual.py`) — it doesn't auto-launch anything.
+The web app's **Bot container → Start** launches RuneLite and the bot menu in it (and starts the container
+if it's stopped); the commands below do the same by hand. See
+[webapp/README.md](../webapp/README.md#bot-container-start--stop).
 
 ### 3. Connect a VNC viewer
 
@@ -146,7 +149,8 @@ calibrate_energy_digits.py` (see the main README's "Stamina potions" section).
 
 ## Running the bot
 
-Start the menu (as above), pick a bot in the overlay (via VNC). Then
+Start the menu (as above, or **Start** in the web app's Bot container panel), pick a bot in the overlay
+(via VNC or the web app's live view). Then
 disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 **P** to force-stop. Session logs land in `<bot>/log/` in your working tree —
 `python -m lib.logreport` on the host reads them.

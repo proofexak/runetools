@@ -57,6 +57,10 @@ lib/                    universal helpers used by all bots
   live_control.py       web app "Take control" (PRO-89): watcher thread (run.py, headless) reads
                          data/live_control.json → pause.hold()/unhold() (paused, O/P ignored), answers
                          in data/live_control_ack.json with `safe` = pause.idle() (no step running)
+  manual.py             manual mode's main process in the bot container (PRO-90, BOT unset): on the web
+                         app's data/manual_request.json starts what's missing — RuneLite (waits for its
+                         window), then run.py; reports in data/manual_status.json every 2 s; as PID 1 reaps
+                         orphans and on docker stop SIGINTs the menu (session ends "interrupted")
 
 webapp/                 web app (PRO-88): per-account stats + encrypted login vault, not a bot —
                          TypeScript pnpm monorepo, see webapp/README.md. Reads the bots' *.jsonl
@@ -310,4 +314,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
   itself (`/api/live/vnc`, `VNC_ADDR`) — no websockify, no extra port. Take control / Release via
   `lib/live_control.py` (see webapp/README.md "Live view"). Checked view-only against the real
   container; take control against a real running bot not yet tried.
+- Bot container Start / Stop (PRO-90): web app panel → `dockerproxy` compose service (allowlist proxy, the only
+  holder of the Docker socket: inspect / start / stop of `runetools-runetools-1`, nothing else) + `lib/manual.py`
+  through data/ files. Start = docker start if stopped, then RuneLite + menu; Stop = docker stop -t 30 (never
+  removed). Unattended containers (BOT set) are only started. See webapp/README.md "Bot container".
 - Woodcutter: WIP, don't touch.
