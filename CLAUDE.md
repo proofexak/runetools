@@ -101,8 +101,8 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%);
                          compose also runs the web app: `postgres` + `webapp` (127.0.0.1:8778)
 
-choc/                   chocolate dust grind bot — has bot.py; loop NOT yet on the state machine
-                         (roadmap step 3)
+choc/                   chocolate dust grind bot — states.py (withdraw → grind ⇄ restock), run.py,
+                         choc.py (actions), logic.py (restock_due), config trio
 
 tests/                  pytest suite (stub handlers, fake screen — no game needed):
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
@@ -297,8 +297,12 @@ takes plain data; capture happens only in `lib/screen.grab`.
   mining, sack processing) too, and a pause during mining doesn't count toward the idle timeout.
   A failed hopper deposit fixes struts and retries once; only a successful (re)try counts toward
   the 3-deposit sack. Stops after 3 failed deposits (retry included) in a row (MAX_DEPOSIT_FAILS).
-- Varrock Exp miner: on the state machine and scaffold (Mining menu). Its ore counter only counts
-  the second rock's drop per cycle — inherited from main's loop, likely undercounts by half.
+- Varrock Exp miner: on the state machine and scaffold (Mining menu). Counts one ore per drop from
+  either rock (`VarrockSession.count_drop`; the old loop counted only the second rock's, PRO-95).
+- Choco Grind: on the state machine and scaffold (PRO-95): `start → withdraw → grind ⇄ restock`, soft
+  Stop before a batch, failures stop with a reason; O/P work inside its waits (bank open, the grind
+  clicks, the minutes-long GE offer wait). `run` = batches ground (the old loop counted the batch in
+  progress). Same actions as the old loop — live-check with `choc.checks.sequence` before a long run.
 - Crafting (PoE): on the state machine and scaffold, own launcher; shift is released on any exit.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.

@@ -11,15 +11,15 @@ def no_pause(monkeypatch):
 
 
 def drive(session, script, stop_after=None):
-    """Handlers pop scripted events; drop_second counts like the real one."""
+    """Handlers pop scripted events; both drops count like the real handler."""
     visited = []
 
     def make(state):
         def handler():
             visited.append(state)
             event = script.pop(0)
-            if state == "drop_second" and event == "ok":
-                session.second_drop(found=True)
+            if state in ("drop_first", "drop_second") and event == "ok":
+                session.count_drop(found=True)
             if not script or state == stop_after:
                 session.stats["stop"] = True
             return event
@@ -30,11 +30,17 @@ def drive(session, script, stop_after=None):
     return final, visited
 
 
-def test_full_cycle_counts_one_ore():
+def test_full_cycle_counts_both_rocks():
     s = build_machine({})
     final, visited = drive(s, ["ok"] * 4)
     assert visited == ["mine_first", "drop_first", "mine_second", "drop_second"]
-    assert final == "stopped" and s.stats["run"] == 1
+    assert final == "stopped" and s.ores == 2 and s.stats["run"] == 2
+
+
+def test_two_cycles_count_four_ores():
+    s = build_machine({})
+    drive(s, ["ok"] * 8)
+    assert s.ores == 4 and s.stats["run"] == 4
 
 
 def test_no_rock_first_retries_first():
@@ -58,10 +64,10 @@ def test_stop_between_rocks():
     assert visited == ["mine_first", "drop_first"]
 
 
-def test_only_second_drop_counts():
+def test_a_drop_with_nothing_in_the_slot_counts_nothing():
     s = build_machine({})
-    s.second_drop(found=False)
-    assert s.stats.get("run", 0) == 0
-    s.second_drop(found=True)
-    s.second_drop(found=True)
+    s.count_drop(found=False)
+    assert s.ores == 0 and s.stats.get("run", 0) == 0
+    s.count_drop(found=True)
+    s.count_drop(found=True)
     assert s.ores == 2 and s.stats["run"] == 2

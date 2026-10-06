@@ -31,19 +31,15 @@ def _mine(stats, first, second, first_label, second_label):
 def _handlers(session):
     stats = session.stats
 
-    def drop_first():
-        wait_and_drop()
-        return "ok"
-
-    def drop_second():
-        session.second_drop(found=wait_and_drop())
+    def drop():
+        session.count_drop(found=wait_and_drop())
         return "ok"
 
     return {
         "mine_first":  lambda: _mine(stats, click_magenta_rock, click_blue_rock, "magenta", "blue"),
-        "drop_first":  drop_first,
+        "drop_first":  drop,
         "mine_second": lambda: _mine(stats, click_blue_rock, click_magenta_rock, "blue", "magenta"),
-        "drop_second": drop_second,
+        "drop_second": drop,
     }
 
 

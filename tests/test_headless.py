@@ -1,5 +1,6 @@
 """lib/headless.py supervisor loop with every dependency stubbed (no RuneLite, no sleeping)."""
 import json
+import sys
 
 import pytest
 
@@ -294,6 +295,8 @@ def test_force_stop_during_login_goes_idle(tmp_path):
     assert [e for e in supervisor_events(tmp_path) if e["event"] == "idle"][-1]["why"] == "operator"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGUSR1/SIGUSR2/SIGHUP are POSIX-only: the supervisor "
+                    "runs in the Linux container")
 def test_install_signals_maps_each_signal(monkeypatch):
     import signal
     installed = {}

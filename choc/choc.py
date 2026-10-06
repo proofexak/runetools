@@ -5,6 +5,7 @@ Chocolate dust grinding — withdraw/grind/deposit loop, plus a GE restock
 import time, random
 import pyautogui
 
+import lib.pause as pause
 from lib.mouse import human_click, jitter, quick_click, human_typewrite
 from lib.screen import find_color, pixel_matches
 import choc.config as cfg
@@ -31,6 +32,8 @@ def open_bank():
             human_click(bx, by)
             deadline = time.time() + cfg.BANK_OPEN_TIMEOUT
             while True:
+                if pause.wait():                   # O / P work while waiting too
+                    deadline = time.time() + cfg.BANK_OPEN_TIMEOUT
                 if pixel_matches(bx2, by2, expected):
                     return True
                 if time.time() >= deadline:
@@ -88,6 +91,7 @@ def run_sequence(withdraw_next=True):
     so withdrawing here too would just get redeposited moments later)."""
     print(f"Grinding chocolate x{cfg.GRIND_COUNT}...")
     for i in range(cfg.GRIND_COUNT):
+        pause.wait()                               # O pauses between bars, P stops
         quick_click(*cfg.KNIFE_SLOT)
         time.sleep(random.uniform(0.07, 0.1125))
         quick_click(*cfg.CHOC_INV_SLOT)
@@ -145,6 +149,7 @@ def _wait_offer():
     tanner's much shorter GE offer wait."""
     cx, cy, expected = ge_cfg.OFFER_COMPLETE
     for attempt in range(cfg.OFFER_WAIT_TRIES):
+        pause.wait()                               # a fill can take minutes: O / P must work
         # Wider tolerance than pixel_matches' default ±15 — live samples of
         # this pixel while genuinely complete varied by 17 in the green
         # channel alone (rendering/animation variance), which the default

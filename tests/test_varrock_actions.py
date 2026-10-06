@@ -26,3 +26,17 @@ def test_wait_and_drop_is_pausable_and_pause_extends_the_wait(with_example_confi
     assert actions.wait_and_drop() is False
     assert len(waits) > 5                              # gated every poll
     assert clock.t >= 100 + actions.ORE_TIMEOUT        # full timeout after resuming
+
+
+def test_both_drop_handlers_count_an_ore(with_example_config, monkeypatch):
+    # the old loop counted only the second rock's drop: half the ore mined
+    run = with_example_config("miner.varrock_exp", "run")
+    from miner.varrock_exp.states import build_machine
+    session = build_machine({})
+    drops = iter([True, True, False])
+    monkeypatch.setattr(run, "wait_and_drop", lambda: next(drops))
+    handlers = run._handlers(session)
+    assert handlers["drop_first"]() == "ok" and handlers["drop_second"]() == "ok"
+    assert session.ores == 2 and session.stats["run"] == 2
+    handlers["drop_first"]()                      # nothing in the slot: no ore
+    assert session.ores == 2

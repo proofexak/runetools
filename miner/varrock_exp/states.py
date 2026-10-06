@@ -27,8 +27,9 @@ class VarrockSession:
         self.stats = stats
         self.ores  = 0
 
-    def second_drop(self, found):
-        # Only the second rock's drop is counted — kept as main's loop had it.
+    def count_drop(self, found):
+        """One ore per drop, from either rock (the old loop only counted the second
+        rock's, so it reported about half the ore mined)."""
         if found:
             self.ores += 1
             self.stats["run"] = self.ores
