@@ -80,6 +80,7 @@ class TannerSession:
         self.stop_reason     = None   # set when the session reaches done/stopped
         self.looked          = False  # looked around since the last tan / recovery
         self.need            = None   # what look_around goes for: "ellis" or "bank"
+        self.restock_error   = None   # why the last GE restock failed (lib.ge.run_ge_flow)
 
     def has_charges(self):
         return self.charges > 0
@@ -132,7 +133,7 @@ class TannerSession:
         self.stop_reason = "recovery failed"
 
     def reason_restock_failed(self):
-        self.stop_reason = "GE restock failed"
+        self.stop_reason = f"GE restock failed: {self.restock_error}" if self.restock_error             else "GE restock failed"
 
     def reason_soft_stop(self):
         self.stop_reason = "stopped via overlay"

@@ -6,10 +6,6 @@ import pytest
 from tests.test_tanner_recover import BOOTH, DOORS, WALK, recover_env   # noqa: F401  (fixture)
 
 
-class _Teleported(Exception):
-    pass
-
-
 @pytest.mark.parametrize("left_click", [True, False])
 def test_glory_recovery_teleport(recover_env, monkeypatch, left_click):
     actions, calls = recover_env
@@ -43,10 +39,6 @@ def ge(with_example_config, monkeypatch):
     monkeypatch.setattr(ge, "human_click", lambda x, y: calls.append(("click", x, y)))
     monkeypatch.setattr(ge, "smart_right_click", lambda *a, **k: calls.append(("right",)) or (0, 0, 10, 10))
     monkeypatch.setattr(ge, "menu_click", lambda x, y: calls.append(("menu",)))
-
-    def stop_after_teleport():
-        raise _Teleported()
-    monkeypatch.setattr(ge, "_orient_west", stop_after_teleport)   # step 2: we only test step 1
     monkeypatch.setattr(ge.cfg, "RING_SLOT", (1843, 916))
     return ge, calls
 
@@ -55,8 +47,7 @@ def ge(with_example_config, monkeypatch):
 def test_ring_of_wealth_teleport_to_the_ge(ge, monkeypatch, left_click):
     ge, calls = ge
     monkeypatch.setattr(ge.cfg, "RING_LEFT_CLICK_TP", left_click)
-    with pytest.raises(_Teleported):
-        ge._ge_attempt("green dragonhide")
+    ge._teleport()
     if left_click:
         assert len(calls) == 1 and calls[0][0] == "click"
         assert abs(calls[0][1] - 1843) <= 3 and abs(calls[0][2] - 916) <= 3
@@ -67,6 +58,5 @@ def test_ring_of_wealth_teleport_to_the_ge(ge, monkeypatch, left_click):
 def test_ring_config_without_the_line_keeps_the_right_click_menu(ge, monkeypatch):
     ge, calls = ge
     monkeypatch.delattr(ge.cfg, "RING_LEFT_CLICK_TP", raising=False)
-    with pytest.raises(_Teleported):
-        ge._ge_attempt("green dragonhide")
+    ge._teleport()
     assert calls == [("right",), ("menu",)]

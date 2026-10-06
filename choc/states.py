@@ -51,6 +51,7 @@ class ChocSession:
         self.batches       = 0             # batches ground (stats["run"])
         self.restock_after = False         # this batch's bank visit is followed by a restock
         self.stop_reason   = None
+        self.restock_error = None          # why the last GE restock failed
 
     def on_enter_grind(self):
         # decided up front: if a restock follows, this batch's bank visit doesn't withdraw
@@ -71,7 +72,7 @@ class ChocSession:
         self.stop_reason = "grind / bank sequence failed"
 
     def reason_restock_failed(self):
-        self.stop_reason = "GE restock failed"
+        self.stop_reason = f"GE restock failed: {self.restock_error}" if self.restock_error             else "GE restock failed"
 
     def reason_soft_stop(self):
         self.stop_reason = "stopped via overlay"

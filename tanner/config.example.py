@@ -80,3 +80,13 @@ EMPTY_SLOT_CHECK = (0, 0, (0, 0, 0))
 # ── Behaviour ─────────────────────────────────────────────────────────────────
 
 RESTOCK_GE = True   # if False, bot stops when hides run out instead of restocking
+
+# ── GE restock (lib/restock.py) ───────────────────────────────────────────────
+# A line missing here falls back to lib/ge_config.py, where older configs kept it.
+
+GE_QUANTITY      = 1       # hides bought per restock
+GE_BUY_PRICE     = 2000    # per hide, when live prices are off or the API can't be reached
+GE_MAX_PRICE     = 0       # never offer more per hide (0 = no cap) — one value for every hide type
+GE_LIVE_PRICES   = True    # price the buy from prices.runescape.wiki: instant-buy + GE_MARGIN_PCT
+GE_MARGIN_PCT    = 5
+GE_OFFER_TIMEOUT = 60      # seconds to wait for each offer to complete

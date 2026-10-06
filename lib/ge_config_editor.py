@@ -16,7 +16,6 @@ FIELDS = [
     ("Teleport",   "Ring Slot",            "RING_SLOT",            "point"),
     ("Teleport",   "Ring Menu Region",     "RING_MENU_REGION",     "region"),
     ("Navigation", "Compass",              "COMPASS",              "point"),
-    ("Navigation", "Movement Region",      "MOVEMENT_REGION",      "region"),
     ("Banker",     "Approach Region",      "GE_APPROACH_REGION",   "region"),
     ("Banker",     "GE Region",            "GE_REGION",            "region"),
     ("Banker",     "Bank Check",           "BANK_CHECK",           "point_color"),
@@ -44,7 +43,6 @@ REGION_COLORS = {
     "GE_APPROACH_REGION": "#ff8800",
     "GE_REGION":        "#0088ff",
     "GE_BANK_AREA":     "#44ff88",
-    "MOVEMENT_REGION":  "#ffff00",
 }
 
 

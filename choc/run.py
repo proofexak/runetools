@@ -30,8 +30,9 @@ def _handlers(session):
 
     def restock():
         print(f"\n{'='*40}\n  RESTOCK (qty {session.start_count})\n{'='*40}")
-        if not restock_ge(session.start_count):
-            print("Restock failed — stopping.")
+        ok, session.restock_error = restock_ge(session.start_count)
+        if not ok:
+            print(f"Restock failed ({session.restock_error}) — stopping.")
             return "fail"
         time.sleep(random.uniform(0.5, 1.2))
         return "ok"

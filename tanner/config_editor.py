@@ -5,10 +5,8 @@ import threading, re, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as cfg
-import lib.ge_config as ge_cfg
 from lib.config_editor import run_editor, save_attr
-
-_GE_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "lib", "ge_config.py")
+from lib.restock import setting
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.py")
 
@@ -40,8 +38,12 @@ FIELDS = [
     ("Interface",   "Black Dragonhide", "IB:black dragonhide",  "point_color"),
     ("Movement",    "Movement Region",  "MOVEMENT_REGION",      "region"),
     ("GE",          "Restock at GE",    "RESTOCK_GE",           "bool"),
-    ("GE",          "Quantity",         "GE:GE_QUANTITY",       "number"),
-    ("GE",          "Buy Price",        "GE:GE_BUY_PRICE",      "number"),
+    ("GE",          "Quantity",         "GE_QUANTITY",          "number"),
+    ("GE",          "Buy Price (fallback)", "GE_BUY_PRICE",     "number"),
+    ("GE",          "Max Price (0 = none)", "GE_MAX_PRICE",     "number"),
+    ("GE",          "Live Prices",      "GE_LIVE_PRICES",       "bool"),
+    ("GE",          "Live Margin %",    "GE_MARGIN_PCT",        "number"),
+    ("GE",          "Offer Timeout (s)", "GE_OFFER_TIMEOUT",    "number"),
 ]
 
 REGION_COLORS = {
@@ -58,27 +60,21 @@ REGION_COLORS = {
 # ── Value helpers ─────────────────────────────────────────────────────────────
 
 def _get(attr):
-    if attr.startswith("GE:"):
-        return getattr(ge_cfg, attr[3:], None)
+    if attr.startswith("GE_"):
+        return setting(cfg, attr)      # own config, else the older shared lib/ge_config.py
     if attr.startswith("IB:"):
         return cfg.INTERFACE_BUTTONS.get(attr[3:])
     return getattr(cfg, attr, None)
 
 
 def _apply(attr, val):
-    if attr.startswith("GE:"):
-        setattr(ge_cfg, attr[3:], val)
-    elif attr.startswith("IB:"):
+    if attr.startswith("IB:"):
         cfg.INTERFACE_BUTTONS[attr[3:]] = val
     else:
         setattr(cfg, attr, val)
 
 
 def _save(attr, val):
-    if attr.startswith("GE:"):
-        save_attr(_GE_CONFIG_PATH, attr[3:], val)
-        return
-
     if not attr.startswith("IB:"):
         save_attr(CONFIG_PATH, attr, val)
         return

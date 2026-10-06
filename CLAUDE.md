@@ -33,7 +33,11 @@ lib/                    universal helpers used by all bots
                          "Bot control flow" below)
   session.py            run_session() — standard session lifecycle every bot's run() uses
   bots.py               Bot/Launch descriptors, discover(), build_menu() — see "Bot contract"
-  ge.py                 universal GE restock flow (sell leathers, buy hides, bank)
+  ge.py                 GE building blocks (open_bank/open_ge, withdraw_noted, sell/buy/wait_offer/
+                         collect, trade) + tanner's restock trip run_ge_flow — see "GE flow" below
+  restock.py            Restock (what a bot buys, how many, price settings) + buy_offer_price — pure
+  prices.py             live GE prices from prices.runescape.wiki (latest(), buy_price()) — never raises
+  interface.py          open_interface (click highlight → wait for check pixel), wait_for, close_interface
   ge_config.py          calibrated GE positions — GITIGNORED, copy from ge_config.example.py
   ge_config.example.py  zeroed template for ge_config.py
   ge_config_editor.py   config editor wired to ge_config.py
@@ -80,7 +84,7 @@ tanner/                 Al Kharid leather tanning bot
   actions.py            walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover
   config.py             calibrated positions — GITIGNORED, copy from config.example.py
   config.example.py     zeroed template for config.py
-  config_editor.py      config editor wired to tanner/config.py (GE: prefix routes to ge_config.py)
+  config_editor.py      config editor wired to tanner/config.py
 
 miner/                  mining bots grouped under one "Mining" menu entry (miner/bot.py);
                          each sub-bot is a launch with its own ⚙ editor side button
@@ -135,7 +139,10 @@ GE Config, Energy Config, Exit.
 - On fresh clone: copy `*.example.py` → remove `.example`, then calibrate via the in-game config editors. Energy/stamina needs an extra step first — see README's "Stamina potions" section (`calibrate_energy_digits.py`).
 - Config editors draw coloured overlays on screen (regions = rectangles, points = crosshairs).
 - `config_editor.py` supports ftypes: `point`, `point_color`, `region`, `number`.
-- In `tanner/config_editor.py`, prefix `GE:` routes reads/writes to `ge_config.py`; prefix `IB:` routes to `INTERFACE_BUTTONS` dict.
+- In `tanner/config_editor.py`, prefix `IB:` routes to `INTERFACE_BUTTONS` dict.
+- GE restock settings (`GE_QUANTITY`, `GE_BUY_PRICE`, `GE_MAX_PRICE`, `GE_LIVE_PRICES`, `GE_MARGIN_PCT`,
+  `GE_OFFER_TIMEOUT`) are each bot's own config (`lib.restock.setting`: bot config → `lib/ge_config.py`,
+  where older configs kept them → `DEFAULTS`). `lib/ge_config.py` holds only the shared GE interface positions.
 
 ## Key design decisions
 
@@ -154,15 +161,23 @@ choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never
 
 **smart_right_click(x, y, menu_scan_region)** takes a before/after screenshot diff limited to `menu_scan_region` to find where the right-click menu actually appeared (handles menus that open upward). Always pass `menu_scan_region` — without it the diff covers a huge area and picks up game animation noise.
 
-**GE flow** (`lib/ge.py`):
-1. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
-2. Orient camera west
-3. Find banker (BLUE) in `GE_APPROACH_REGION` → click → confirm bank opened via `BANK_CHECK` pixel
-4. Second tab → enable notes → withdraw slot 1 → disable notes → close bank
-5. Find GE agent (MAGENTA) in `GE_REGION` → sell leathers at price 1 → buy hides at `GE_BUY_PRICE`
-6. Retrieve coins + hides → close GE
-7. Find banker (BLUE) in `GE_REGION` → deposit all → snapshot diff to find changed slot → drag to `SECOND_TAB`
-8. Call `on_complete` callback (tanner passes a no-op; its state machine goes to `recover` next)
+**GE flow** (`lib/ge.py`). Bots build a `lib.restock.Restock` from their config (`Restock.from_config(cfg,
+item, quantity=None)`); `ge.trade(restock)` (GE open, item to sell first in the inventory) sells at 1 gp, buys,
+collects, and returns `(ok, reason)` — the bot keeps the reason for its `stop_reason`. Prices: a GE trade goes
+through at the price of the offer that was already waiting, so selling at 1 still gets the best buyer's price
+(and keeps the low-price warning whose Yes `sell` clicks), and the buy is priced live — instant-buy +
+`GE_MARGIN_PCT` from the Wiki API (`lib/prices.py`), falling back to `GE_BUY_PRICE` when it can't be reached,
+never above `GE_MAX_PRICE` (then it stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take
+focus (typed too early they go to public chat); offer waits are `GE_OFFER_TIMEOUT` seconds, O/P working.
+Tanner's trip, `run_ge_flow(restock)`:
+1. Price check (over the cap → stop before spending a ring teleport)
+2. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
+3. Face west → find banker (BLUE) in `GE_APPROACH_REGION` → confirm via `BANK_CHECK`; not found → face west and look again (`GE_MAX_RETRIES`, never a second teleport)
+4. Second tab → `withdraw_noted(BANK_SLOT_1)` (notes toggled only when `NOTES_CHECK` says so, then checked) → close bank
+5. `open_ge()` (MAGENTA in `GE_REGION`, `GE_CHECK`) → `trade(restock)` → close GE
+6. Find banker (BLUE) in `GE_REGION` → deposit all → snapshot diff to find changed slot → drag to `SECOND_TAB`
+7. Tanner's state machine goes to `recover` next (glory back to Al Kharid)
+Choc's `restock_ge` uses the same blocks without the teleport.
 
 `do_bank(skip_restock_check=True)` skips the empty-slot-2 check (used after GE restock to prevent infinite loop).
 

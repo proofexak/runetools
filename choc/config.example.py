@@ -2,9 +2,9 @@
 Chocolate dust grinding bot configuration — copy to config.py and calibrate before use.
 GE trading fields (search, buy/sell buttons, offer pixels, etc.) live in
 lib/ge_config.py instead — this bot reuses that shared config for the actual
-GE interaction, only overriding GE_BUY_PRICE via the "GE:" prefix in
-choc/config_editor.py. Restock quantity is the session's starting bar count,
-passed straight to restock_ge(), not a config value.
+GE interaction; what it buys and at what price is the GE_* section below.
+Restock quantity is the session's starting bar count, passed straight to
+restock_ge(), not a config value.
 """
 
 # ── RuneLite tile marker colour ─────────────────────────────────────────────
@@ -44,7 +44,9 @@ CHOC_INV_SLOT = (0, 0)
 # Chocolate bars per inventory load (27 bars + 1 knife = 28 slots).
 GRIND_COUNT = 27
 
-# ── GE restock behaviour ─────────────────────────────────────────────────────
-# How many times to poll for a GE offer to fill (~3-5s apart) before giving
-# up. Offers can take a while, especially buys at market price.
-OFFER_WAIT_TRIES = 90
+# ── GE restock (lib/restock.py) ───────────────────────────────────────────────
+GE_BUY_PRICE     = 40      # per bar, when live prices are off or the API can't be reached
+GE_MAX_PRICE     = 60      # never offer more per bar (0 = no cap)
+GE_LIVE_PRICES   = True    # price the buy from prices.runescape.wiki: instant-buy + GE_MARGIN_PCT
+GE_MARGIN_PCT    = 5
+GE_OFFER_TIMEOUT = 360     # seconds per offer — a big buy can take minutes to fill

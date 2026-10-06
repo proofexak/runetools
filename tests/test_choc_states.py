@@ -100,11 +100,12 @@ def test_grind_handler_skips_the_withdraw_when_a_restock_follows(choc_run, monke
 def test_restock_and_withdraw_handlers_map_results(choc_run, monkeypatch):
     s = build_machine({}, start_count=54, grind_count=GRIND)
     bought = []
-    monkeypatch.setattr(choc_run, "restock_ge", lambda qty: bought.append(qty) or False)
+    monkeypatch.setattr(choc_run, "restock_ge", lambda qty: bought.append(qty) or (False, "sell offer never completed"))
     monkeypatch.setattr(choc_run, "bootstrap_withdraw", lambda: True)
     h = choc_run._handlers(s)
     assert h["withdraw"]() == "ok"
     assert h["restock"]() == "fail" and bought == [54]   # buys the starting count again
+    assert s.restock_error == "sell offer never completed"
 
 
 def test_summary_names_the_reason(choc_run, capsys):
@@ -135,9 +136,9 @@ def test_p_stops_a_long_ge_offer_wait(choc_actions, monkeypatch):
             raise pause.ForceStop()
         return False
     monkeypatch.setattr(choc_actions.pause, "wait", wait)
-    monkeypatch.setattr(choc_actions, "pixel_matches", lambda *a, **k: False)    # never fills
+    monkeypatch.setattr(choc_actions.ge, "pixel_matches", lambda *a, **k: False)    # never fills
     with pytest.raises(pause.ForceStop):
-        choc_actions._wait_offer()
+        choc_actions.ge.wait_offer(choc_actions.cfg.GE_OFFER_TIMEOUT)
     assert len(waits) == 3
 
 

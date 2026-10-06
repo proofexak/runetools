@@ -14,6 +14,7 @@ from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
 from lib.state_machine import ok_or_fail
 from lib.session import run_session
 from lib.ge import run_ge_flow
+from lib.restock import Restock
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -31,7 +32,8 @@ def _handlers(session):
 
     def restock():
         # Return teleport goes through the recover state so it uses a glory charge.
-        return ok_or_fail(run_ge_flow(config.HIDE_TYPE, on_complete=lambda: True))
+        ok, session.restock_error = run_ge_flow(Restock.from_config(config, config.HIDE_TYPE))
+        return ok_or_fail(ok)
 
     def recover_():
         print(f"\n[RECOVERY] Using charge ({session.charges} remaining after this)...")

@@ -1,90 +1,170 @@
 """
-Grand Exchange restock flow — sell leathers, buy hides.
-Universal lib module; bots pass their own hide_type and on_complete callback.
+Grand Exchange — the building blocks every bot's restock uses, plus tanner's full
+restock trip (run_ge_flow).
+
+Building blocks (positions from lib/ge_config.py, the GE interface is the same for
+every bot): open_bank / open_ge, withdraw_noted, sell / buy / wait_offer / collect,
+and trade(), which sells the first inventory item then buys a lib.restock.Restock.
+What to buy, how many and at what price is the bot's, not this module's.
 """
-import time, random, sys, os
+import time, random
+
 import pyautogui
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
-from lib.mouse    import smart_right_click, human_right_click, human_click, menu_click, \
-                         jitter, human_typewrite, drag_and_drop
-from lib.screen   import find_color, pixel_matches, grab
+from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite, \
+                          drag_and_drop
+from lib.screen    import pixel_matches, grab
+from lib.interface import open_interface, close_interface, wait_for, shows
+from lib.camera    import face
+from lib.log       import say
+from lib.restock   import buy_offer_price
 import lib.vision    as vision
-from lib.movement import wait_until_stopped
-import lib.pause     as pause
+import lib.prices    as prices
 import lib.ge_config as cfg
 
-
-# ── Internal helpers ──────────────────────────────────────────────────────────
-
-def _wait_stopped():
-    return wait_until_stopped(
-        cfg.MOVEMENT_REGION, cfg.MOVEMENT_THRESH, cfg.MOVEMENT_STABLE,
-        cfg.MOVEMENT_POLL, cfg.WALK_TIMEOUT, pause.wait,
-    )
+# The price / quantity box is a popup that needs a moment to open and take focus —
+# typed too early, the digits and the Enter go to public chat instead.
+BOX_FOCUS = (0.7, 1.0)
+OFFER_TOL = 30    # the "complete" pixel varied by 17 in one channel while genuinely complete
 
 
-def _orient_west():
-    cpx, cpy = jitter(*cfg.COMPASS, n=5)
-    ax, ay = human_right_click(cpx, cpy)
-    time.sleep(0.35)
-    menu_click(ax + 5, ay + cfg.MENU_HEADER + cfg.LOOK_WEST_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
-    time.sleep(0.5)
+def _pause(lo=0.3, hi=0.5):
+    time.sleep(random.uniform(lo, hi))
 
 
-def _open_bank(region):
-    """Find blue-hull banker in region, click, confirm bank opens. Returns True on success."""
-    for attempt in range(cfg.MAX_BANKER_TRIES):
-        pause.wait()
-        pos, _ = find_color(cfg.BLUE, cfg.BLUE_TOL, region=region,
-                            whole_screen=attempt == cfg.MAX_BANKER_TRIES - 1)
-        if pos:
-            human_click(*pos)
-            bx, by, expected = cfg.BANK_CHECK
-            deadline = time.time() + 5.0
-            while time.time() < deadline:
-                if pixel_matches(bx, by, expected):
-                    return True
-                time.sleep(0.3)
-        print(f"  [GE] Banker not found (attempt {attempt+1})...")
-        time.sleep(1.0)
-    return False
+def _click(point, lo=0.3, hi=0.5):
+    human_click(*jitter(*point))
+    _pause(lo, hi)
 
 
-def _open_ge():
-    """Find magenta GE agent and confirm GE interface opens. Returns True on success."""
-    for attempt in range(cfg.MAX_AGENT_TRIES):
-        pause.wait()
-        pos, _ = find_color(cfg.MAGENTA, cfg.MAGENTA_TOL, region=cfg.GE_REGION,
-                            whole_screen=attempt == cfg.MAX_AGENT_TRIES - 1)
-        if pos:
-            human_click(*pos)
-            gx, gy, expected = cfg.GE_CHECK
-            deadline = time.time() + 5.0
-            while time.time() < deadline:
-                if pixel_matches(gx, gy, expected):
-                    return True
-                time.sleep(0.3)
-        print(f"  [GE] Agent not found (attempt {attempt+1})...")
-        time.sleep(1.0)
-    return False
+# ── Bank ──────────────────────────────────────────────────────────────────────
+
+def open_bank(region):
+    """Find the blue banker in `region`, click, confirm the bank opened."""
+    return open_interface(cfg.BLUE, cfg.BLUE_TOL, region, cfg.BANK_CHECK, cfg.MAX_BANKER_TRIES,
+                          what="[GE] Banker")
 
 
-def _wait_offer():
-    """Poll OFFER_COMPLETE pixel; click it when complete. Returns True or False."""
-    cx, cy, expected = cfg.OFFER_COMPLETE
-    for attempt in range(cfg.MAX_OFFER_TRIES):
-        if pixel_matches(cx, cy, expected):
-            human_click(*jitter(cx, cy))
-            time.sleep(random.uniform(0.3, 0.5))
+def set_notes(on):
+    """Withdraw-as-note on or off — clicked only when it isn't already, then checked."""
+    for _ in range(2):
+        if pixel_matches(*cfg.NOTES_CHECK) == on:
             return True
-        delay = random.uniform(1.5, 2.5)
-        print(f"  [GE] Offer not complete (attempt {attempt+1}), waiting {delay:.1f}s...")
-        time.sleep(delay)
-    return False
+        _click(cfg.NOTES_BTN)
+    return pixel_matches(*cfg.NOTES_CHECK) == on
+
+
+def withdraw_noted(slot):
+    """Bank open on the right tab: withdraw `slot` as notes, notes back off."""
+    if not set_notes(True):
+        say("[GE] Could not turn notes on.")
+        return False
+    _click(slot)
+    if not set_notes(False):
+        say("[GE] Could not turn notes off.")
+        return False
+    return True
+
+
+def close_bank():
+    close_interface(still_open=shows(cfg.BANK_CHECK))
+
+
+# ── GE interface ──────────────────────────────────────────────────────────────
+
+def open_ge():
+    """Find the magenta GE clerk in GE_REGION, click, confirm the GE opened."""
+    return open_interface(cfg.MAGENTA, cfg.MAGENTA_TOL, cfg.GE_REGION, cfg.GE_CHECK,
+                          cfg.MAX_AGENT_TRIES, what="[GE] Exchange")
+
+
+def _type_into(box, text):
+    human_click(*jitter(*box))
+    time.sleep(random.uniform(*BOX_FOCUS))
+    human_typewrite(text)
+    pyautogui.press("enter")
+    _pause()
+
+
+def sell(price=1):
+    """GE open: offer the first inventory item at `price`, confirm the low-price warning."""
+    _click(cfg.SELL_SLOT, 0.4, 0.7)
+    _type_into(cfg.PRICE_BTN, str(price))
+    _click(cfg.CONFIRM_BTN, 0.5, 0.8)
+    _click(cfg.SELL_YES_BTN, 0.5, 0.8)
+
+
+def buy(item, quantity, price):
+    """GE open: put in a buy offer for `quantity` × `item` at `price` each."""
+    _click(cfg.BUY_BTN, 0.5, 0.8)
+    human_typewrite(item)
+    _pause(0.4, 0.7)
+    _click(cfg.BUY_SEARCH_RESULT, 0.4, 0.7)
+    _type_into(cfg.BUY_QUANTITY_BTN, str(quantity))
+    _type_into(cfg.PRICE_BTN, str(price))
+    _click(cfg.CONFIRM_BTN, 0.5, 0.8)
+
+
+def wait_offer(timeout):
+    """Wait up to `timeout` s for the offer to complete, then open it. O / P work."""
+    x, y, rgb = cfg.OFFER_COMPLETE
+    if not wait_for(lambda: pixel_matches(x, y, rgb, OFFER_TOL), timeout,
+                    poll=lambda: random.uniform(1.5, 2.5)):
+        return False
+    _click((x, y))
+    return True
+
+
+def collect(both=False):
+    """Collect the completed offer: slot 1 (coins / items), and slot 2 with `both`."""
+    _click(cfg.RETRIEVE_SLOT_1, 0.4, 0.7)
+    if both:
+        _click(cfg.RETRIEVE_SLOT_2)
+
+
+def close_ge():
+    close_interface(still_open=shows(cfg.GE_CHECK))
+
+
+def offer_price(restock):
+    """(price, source) for the buy — live when enabled — or (None, reason) above the cap."""
+    return buy_offer_price(restock, prices.latest(restock.buy_item) if restock.live_prices else None)
+
+
+def trade(restock):
+    """GE open, the item to sell first in the inventory: sell it at 1 gp, buy
+    `restock`, collect. (True, None) or (False, reason)."""
+    price, source = offer_price(restock)
+    if price is None:
+        return False, source
+    say(f"[GE] Selling, then buying {restock.quantity} x {restock.buy_item} at {price} gp ({source})")
+    sell(1)
+    if not wait_offer(restock.offer_timeout):
+        return False, "sell offer never completed"
+    collect()
+    buy(restock.buy_item, restock.quantity, price)
+    if not wait_offer(restock.offer_timeout):
+        return False, f"buy offer never completed ({price} gp)"
+    collect(both=True)
+    return True, None
+
+
+# ── Tanner's restock trip ─────────────────────────────────────────────────────
+
+def _teleport():
+    """Ring of wealth → GE (left-click when swapped in RuneLite's Menu Entry Swapper)."""
+    say("[GE] Teleporting to the GE")
+    pyautogui.press("escape")
+    _pause()
+    pyautogui.press("f4")
+    _pause(0.6, 1.0)
+    if getattr(cfg, "RING_LEFT_CLICK_TP", False):
+        human_click(*jitter(*cfg.RING_SLOT, n=3))
+    else:
+        _, _, mx, my = smart_right_click(*cfg.RING_SLOT, menu_scan_region=cfg.RING_MENU_REGION)
+        _pause(0.35, 0.55)
+        menu_click(mx + 5, my + cfg.MENU_HEADER + cfg.RING_MENU_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
+    time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
 def _deposit_and_relocate():
@@ -97,11 +177,11 @@ def _deposit_and_relocate():
 
     slot = vision.changed_slot(before, after)
     if slot is None:
-        print("  [GE] Could not detect changed bank slot.")
+        say("[GE] Could not detect changed bank slot.")
         return False
     best_cx, best_cy = l + slot[0], t + slot[1]
 
-    print(f"  [GE] Hides at ({best_cx}, {best_cy}) — dragging to slot...")
+    say(f"[GE] Hides at ({best_cx}, {best_cy}) — dragging to slot...")
     tx, ty = cfg.SECOND_TAB
     drag_and_drop(best_cx, best_cy, tx, ty)
     time.sleep(random.uniform(0.4, 0.7))
@@ -110,166 +190,39 @@ def _deposit_and_relocate():
     return True
 
 
-# ── Main GE attempt ───────────────────────────────────────────────────────────
+def run_ge_flow(restock):
+    """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
+    `restock` → bank the hides on the hide tab. (True, None) or (False, reason).
+    The price is checked first, so one over the cap costs no ring teleport."""
+    price, why = offer_price(restock)
+    if price is None:
+        return False, why
 
-def _ge_attempt(hide_type):
-    """Single GE attempt. Returns True, 'retry', or 'fatal'."""
-
-    # Step 1: Teleport to GE
-    print("\n[GE] Step 1: Teleport to GE")
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.3, 0.5))
-    pyautogui.press("f4")
-    time.sleep(random.uniform(0.6, 1.0))
-    if getattr(cfg, "RING_LEFT_CLICK_TP", False):
-        print("[GE] Clicking ring slot (left-click teleport)...")
-        human_click(*jitter(*cfg.RING_SLOT, n=3))
+    _teleport()
+    for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
+        face("west", cfg)
+        if open_bank(cfg.GE_APPROACH_REGION):
+            break
+        say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
     else:
-        _, _, mx, my = smart_right_click(*cfg.RING_SLOT, menu_scan_region=cfg.RING_MENU_REGION)
-        time.sleep(random.uniform(0.35, 0.55))
-        menu_click(mx + 5, my + cfg.MENU_HEADER + cfg.RING_MENU_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
-    print("[GE] Waiting for teleport animation...")
-    time.sleep(random.uniform(4.5, 5.5))
+        return False, "banker not found at the GE"
 
-    # Step 2: Orient west
-    print("[GE] Step 2: Orient west")
-    _orient_west()
+    _click(cfg.SECOND_TAB)
+    if not withdraw_noted(cfg.BANK_SLOT_1):
+        return False, "notes toggle didn't respond"
+    close_bank()
 
-    # Steps 2a+3+4: Find banker in approach region, click, wait for bank to open
-    print("[GE] Step 2a: Open bank via approach region")
-    if not _open_bank(cfg.GE_APPROACH_REGION):
-        print("[GE] Banker not found in approach region — retrying path...")
-        return "retry"
+    if not open_ge():
+        return False, "could not open the GE"
+    ok, why = trade(restock)
+    if not ok:
+        return False, why
+    close_ge()
 
-    # Step 5: Second bank tab
-    print("[GE] Step 5: Second bank tab")
-    human_click(*jitter(*cfg.SECOND_TAB))
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 6: Enable notes
-    print("[GE] Step 6: Enable notes")
-    nx, ny, ncolor = cfg.NOTES_CHECK
-    if not pixel_matches(nx, ny, ncolor):
-        human_click(*jitter(*cfg.NOTES_BTN))
-        time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 7: Withdraw from slot 1
-    print("[GE] Step 7: Withdraw hides (noted)")
-    human_click(*jitter(*cfg.BANK_SLOT_1))
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 7a: Disable notes
-    print("[GE] Step 7a: Disable notes")
-    human_click(*jitter(*cfg.NOTES_BTN))
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 8: Close bank
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 9: Open GE
-    print("[GE] Step 9: Opening GE")
-    if not _open_ge():
-        print("[GE] Could not open GE — stopping.")
-        return "fatal"
-
-    # Steps 10-14: Set up sell offer
-    print("[GE] Step 10-14: Setting up sell offer")
-    human_click(*jitter(*cfg.SELL_SLOT))
-    time.sleep(random.uniform(0.4, 0.7))
-    human_click(*jitter(*cfg.PRICE_BTN))
-    time.sleep(random.uniform(0.3, 0.5))
-    human_typewrite("1")
-    pyautogui.press("enter")
-    time.sleep(random.uniform(0.3, 0.5))
-    human_click(*jitter(*cfg.CONFIRM_BTN))
-    time.sleep(random.uniform(0.5, 0.8))
-    human_click(*jitter(*cfg.SELL_YES_BTN))
-    time.sleep(random.uniform(0.5, 0.8))
-
-    # Step 15: Wait for sell
-    print("[GE] Step 15: Waiting for sell to complete...")
-    if not _wait_offer():
-        print("[GE] Sell never completed — stopping.")
-        return "fatal"
-
-    # Step 16: Retrieve coins
-    print("[GE] Step 16: Retrieve coins")
-    human_click(*jitter(*cfg.RETRIEVE_SLOT_1))
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Steps 16a-e: Set up buy offer
-    print("[GE] Step 16a-e: Setting up buy offer")
-    human_click(*jitter(*cfg.BUY_BTN))
-    time.sleep(random.uniform(0.5, 0.8))
-    human_typewrite(hide_type)
-    time.sleep(random.uniform(0.4, 0.7))
-    human_click(*jitter(*cfg.BUY_SEARCH_RESULT))
-    time.sleep(random.uniform(0.4, 0.7))
-    human_click(*jitter(*cfg.BUY_QUANTITY_BTN))
-    time.sleep(random.uniform(0.3, 0.5))
-    human_typewrite(str(cfg.GE_QUANTITY))
-    pyautogui.press("enter")
-    time.sleep(random.uniform(0.3, 0.5))
-    human_click(*jitter(*cfg.PRICE_BTN))
-    time.sleep(random.uniform(0.3, 0.5))
-    human_typewrite(str(cfg.GE_BUY_PRICE))
-    pyautogui.press("enter")
-    time.sleep(random.uniform(0.3, 0.5))
-    human_click(*jitter(*cfg.CONFIRM_BTN))
-    time.sleep(random.uniform(0.5, 0.8))
-
-    # Step 16f: Wait for buy
-    print("[GE] Step 16f: Waiting for buy to complete...")
-    if not _wait_offer():
-        print("[GE] Buy never completed — stopping.")
-        return "fatal"
-
-    # Step 16g: Retrieve hides
-    print("[GE] Step 16g: Retrieve purchased hides")
-    human_click(*jitter(*cfg.RETRIEVE_SLOT_1))
-    time.sleep(random.uniform(0.3, 0.5))
-    human_click(*jitter(*cfg.RETRIEVE_SLOT_2))
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 17: Close GE
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.3, 0.5))
-
-    # Step 18: Bank again
-    print("[GE] Step 18: Banking hides")
-    if not _open_bank(cfg.GE_REGION):
-        print("[GE] Could not open bank after GE — stopping.")
-        return "fatal"
-
-    # Step 19: Deposit and relocate
-    print("[GE] Step 19: Deposit and relocate hides")
+    if not open_bank(cfg.GE_REGION):
+        return False, "could not open the bank after the GE"
     if not _deposit_and_relocate():
-        print("[GE] Failed to relocate hides — stopping.")
-        return "fatal"
-
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.3, 0.5))
-    return True
-
-
-# ── Public entry point ────────────────────────────────────────────────────────
-
-def run_ge_flow(hide_type, on_complete):
-    """
-    Full GE restock: teleport → sell leathers → buy hides → bank → on_complete().
-    Returns True on success, False if bot should stop.
-    """
-    print("[GE] Starting in 3s — switch to OSRS.")
-    time.sleep(3)
-    for attempt in range(cfg.GE_MAX_RETRIES):
-        result = _ge_attempt(hide_type)
-        if result == "fatal":
-            return False
-        if result is True:
-            print("[GE] Restock complete — calling on_complete...")
-            return on_complete()
-        print(f"[GE] Retrying ({attempt+1}/{cfg.GE_MAX_RETRIES})...")
-
-    print("[GE] Max retries reached — stopping.")
-    return False
+        return False, "could not find the hides in the bank"
+    close_bank()
+    say("[GE] Restock complete.")
+    return True, None

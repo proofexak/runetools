@@ -26,14 +26,6 @@ LOOK_WEST_ROW = 3
 MENU_ROW_H    = 15
 MENU_HEADER   = 15
 
-# ── Movement detection ────────────────────────────────────────────────────────
-
-MOVEMENT_REGION = (0, 0, 0, 0)
-MOVEMENT_THRESH = 3.0
-MOVEMENT_STABLE = 3
-MOVEMENT_POLL   = 0.15
-WALK_TIMEOUT    = 20.0
-
 # ── Banker (blue hull) ────────────────────────────────────────────────────────
 
 GE_APPROACH_REGION = (0, 0, 0, 0)
@@ -66,14 +58,11 @@ BUY_SEARCH_RESULT    = (0, 0)
 BUY_QUANTITY_BTN     = (0, 0)
 RETRIEVE_SLOT_2      = (0, 0)
 
-# ── Settings ──────────────────────────────────────────────────────────────────
-
-GE_QUANTITY  = 1
-GE_BUY_PRICE = 2000
+# What to buy, how many and at what price (GE_QUANTITY, GE_BUY_PRICE, GE_MAX_PRICE,
+# GE_LIVE_PRICES, …) is each bot's own config — see lib/restock.py.
 
 # ── Retry limits ──────────────────────────────────────────────────────────────
 
 MAX_BANKER_TRIES = 20
 MAX_AGENT_TRIES  = 20
-MAX_OFFER_TRIES  = 4
-GE_MAX_RETRIES   = 4
+GE_MAX_RETRIES   = 4      # banker not found after the teleport: turn the camera, look again
