@@ -317,7 +317,9 @@ takes plain data; capture happens only in `lib/screen.grab`.
 - Tanner bot: fully functional, recovery path + GE restock both tested and working. Now driven by the
   state machine (PRO-12). Every glory teleport — failure recovery, post-GE return — goes through the
   `recover` state and uses one of the 6 charges. GE mode (the "GE" button; standing at the GE) starts with
-  a restock there — no ring teleport, banker searched in `GE_REGION`, RESTOCK_GE on or off — then `recover`;
+  a buy-only restock there — no ring teleport, no leather out / sell: face west → GE → buy `GE_QUANTITY` hides
+  with the coins carried → deposit (`run_ge_flow(teleport=False, sell_first=False)`), RESTOCK_GE on or off —
+  then `recover`;
   a failed GE-mode
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).

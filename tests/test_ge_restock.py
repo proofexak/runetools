@@ -252,7 +252,7 @@ def flow(ge, monkeypatch):
     monkeypatch.setattr(ge, "close_bank", lambda: None)
     monkeypatch.setattr(ge, "close_ge", lambda: None)
     monkeypatch.setattr(ge, "open_ge", lambda: True)
-    monkeypatch.setattr(ge, "trade", lambda r: (True, None))
+    monkeypatch.setattr(ge, "trade", lambda r, sell_first=True: calls.append(("trade", sell_first)) or (True, None))
     return ge, calls, log
 
 
@@ -284,6 +284,27 @@ def test_run_ge_flow_already_at_the_ge_skips_the_teleport(flow, monkeypatch):
     assert ge.run_ge_flow(_trip(), teleport=False) == (True, None)
     assert "teleport" not in calls and "face" in calls
     assert regions == [ge.cfg.GE_REGION, ge.cfg.GE_REGION]     # the banker near the GE centre, both times
+
+
+def test_run_ge_flow_buy_only_skips_the_bank_and_the_sell(flow, monkeypatch):
+    ge, calls, log = flow
+    regions = []
+    monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
+    assert ge.run_ge_flow(_trip(), teleport=False, sell_first=False) == (True, None)
+    assert calls == ["face", ("trade", False)]                 # no teleport, no leather out
+    assert regions == [ge.cfg.GE_REGION]                       # only the deposit after the GE
+    assert [c[1:] for c in log if c[0] == "click"] == [(1043, 675)]
+
+
+def test_trade_buy_only_needs_no_sell_slot(ge, monkeypatch):
+    ge, log = ge
+    steps = []
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: QUOTES[name])
+    monkeypatch.setattr(ge, "sell", lambda *a: pytest.fail("sold"))
+    monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
+    monkeypatch.setattr(ge, "follow_offer", lambda r, side, price: steps.append((side, price)) or (True, None))
+    assert ge.trade(_r(), sell_first=False) == (True, None)
+    assert steps == [("buy", "green dragonhide", 100, 1581), ("buy", 1581)]
 
 
 def test_run_ge_flow_spends_no_teleport_on_a_price_over_the_cap(flow):
