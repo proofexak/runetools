@@ -116,6 +116,7 @@ class TannerSession:
         # Every glory teleport — failure recovery, the way back after a restock, a start at the GE.
         self.charges -= 1
         self.looked = False    # a fresh start at the bank: a later problem gets its own look
+        self.at_ge = False     # it lands in Al Kharid: a later restock rings to the GE again
 
     def set_skip_restock(self):
         # The hide count was just read (GE bank) or just topped up (a restock): the next bank —
