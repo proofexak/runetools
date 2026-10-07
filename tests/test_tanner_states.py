@@ -81,11 +81,20 @@ def test_soft_stop_during_countdown_still_banks_first():
     assert final == "stopped" and visited == ["walk_to_bank", "banking"]
 
 
-def test_begin_from_ge_enters_recover_and_uses_charge():
+@pytest.mark.parametrize("restock_enabled", [True, False])
+def test_begin_from_ge_restocks_first_then_recovers(restock_enabled):
+    s = build_machine({}, restock_enabled=restock_enabled, start_from_ge=True)
+    assert s.state == "restock" and s.at_ge is True        # GE mode asks for it, RESTOCK_GE or not
+    assert s.charges == 6
+    s.trigger("ok")
+    assert s.state == "recover" and s.charges == 5 and s.skip_restock is True
+
+
+def test_begin_from_ge_failed_restock_stops_with_why():
     s = build_machine({}, restock_enabled=True, start_from_ge=True)
-    assert s.state == "recover"
-    assert s.charges == 5
-    assert s.skip_restock is True
+    s.restock_error = "banker not found at the GE"
+    s.trigger("fail")
+    assert s.state == "stopped" and s.stop_reason == "GE restock failed: banker not found at the GE"
 
 
 def test_happy_trip_loops_back():

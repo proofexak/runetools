@@ -315,11 +315,13 @@ takes plain data; capture happens only in `lib/screen.grab`.
 ## What's working / WIP
 
 - Tanner bot: fully functional, recovery path + GE restock both tested and working. Now driven by the
-  state machine (PRO-12). Every glory teleport — failure recovery, post-GE return, "Run from GE"
-  start — goes through the `recover` state and uses one of the 6 charges; a failed "Run from GE"
+  state machine (PRO-12). Every glory teleport — failure recovery, post-GE return — goes through the
+  `recover` state and uses one of the 6 charges. GE mode (the "GE" button; standing at the GE) starts with
+  a restock there — no ring teleport, banker searched in `GE_REGION`, RESTOCK_GE on or off — then `recover`;
+  a failed GE-mode
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).
-  A normal start (not "Run from GE") banks first: face west → `walk_to_bank` (click the booth) →
+  A normal start (not GE mode) banks first: face west → `walk_to_bank` (click the booth) →
   `banking` (deposit + withdraw, empty-slot check skipped) → the usual trip.
 - Golden Nuggets miner: on the state machine and the scaffold; O/P work inside long waits (walking,
   mining, sack processing) too, and a pause during mining doesn't count toward the idle timeout.

@@ -222,21 +222,25 @@ def _teleport():
     time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
-def run_ge_flow(restock):
+def run_ge_flow(restock, teleport=True):
     """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
     `restock` → deposit all. (True, None) or (False, reason). The bank positions are
     the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
     same at every bank, and deposit-all puts the hides back on their own slot (the bot
     withdraws all-but-1, so the stack never leaves the bank). The price is checked
-    first, so one over the cap costs no ring teleport."""
+    first, so one over the cap costs no ring teleport. teleport=False: already standing
+    at the GE (tanner's GE mode) — the banker is looked for around the GE centre
+    (GE_REGION) instead of where the teleport lands (GE_APPROACH_REGION)."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
 
-    _teleport()
+    if teleport:
+        _teleport()
+    region = cfg.GE_APPROACH_REGION if teleport else cfg.GE_REGION
     for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
         face("west", cfg)
-        if open_bank(cfg.GE_APPROACH_REGION):
+        if open_bank(region):
             break
         say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
     else:

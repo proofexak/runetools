@@ -27,7 +27,8 @@ _WALK_TRADE = ["walk_to_tanner", "trade_ellis", "walk_to_bank"]
 _ACTIONS    = _WALK_TRADE + ["banking"]
 
 TRANSITIONS = [
-    {"trigger": "begin",   "source": "start",          "dest": "recover", "conditions": "start_from_ge"},
+    # GE mode: standing at the GE — restock there first (no ring teleport), then glory back
+    {"trigger": "begin",   "source": "start",          "dest": "restock", "conditions": "start_from_ge"},
     {"trigger": "begin",   "source": "start",          "dest": "walk_to_bank"},   # open the bank, deposit + withdraw first
 
     {"trigger": "ok",      "source": "walk_to_tanner", "dest": "trade_ellis"},
@@ -81,6 +82,7 @@ class TannerSession:
         self.looked          = False  # looked around since the last tan / recovery
         self.need            = None   # what look_around goes for: "ellis" or "bank"
         self.restock_error   = None   # why the last GE restock failed (lib.ge.run_ge_flow)
+        self.at_ge           = start_from_ge   # GE mode: the first restock needs no ring teleport
 
     def has_charges(self):
         return self.charges > 0
@@ -117,7 +119,10 @@ class TannerSession:
         self.skip_restock = False
 
     def on_enter_restock(self):
-        print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
+        if self.at_ge:
+            print("\n[RESTOCK] GE mode — restocking here first...")
+        else:
+            print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
 
     def on_enter_done(self):
         self.stop_reason = "out of hides, GE restock disabled"
@@ -133,7 +138,8 @@ class TannerSession:
         self.stop_reason = "recovery failed"
 
     def reason_restock_failed(self):
-        self.stop_reason = f"GE restock failed: {self.restock_error}" if self.restock_error             else "GE restock failed"
+        self.stop_reason = f"GE restock failed: {self.restock_error}" if self.restock_error \
+            else "GE restock failed"
 
     def reason_soft_stop(self):
         self.stop_reason = "stopped via overlay"

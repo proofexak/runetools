@@ -277,6 +277,15 @@ def test_run_ge_flow_retries_the_banker_without_teleporting_again(flow, monkeypa
     assert [c for c in calls if isinstance(c, str)] == ["teleport", "face", "face", "face"]
 
 
+def test_run_ge_flow_already_at_the_ge_skips_the_teleport(flow, monkeypatch):
+    ge, calls, log = flow
+    regions = []
+    monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
+    assert ge.run_ge_flow(_trip(), teleport=False) == (True, None)
+    assert "teleport" not in calls and "face" in calls
+    assert regions == [ge.cfg.GE_REGION, ge.cfg.GE_REGION]     # the banker near the GE centre, both times
+
+
 def test_run_ge_flow_spends_no_teleport_on_a_price_over_the_cap(flow):
     ge, calls, log = flow
     ok, why = ge.run_ge_flow(_trip(max_price=1000))     # fallback 2000 > 1000
