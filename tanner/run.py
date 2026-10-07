@@ -25,7 +25,8 @@ def _handlers(session):
         return "ok"
 
     def banking():
-        event = bank_event(do_bank(skip_restock_check=session.skip_restock))
+        last = session.tanned_enough()      # GE mode, the bought hides all tanned: deposit only
+        event = bank_event(do_bank(skip_restock_check=session.skip_restock or last, withdraw=not last))
         if event == "ok":
             time.sleep(random.uniform(0.5, 1.2))
         return event
@@ -39,6 +40,9 @@ def _handlers(session):
                                       sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
         # GE mode's first restock only buys, with the coins carried
         ok, session.restock_error = run_ge_flow(restock, sell_first=not session.buy_only)
+        if ok and session.buy_only:
+            session.bought(restock.quantity)
+            print(f"[RESTOCK] Bought {restock.quantity} hides — {session.tan_target} trips, then stop.")
         session.buy_only = False
         return ok_or_fail(ok)
 

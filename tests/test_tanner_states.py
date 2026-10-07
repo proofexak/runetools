@@ -90,6 +90,48 @@ def test_begin_from_ge_restocks_first_then_recovers(restock_enabled):
     assert s.state == "recover" and s.charges == 5 and s.skip_restock is True
 
 
+def _ge_mode_trip(s):
+    step(s, "ok", "ok", "ok", "ok")          # walk_to_tanner -> trade_ellis -> tanning -> walk_to_bank -> banking
+
+
+def test_ge_mode_tans_exactly_what_it_bought_then_stops():
+    s = build_machine({}, restock_enabled=True, start_from_ge=True)
+    s.bought(54)                              # 2 inventories
+    step(s, "ok", "ok")                       # restock -> recover -> walk_to_tanner
+    assert s.tan_target == 2 and not s.tanned_enough()
+    _ge_mode_trip(s)
+    step(s, "ok")                             # 1 tanned: bank, then the next trip
+    assert s.state == "walk_to_tanner"
+    _ge_mode_trip(s)
+    assert s.tanned_enough()                  # the run handler banks without withdrawing
+    step(s, "ok")
+    assert s.state == "done" and s.stop_reason == "tanned the 54 hides bought (2 trips)"
+
+
+def test_ge_mode_rounds_a_part_inventory_up():
+    s = build_machine({}, restock_enabled=True, start_from_ge=True)
+    s.bought(28)
+    assert s.tan_target == 2
+
+
+def test_a_recovered_trip_is_not_counted_twice():
+    s = build_machine({}, restock_enabled=True, start_from_ge=True)
+    s.bought(27)
+    step(s, "ok", "ok", "ok")                 # restock -> recover -> walk_to_tanner -> trade_ellis
+    step(s, "fail", "lost", "ok")             # trade failed -> look_around -> recover -> walk_to_tanner
+    assert s.tans == 0 and not s.tanned_enough()
+    _ge_mode_trip(s)
+    step(s, "ok")
+    assert s.state == "done"
+
+
+def test_a_normal_session_has_no_target():
+    s = started({}, True, False)
+    for _ in range(3):
+        step(s, *TRIP)
+    assert s.tans == 3 and s.state == "walk_to_tanner"
+
+
 def test_begin_from_ge_failed_restock_stops_with_why():
     s = build_machine({}, restock_enabled=True, start_from_ge=True)
     s.restock_error = "banker not found at the GE"

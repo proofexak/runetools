@@ -319,7 +319,9 @@ takes plain data; capture happens only in `lib/screen.grab`.
   `recover` state and uses one of the 6 charges. GE mode (the "GE" button) starts with a buy-only restock:
   ring to the GE → face west → GE clerk (searched in `GE_APPROACH_REGION`, no bank first) → buy `GE_QUANTITY`
   hides with the coins carried → deposit (`run_ge_flow(sell_first=False)`), RESTOCK_GE on or off — then
-  `recover`;
+  `recover`, and it tans exactly what it bought: ceil(quantity / `HIDES_PER_TRIP` 27) trips counted as tans
+  (`on_enter_tanning`, so a recovered trip isn't counted twice); the bank visit after the last one only
+  deposits (`do_bank(withdraw=False)`) and the session ends `done`;
   a failed GE-mode
   start now stops the session. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).

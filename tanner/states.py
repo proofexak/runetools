@@ -12,11 +12,14 @@ leather; the booth also works as a way back while carrying hides. Only when that
 look finds nothing useful ("lost") does it spend a glory charge (`recover`).
 One look per problem: it is allowed again after a tan or a recovery.
 """
+import math
+
 from transitions import Machine
 
 from lib.state_machine import ok_or_fail
 
 MAX_CHARGES  = 6   # amulet of glory
+HIDES_PER_TRIP = 27   # an inventory: 28 slots, one holds the coins
 CYCLE_START  = "walk_to_tanner"
 FINAL_STATES = {"done", "stopped"}
 
@@ -35,6 +38,9 @@ TRANSITIONS = [
     {"trigger": "ok",      "source": "trade_ellis",    "dest": "tanning"},
     {"trigger": "ok",      "source": "tanning",        "dest": "walk_to_bank"},
     {"trigger": "ok",      "source": "walk_to_bank",   "dest": "banking"},
+    # GE mode: once the hides it bought are tanned, the bank visit only deposits and the session ends
+    {"trigger": "ok",      "source": "banking",        "dest": "done", "conditions": "tanned_enough",
+     "after": "reason_tanned_bought"},
     {"trigger": "ok",      "source": "banking",        "dest": "walk_to_tanner", "after": "clear_skip_restock"},
 
     {"trigger": "restock", "source": "banking",        "dest": "restock",
@@ -83,6 +89,9 @@ class TannerSession:
         self.need            = None   # what look_around goes for: "ellis" or "bank"
         self.restock_error   = None   # why the last GE restock failed (lib.ge.run_ge_flow)
         self.buy_only        = start_from_ge   # GE mode: the first restock only buys
+        self.tans            = 0      # inventories tanned this session
+        self.tan_target      = None   # GE mode: stop once `tans` reaches this (set by bought())
+        self.bought_qty      = None
 
     def has_charges(self):
         return self.charges > 0
@@ -101,6 +110,15 @@ class TannerSession:
 
     def on_enter_tanning(self):
         self.looked = False    # a trip worked: a later problem gets its own look
+        self.tans += 1
+
+    def bought(self, quantity):
+        """GE mode's buy went through: tan exactly the inventories those hides make."""
+        self.bought_qty = quantity
+        self.tan_target = self.tans + math.ceil(quantity / HIDES_PER_TRIP)
+
+    def tanned_enough(self):
+        return self.tan_target is not None and self.tans >= self.tan_target
 
     def on_enter_walk_to_tanner(self):
         self.runs += 1
@@ -140,6 +158,9 @@ class TannerSession:
     def reason_restock_failed(self):
         self.stop_reason = f"GE restock failed: {self.restock_error}" if self.restock_error \
             else "GE restock failed"
+
+    def reason_tanned_bought(self):
+        self.stop_reason = f"tanned the {self.bought_qty} hides bought ({self.tan_target} trips)"
 
     def reason_soft_stop(self):
         self.stop_reason = "stopped via overlay"

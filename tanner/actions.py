@@ -260,7 +260,7 @@ def bank_is_open(timeout=5.0):
     return False
 
 
-def do_bank(skip_restock_check=False):
+def do_bank(skip_restock_check=False, withdraw=True):
     print("\n[BANK] Waiting for interface...")
     for retry in range(MAX_BANK_RETRIES):
         if bank_is_open():
@@ -307,9 +307,12 @@ def do_bank(skip_restock_check=False):
             pyautogui.press("escape")
             return "restock"
 
-    print("  Withdrawing hides...")
-    human_click(*jitter(*BANK_SLOT_1))
-    time.sleep(0.4)
+    if withdraw:
+        print("  Withdrawing hides...")
+        human_click(*jitter(*BANK_SLOT_1))
+        time.sleep(0.4)
+    else:
+        print("  Last trip done — not withdrawing.")
 
     pyautogui.press("escape")
     print("  Bank done.")
