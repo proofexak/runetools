@@ -170,7 +170,8 @@ instant-buy + 1 gp (the average, not the latest trade: an item that trades in bu
 minutes old and far off). Normal prices raise no low-price warning, so there's no Yes click. No live price: the sell keeps the
 price the GE fills in (guide price), the buy uses `GE_BUY_PRICE`; a buy is never above `GE_MAX_PRICE` (then it
 stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take focus (typed too early they go to
-public chat). O/P work in every wait.
+public chat). O/P work in every wait. The game logs out after 5 min with no click / key press, so every offer
+wait taps ← then → (`keep_awake`, camera turns and back) every `KEEP_AWAKE` 150-240 s.
 An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
 slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
 the game keeps the quantity left) to `restock.reprice` — always a fresh check: the latest trade + 1 gp (buy) /

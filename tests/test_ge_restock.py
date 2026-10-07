@@ -161,6 +161,22 @@ def ge(with_example_config, monkeypatch):
     return ge, log
 
 
+def test_a_long_offer_wait_taps_a_key_before_the_idle_logout(ge, monkeypatch):
+    ge, log = ge
+    now = [0.0]
+    monkeypatch.setattr(ge.time, "time", lambda: now[0])
+    monkeypatch.setattr(ge.time, "sleep", lambda s: now.__setitem__(0, now[0] + s))
+    monkeypatch.setattr(ge.random, "uniform", lambda a, b: a)        # taps every 150 s, polls every 1.5 s
+    taps = []
+    monkeypatch.setattr(ge.pyautogui, "keyDown", lambda k: taps.append((now[0], k)))
+    monkeypatch.setattr(ge.pyautogui, "keyUp", lambda k: None)
+    monkeypatch.setattr(ge, "pixel_matches", lambda *a, **k: False)   # never completes
+    assert ge.wait_offer(600) is False
+    starts = [t for t, k in taps if k == "left"]
+    assert len(starts) == 4 and all(b - a < 300 for a, b in zip([0.0] + starts, starts))   # never 5 min idle
+    assert [k for t, k in taps] == ["left", "right"] * 4                # turned and back each time
+
+
 def test_typed_numbers_wait_for_the_box_to_take_focus(ge):
     ge, log = ge
     ge._type_into((10, 20), "1")

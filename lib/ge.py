@@ -25,6 +25,9 @@ import lib.ge_config as cfg
 # typed too early, the digits and the Enter go to public chat instead.
 BOX_FOCUS = (0.7, 1.0)
 OFFER_TOL = 30    # the "complete" pixel varied by 17 in one channel while genuinely complete
+# The game logs out after 5 minutes without a click or key press — and an offer can sit for
+# longer than that. While waiting on one, a key tap every 2.5-4 minutes keeps the account in.
+KEEP_AWAKE = (150, 240)
 
 
 def _pause(lo=0.3, hi=0.5):
@@ -105,11 +108,29 @@ def buy(item, quantity, price):
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
 
 
+def keep_awake():
+    """Input that changes nothing: ← then → for the same moment (the camera turns and back),
+    so a long wait doesn't end in the 5-minute idle logout."""
+    hold = random.uniform(0.05, 0.09)
+    for key in ("left", "right"):
+        pyautogui.keyDown(key)
+        time.sleep(hold)
+        pyautogui.keyUp(key)
+
+
 def wait_offer(timeout):
-    """Wait up to `timeout` s for the offer to complete, then open it. O / P work."""
+    """Wait up to `timeout` s for the offer to complete, then open it. O / P work, and
+    keep_awake() runs every KEEP_AWAKE seconds meanwhile."""
     x, y, rgb = cfg.OFFER_COMPLETE
-    if not wait_for(lambda: pixel_matches(x, y, rgb, OFFER_TOL), timeout,
-                    poll=lambda: random.uniform(1.5, 2.5)):
+    next_tap = [time.time() + random.uniform(*KEEP_AWAKE)]
+
+    def complete():
+        if time.time() >= next_tap[0]:
+            keep_awake()
+            next_tap[0] = time.time() + random.uniform(*KEEP_AWAKE)
+        return pixel_matches(x, y, rgb, OFFER_TOL)
+
+    if not wait_for(complete, timeout, poll=lambda: random.uniform(1.5, 2.5)):
         return False
     _click((x, y))
     return True
