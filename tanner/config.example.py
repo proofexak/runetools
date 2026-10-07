@@ -73,9 +73,9 @@ HIDE_TAB     = (0, 0)
 BANK_SLOT_1  = (0, 0)
 BANK_SLOT_2  = (0, 0)
 
-# Dedicated pixel + colour for "is bank slot 2 empty" — calibrated directly
-# at that slot rather than reusing BANK_CHECK's background colour.
-EMPTY_SLOT_CHECK = (0, 0, (0, 0, 0))
+# The corner of the hide stack (BANK_SLOT_1) where its count is drawn. No count = the last 1
+# (withdraw all-but-1 never takes it) = restock. Box just the digits, not the icon.
+HIDE_COUNT_REGION = (0, 0, 0, 0)
 
 # ── Behaviour ─────────────────────────────────────────────────────────────────
 

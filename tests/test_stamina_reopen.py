@@ -63,7 +63,7 @@ def tanner(with_example_config, monkeypatch):
     monkeypatch.setattr(actions, "human_move", lambda x, y: None)
     monkeypatch.setattr(actions.pyautogui, "press", lambda key: calls.append(("press", key)))
     monkeypatch.setattr(actions.time, "sleep", lambda s: None)
-    monkeypatch.setattr(actions, "pixel_matches", lambda *a, **k: False)   # bank slot 2 not empty
+    monkeypatch.setattr(actions, "pixel_matches", lambda *a, **k: False)   # interfaces read as not open
     # the example config is all zeros: tell the buttons apart
     monkeypatch.setattr(actions, "BANK_SLOT_1", (690, 295))
     monkeypatch.setattr(actions, "DEPOSIT_BTN", (1043, 675))
@@ -124,7 +124,7 @@ def test_every_bank_switches_to_the_hide_tab_before_reading_or_withdrawing(tanne
     reads = []
     monkeypatch.setattr(actions, "bank_is_open", lambda timeout=5.0: True)
     monkeypatch.setattr(energy, "restock_stamina_at_bank", lambda **k: stamina)
-    monkeypatch.setattr(actions, "pixel_matches", lambda *a, **k: reads.append(len(calls)) or False)
+    monkeypatch.setattr(actions, "hide_count_shown", lambda: reads.append(len(calls)) or True)
     assert actions.do_bank() is True                         # a session's first bank
     del calls[:], reads[:]
     monkeypatch.setattr(energy, "restock_stamina_at_bank", lambda **k: False)
@@ -132,4 +132,4 @@ def test_every_bank_switches_to_the_hide_tab_before_reading_or_withdrawing(tanne
     tab = next(i for i, c in enumerate(calls) if _near(c, actions.HIDE_TAB))
     withdraw = next(i for i, c in enumerate(calls) if _near(c, actions.BANK_SLOT_1))
     assert tab < withdraw
-    assert reads and all(r > tab for r in reads)             # slot-2 check reads the hide tab
+    assert reads and all(r > tab for r in reads)             # the hide count is read on the hide tab

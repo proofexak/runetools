@@ -112,7 +112,7 @@ choc/                   chocolate dust grind bot — states.py (withdraw → gri
 tests/                  pytest suite (stub handlers, fake screen — no game needed):
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
-                         tanner (inventory_check, slot_check, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
+                         tanner (inventory_check, hide_count, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
                          choc (sequence), lib (read_energy, drink_stamina, drink_sequence, follow_offer)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
@@ -193,7 +193,12 @@ the GE's Sell button — that opens its offer with the quantity at all, so only 
 7. Tanner's state machine goes to `recover` next (glory back to Al Kharid)
 Choc's `restock_ge` uses the same blocks without the teleport.
 
-`do_bank(skip_restock_check=True)` skips the empty-slot-2 check (used after GE restock to prevent infinite loop).
+**When to restock (PRO-100).** Tanner withdraws all-but-1, so the hide stack (`BANK_SLOT_1`) never empties; OSRS
+draws no count on a stack of 1, so "out of hides" = no count number in `HIDE_COUNT_REGION` (`vision.stack_number_shown`:
+pixels in the count colours — yellow < 100K, white K, green M). `do_bank` then returns `"restock"` without withdrawing.
+Tanner won't start without the region (`actions.hide_count_calibrated`, checked in `run()`): it couldn't see it's out
+of hides and would walk to Ellis empty-handed, then burn glory charges. Live check: `tanner.checks.hide_count`.
+`do_bank(skip_restock_check=True)` skips that check (first bank of a session, after a GE restock).
 
 **Look around before recovering.** A bot that's lost first looks at the whole screen once and goes by what it
 sees: `lib.screen.look_for({name: (rgb, tol, near)})` → `{name: point | None}` (one grab, overlay excluded,
@@ -340,7 +345,7 @@ takes plain data; capture happens only in `lib/screen.grab`.
   progress). Same actions as the old loop — live-check with `choc.checks.sequence` before a long run.
 - Crafting (PoE): on the state machine and scaffold, own launcher; shift is released on any exit.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
-- Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). Fixed by adding `EMPTY_SLOT_CHECK`, a point+colour sampled directly on the actual slot while genuinely empty — don't reintroduce the reused-colour pattern elsewhere.
+- Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). `EMPTY_SLOT_CHECK` then sampled slot 2 directly — but slot 2 is the leather, and all-but-1 never empties the hide stack. Replaced by reading whether the hide stack shows a count (PRO-100) — don't reintroduce a background-pixel "is it empty" check.
 - Energy reading unreadable (`None`): `maybe_drink_stamina` does NOT drink, `restock_stamina_at_bank`
   DOES (safe side at the bank) — explicit via `needs_stamina(..., if_unreadable=)`.
 - Stamina potions: tested and working (`lib/energy.py`, wired into `tanner/actions.py`'s `do_bank()`). Cost analysis (see conversation, not saved anywhere else) found plain Energy potions are ~2.6x cheaper than Stamina potions for a bot's purposes despite Stamina's drain-reduction buff — the buff is genuinely valuable but doesn't close the price-per-restore gap. Not switched over since the user wanted Stamina specifically; worth revisiting if potion cost ever matters.

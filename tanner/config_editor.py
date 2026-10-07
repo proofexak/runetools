@@ -29,7 +29,7 @@ FIELDS = [
     ("Bank",        "Hide Tab",         "HIDE_TAB",             "point"),
     ("Bank",        "Bank Slot 1",      "BANK_SLOT_1",          "point"),
     ("Bank",        "Bank Slot 2",      "BANK_SLOT_2",          "point"),
-    ("Bank",        "Empty Slot Check", "EMPTY_SLOT_CHECK",     "point_color"),
+    ("Bank",        "Hide Count Region", "HIDE_COUNT_REGION",   "region"),
     ("Bank",        "Bank Region",      "BANK_REGION",          "region"),
     ("Tanning",     "Tanning Check",    "TANNING_CHECK",        "point_color"),
     ("Interface",   "Green Dragonhide", "IB:green dragonhide",  "point_color"),
@@ -56,6 +56,7 @@ REGION_COLORS = {
     "DOUBLE_DOORS_REGION":"#44ff88",
     "TP_BANK_REGION":     "#ff4444",
     "TP_BOOTH_REGION":    "#cc44ff",
+    "HIDE_COUNT_REGION":  "#ffff00",
 }
 
 

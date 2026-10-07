@@ -166,6 +166,19 @@ def filled_slot_count(frame, slots, bg_rgb, tol, box=7, min_pixels=5):
     return filled
 
 
+# The count OSRS draws on a stack: yellow below 100K, white for K, green for M. A stack of 1
+# has none.
+STACK_NUMBER_COLORS = ((255, 255, 0), (255, 255, 255), (0, 255, 128))
+
+
+def stack_number_shown(frame, colors=STACK_NUMBER_COLORS, tol=12, min_pixels=6):
+    """True when `frame` (the corner of a slot where its count is drawn) holds at least
+    `min_pixels` pixels in a count colour — the stack has 2 or more. False: a stack of 1
+    (or nothing). A digit is ~8-10 such pixels, so a few stray icon pixels don't count."""
+    hits = sum(int(color_mask(frame, rgb, tol).sum()) for rgb in colors)
+    return hits >= min_pixels
+
+
 # ── Frame differences ─────────────────────────────────────────────────────────
 
 def frame_difference(a, b):

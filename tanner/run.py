@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as config
 from tanner.actions import (orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, look_around,
                             recover, _wait_stopped)
+import tanner.actions as actions
 from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
 from lib.state_machine import ok_or_fail
 from lib.session import run_session
@@ -70,6 +71,12 @@ def _summary(session, final, last_step):
 
 
 def run(stats, start_from_ge=False):
+    if not actions.hide_count_calibrated():
+        # without it the bot can't see it's out of hides: all-but-1 withdraws nothing, it walks
+        # to Ellis empty-handed and spends glory charges recovering
+        print("\n[TANNER] Calibrate the Hide Count Region first (Tanning ⚙ → Bank → Hide Count Region):"
+              "\n  a box over the count on the hide stack — that's how the bot sees it's out of hides.")
+        return
     run_session(
         stats,
         bot          = "tanner",

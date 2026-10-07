@@ -7,7 +7,8 @@ import pyautogui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.mouse    import human_click, human_move, human_right_click, menu_click, jitter, random_area_click
-from lib.screen   import find_color, look_for, pixel_matches
+from lib.screen   import find_color, look_for, pixel_matches, grab
+import lib.vision as vision
 from lib.movement import wait_until_stopped
 from lib.camera import face
 import lib.pause as pause
@@ -24,8 +25,10 @@ from tanner.config import (
     MAX_ELLIS_TRIES, MAX_ELLIS_ROUNDS, ELLIS_ROUND_WAIT,
     MAX_BANK_RETRIES, MAX_BOOTH_TRIES,
     BANK_CHECK, INVENTORY_CHECK, DEPOSIT_BTN, HIDE_TAB, BANK_SLOT_1, BANK_SLOT_2,
-    EMPTY_SLOT_CHECK,
 )
+# the corner of the hide stack (BANK_SLOT_1) where its count is drawn; a config from before
+# PRO-100 doesn't have it yet
+HIDE_COUNT_REGION = getattr(_cfg, "HIDE_COUNT_REGION", (0, 0, 0, 0))
 
 
 def _wait_stopped():
@@ -38,6 +41,20 @@ def _wait_stopped():
 def orient_west():
     """Camera orientation at session start and after the recovery teleport."""
     face("west", _cfg)
+
+
+def hide_count_calibrated():
+    return HIDE_COUNT_REGION[2] > 0 and HIDE_COUNT_REGION[3] > 0
+
+
+def hide_count_shown():
+    """Bank open on the hide tab: does the hide stack show a count? True = 2 or more hides,
+    False = its last 1 (withdraw all-but-1 never takes it, OSRS draws no number on a 1),
+    None = HIDE_COUNT_REGION isn't calibrated."""
+    if not hide_count_calibrated():
+        return None
+    frame, _ = grab(HIDE_COUNT_REGION)
+    return vision.stack_number_shown(frame)
 
 
 def inventory_open():
@@ -300,10 +317,11 @@ def do_bank(skip_restock_check=False, withdraw=True):
     if not skip_restock_check:
         human_move(*jitter(*BANK_SLOT_1))
         time.sleep(0.6)
-        _, _, empty_color = EMPTY_SLOT_CHECK
-        bsx, bsy = BANK_SLOT_2
-        if pixel_matches(bsx, bsy, empty_color):
-            print("  Bank slot 2 empty — restocking from GE...")
+        shown = hide_count_shown()
+        if shown is None:
+            print("  HIDE_COUNT_REGION isn't calibrated — can't tell when to restock.")
+        elif not shown:
+            print("  Hide stack down to its last 1 — restocking from GE...")
             pyautogui.press("escape")
             return "restock"
 

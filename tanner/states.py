@@ -140,7 +140,7 @@ class TannerSession:
         if self.buy_only:
             print("\n[RESTOCK] GE mode — to the GE to buy hides first...")
         else:
-            print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
+            print("\n[RESTOCK] Out of hides — heading to GE...")
 
     def on_enter_done(self):
         self.stop_reason = "out of hides, GE restock disabled"
