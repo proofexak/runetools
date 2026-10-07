@@ -31,6 +31,12 @@ def resolve(bot_name, launch_label, value, bots):
     if launch is None:
         raise ValueError(f"unknown LAUNCH {launch_label!r} for {bot.name}; choose one of: "
                          f"{', '.join(l.label for l in bot.launches)}")
+    if launch.ask_choice:
+        prompt, options = launch.ask_choice
+        option = next((o for o in options if o.lower() == (value or "").strip().lower()), None)
+        if option is None:
+            raise ValueError(f"{bot.name} / {launch.label} needs VALUE ({prompt} {', '.join(options)})")
+        return bot, (lambda stats: launch.start(stats, option))
     if launch.ask_int:
         try:
             n = int(value)

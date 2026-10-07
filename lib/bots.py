@@ -19,10 +19,12 @@ EXIT_COLORS = ("#550000", "#881111")
 @dataclass
 class Launch:
     label:   str
-    start:   Callable                              # start(stats), or start(stats, n) with ask_int
+    start:   Callable                              # start(stats); start(stats, n) with ask_int,
+                                                    # start(stats, option) with ask_choice
     colors:  Tuple[str, str] = ("#1a3a1a", "#2d6a2d")
-    alt:     Optional[Tuple[str, Callable]] = None  # small side button, e.g. ("GE", start_from_ge)
+    alt:     Optional[Tuple[str, Callable]] = None  # small side button: (label, start)
     ask_int: Optional[str] = None                   # prompt for an integer before starting
+    ask_choice: Optional[Tuple[str, List[str]]] = None  # (question, options): pick one before starting
     configure: Optional[Callable[[], None]] = None  # this launch's editor, as a "⚙" side button
 
 
@@ -80,11 +82,12 @@ def run_guarded(start, stats, bot=None):
         return False
 
 
-def build_menu(bots, begin, ask_int, tools, flat=False):
+def build_menu(bots, begin, ask_int, tools, flat=False, ask_choice=None):
     """
     Overlay MENU (lib/overlay.py tuple format) for the given bots.
     begin(bot, start)   — hand a session to the main loop; start(stats) runs it
     ask_int(prompt, cb) — show an integer prompt, call cb(n) on submit
+    ask_choice(prompt, options, cb) — one button per option, call cb(option) on a click
     tools               — [(label, callable)] shown after the bots
     flat                — launches at top level instead of one submenu per bot
     """
@@ -92,12 +95,12 @@ def build_menu(bots, begin, ask_int, tools, flat=False):
     for bot in bots:
         items = []
         for launch in bot.launches:
-            item = (launch.label, _command(bot, launch, launch.start, begin, ask_int)) + launch.colors
+            item = (launch.label, _command(bot, launch, launch.start, begin, ask_int, ask_choice)) + launch.colors
             if launch.alt and launch.configure:
                 raise ValueError(f"{bot.name}/{launch.label}: a launch has one side button — alt or configure")
             if launch.alt:
                 alt_label, alt_start = launch.alt
-                item += ((alt_label, _command(bot, launch, alt_start, begin, ask_int)),)
+                item += ((alt_label, _command(bot, launch, alt_start, begin, ask_int, ask_choice)),)
             elif launch.configure:
                 item += (("⚙", launch.configure),)
             items.append(item)
@@ -113,7 +116,11 @@ def build_menu(bots, begin, ask_int, tools, flat=False):
     return menu
 
 
-def _command(bot, launch, start, begin, ask_int):
+def _command(bot, launch, start, begin, ask_int, ask_choice=None):
+    if launch.ask_choice:
+        prompt, options = launch.ask_choice
+        return lambda: ask_choice(prompt, options,
+                                  lambda option: begin(bot, lambda stats: start(stats, option)))
     if launch.ask_int:
         return lambda: ask_int(launch.ask_int,
                                lambda n: begin(bot, lambda stats: start(stats, n)))

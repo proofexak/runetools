@@ -199,8 +199,9 @@ def look_around(need):
     return "lost"
 
 
-def recover():
-    """Teleport to Al Kharid via amulet, walk to bank, do_bank. Returns True on success."""
+def recover(skip_restock_check=True):
+    """Teleport to Al Kharid via amulet, walk to bank, do_bank. True on success, "restock"
+    when that bank finds the hide stack at its last 1, False on failure."""
     booth_region = getattr(_cfg, "TP_BOOTH_REGION", (0, 0, 0, 0))
     if not all(booth_region[2:]):
         print("[RECOVERY] TP Booth Region not calibrated (Tanning → ⚙ Configure) — recovery failed.")
@@ -258,12 +259,36 @@ def recover():
         print("[RECOVERY] Could not find bank booth — recovery failed.")
         return False
 
-    result = do_bank(skip_restock_check=True)
+    result = do_bank(skip_restock_check=skip_restock_check)
+    if result == "restock":
+        print("[RECOVERY] At the bank — out of hides.")
+        return "restock"
     if not result:
         print("[RECOVERY] Banking failed — recovery failed.")
         return False
 
     print("[RECOVERY] Complete.")
+    return True
+
+
+def check_ge_bank():
+    """Started at the GE: open the GE bank, read the hide count on the hide tab, close.
+    True = hides to tan, "restock" = the last 1, False = no banker / bank didn't open."""
+    import lib.ge as ge
+    import lib.ge_config as ge_cfg
+    print("\n[GE BANK] Reading the hide count at the GE...")
+    face("west", ge_cfg)
+    if not ge.open_bank(ge_cfg.GE_REGION):
+        print("[GE BANK] Banker not found.")
+        return False
+    human_click(*jitter(*HIDE_TAB))
+    time.sleep(random.uniform(0.6, 0.9))
+    shown = hide_count_shown()
+    ge.close_bank()
+    if shown is False:
+        print("[GE BANK] Hide stack down to its last 1.")
+        return "restock"
+    print("[GE BANK] Hides in the bank — off to Al Kharid.")
     return True
 
 
@@ -277,7 +302,7 @@ def bank_is_open(timeout=5.0):
     return False
 
 
-def do_bank(skip_restock_check=False, withdraw=True):
+def do_bank(skip_restock_check=False):
     print("\n[BANK] Waiting for interface...")
     for retry in range(MAX_BANK_RETRIES):
         if bank_is_open():
@@ -325,12 +350,9 @@ def do_bank(skip_restock_check=False, withdraw=True):
             pyautogui.press("escape")
             return "restock"
 
-    if withdraw:
-        print("  Withdrawing hides...")
-        human_click(*jitter(*BANK_SLOT_1))
-        time.sleep(0.4)
-    else:
-        print("  Last trip done — not withdrawing.")
+    print("  Withdrawing hides...")
+    human_click(*jitter(*BANK_SLOT_1))
+    time.sleep(0.4)
 
     pyautogui.press("escape")
     print("  Bank done.")

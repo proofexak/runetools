@@ -13,12 +13,15 @@ HIDES = [
 ]
 
 
-def _start(hide, from_ge=False):
-    def start(stats):
+WHERE = ("Where are you?", ["Al Kharid", "GE"])
+
+
+def _start(hide):
+    def start(stats, where):
         import tanner.config as config
         from tanner.run import run
         config.HIDE_TYPE = hide
-        run(stats, start_from_ge=from_ge)
+        run(stats, start_at=where)
     return start
 
 
@@ -31,7 +34,7 @@ BOT = Bot(
     name       = "Tanning",
     order      = 10,
     colors     = ("#1a3a1a", "#2d6a2d"),
-    launches   = [Launch(label, _start(hide), (bg, hover), alt=("GE", _start(hide, from_ge=True)))
+    launches   = [Launch(label, _start(hide), (bg, hover), ask_choice=WHERE)
                   for label, hide, bg, hover in HIDES],
     configure  = _configure,
     stats_line = lambda s: f"Hides:   {s['run'] * 27}",

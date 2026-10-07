@@ -74,9 +74,9 @@ def close_bank():
 
 # ── GE interface ──────────────────────────────────────────────────────────────
 
-def open_ge(region=None):
-    """Find the magenta GE clerk in `region` (GE_REGION), click, confirm the GE opened."""
-    return open_interface(cfg.MAGENTA, cfg.MAGENTA_TOL, region or cfg.GE_REGION, cfg.GE_CHECK,
+def open_ge():
+    """Find the magenta GE clerk in GE_REGION, click, confirm the GE opened."""
+    return open_interface(cfg.MAGENTA, cfg.MAGENTA_TOL, cfg.GE_REGION, cfg.GE_CHECK,
                           cfg.MAX_AGENT_TRIES, what="[GE] Exchange")
 
 
@@ -204,24 +204,22 @@ def offer_price(restock):
     return buy_offer_price(restock, prices.quote(restock.buy_item) if restock.live_prices else None)
 
 
-def trade(restock, sell_first=True):
-    """GE open: sell the item in inventory slot restock.sell_inv_slot (unless not
-    `sell_first`: buying with the coins carried), buy `restock`, collect.
-    (True, None) or (False, reason)."""
-    if sell_first and not restock.sell_inv_slot:
+def trade(restock):
+    """GE open, the item to sell in inventory slot restock.sell_inv_slot: sell it, buy
+    `restock`, collect both. (True, None) or (False, reason)."""
+    if not restock.sell_inv_slot:
         return False, "no inventory slot for the item to sell (SELL_INV_SLOT)"
     price, source = offer_price(restock)
     if price is None:
         return False, source
-    if sell_first:
-        quote = prices.quote(restock.sell_item) if restock.live_prices and restock.sell_item else None
-        sell_at, sell_source = sell_offer_price(restock, quote)
-        say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
-            f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
-        sell(restock.sell_inv_slot, sell_at)
-        ok, why = follow_offer(restock, "sell", sell_at)
-        if not ok:
-            return False, why
+    quote = prices.quote(restock.sell_item) if restock.live_prices and restock.sell_item else None
+    sell_at, sell_source = sell_offer_price(restock, quote)
+    say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
+        f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
+    sell(restock.sell_inv_slot, sell_at)
+    ok, why = follow_offer(restock, "sell", sell_at)
+    if not ok:
+        return False, why
     say(f"[GE] Buying {restock.quantity} x {restock.buy_item} at {price} gp ({source})")
     buy(restock.buy_item, restock.quantity, price)
     return follow_offer(restock, "buy", price)
@@ -245,39 +243,38 @@ def _teleport():
     time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
-def run_ge_flow(restock, sell_first=True):
+def run_ge_flow(restock, teleport=True):
     """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
     `restock` → deposit all. (True, None) or (False, reason). The bank positions are
     the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
     same at every bank, and deposit-all puts the hides back on their own slot (the bot
     withdraws all-but-1, so the stack never leaves the bank). The price is checked
-    first, so one over the cap costs no ring teleport. sell_first=False (tanner's GE
-    mode): only buy, with the coins carried — no bank before the GE, so the clerk is
-    looked for where the teleport lands (GE_APPROACH_REGION)."""
+    first, so one over the cap costs no ring teleport. teleport=False: already at the GE
+    (tanner started there) — the banker is looked for around the GE centre (GE_REGION)
+    instead of where the teleport lands (GE_APPROACH_REGION)."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
 
-    _teleport()
-    if sell_first:
-        for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
-            face("west", cfg)
-            if open_bank(cfg.GE_APPROACH_REGION):
-                break
-            say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
-        else:
-            return False, "banker not found at the GE"
-
-        _click(restock.bank_tab)
-        if not withdraw_noted(restock.sell_slot):
-            return False, "notes toggle didn't respond"
-        close_bank()
-    else:
+    if teleport:
+        _teleport()
+    region = cfg.GE_APPROACH_REGION if teleport else cfg.GE_REGION
+    for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
         face("west", cfg)
+        if open_bank(region):
+            break
+        say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
+    else:
+        return False, "banker not found at the GE"
 
-    if not open_ge(None if sell_first else cfg.GE_APPROACH_REGION):
+    _click(restock.bank_tab)
+    if not withdraw_noted(restock.sell_slot):
+        return False, "notes toggle didn't respond"
+    close_bank()
+
+    if not open_ge():
         return False, "could not open the GE"
-    ok, why = trade(restock, sell_first)
+    ok, why = trade(restock)
     if not ok:
         return False, why
     close_ge()

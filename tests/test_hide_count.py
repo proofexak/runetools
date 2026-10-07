@@ -84,15 +84,15 @@ def test_hide_count_shown_reads_the_region(fake_screen, with_example_config, mon
     assert actions.hide_count_shown() is False
 
 
-@pytest.mark.parametrize("from_ge", [False, True])
-def test_tanner_wont_start_without_the_hide_count_region(with_example_config, monkeypatch, capsys, from_ge):
+@pytest.mark.parametrize("where", ["Al Kharid", "GE"])
+def test_tanner_wont_start_without_the_hide_count_region(with_example_config, monkeypatch, capsys, where):
     # without it the bot can't see it's out of hides: all-but-1 withdraws nothing and it
     # walks to Ellis empty-handed, then spends glory charges recovering
     with_example_config("lib", "energy", config="energy_config")
     with_example_config("lib", "ge", config="ge_config")
     run = with_example_config("tanner", "run")
     monkeypatch.setattr(run, "run_session", lambda *a, **k: pytest.fail("session started"))
-    run.run({}, start_from_ge=from_ge)
+    run.run({}, where)
     assert "Hide Count Region" in capsys.readouterr().out
 
 
@@ -102,6 +102,6 @@ def test_tanner_starts_once_it_is_calibrated(with_example_config, monkeypatch):
     run = with_example_config("tanner", "run")
     monkeypatch.setattr(run.actions, "HIDE_COUNT_REGION", (100, 50, 26, 10))
     started = []
-    monkeypatch.setattr(run, "run_session", lambda *a, **k: started.append(k["bot"]))
-    run.run({})
-    assert started == ["tanner"]
+    monkeypatch.setattr(run, "run_session", lambda *a, **k: started.append((k["bot"], k["params"]["start_at"])))
+    run.run({}, "GE")
+    assert started == [("tanner", "GE")]

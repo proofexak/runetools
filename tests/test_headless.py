@@ -85,7 +85,9 @@ def supervisor_events(tmp_path):
 # ── resolve ───────────────────────────────────────────────────────────────────
 
 def _bots():
-    return [Bot("Tanning", [Launch("Green Dragonhide", lambda s: "green")]),
+    return [Bot("Tanning", [Launch("Green Dragonhide", lambda s: "green"),
+                            Launch("Black Dragonhide", lambda s, where: where,
+                                   ask_choice=("Where are you?", ["Al Kharid", "GE"]))]),
             Bot("Choco Grind", [Launch("Run", lambda s, n: n, ask_int="How many?")])]
 
 
@@ -99,6 +101,14 @@ def test_resolve_ask_int_needs_value():
         headless.resolve("Choco Grind", "Run", None, _bots())
     bot, start = headless.resolve("Choco Grind", "Run", "500", _bots())
     assert start({}) == 500
+
+
+def test_resolve_ask_choice_takes_one_of_the_options():
+    bot, start = headless.resolve("Tanning", "Black Dragonhide", "ge", _bots())
+    assert start({}) == "GE"                           # the option's own spelling
+    for value in (None, "Varrock"):
+        with pytest.raises(ValueError, match="Al Kharid, GE"):
+            headless.resolve("Tanning", "Black Dragonhide", value, _bots())
 
 
 @pytest.mark.parametrize("bot,launch,msg", [("Nope", "x", "Tanning"), ("Tanning", "Blue", "Green Dragonhide")])

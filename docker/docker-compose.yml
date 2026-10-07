@@ -28,7 +28,7 @@ services:
       - RUNELITE_FPS=${RUNELITE_FPS:-30}
       - RUNELITE_JAVA_OPTS=${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}
       # Unattended mode (docker/README.md): set BOT + LAUNCH (and VALUE for a
-      # launch that asks for a number) and the container runs lib.headless,
+      # launch that asks — a number, or Tanning's "Al Kharid" / "GE") and the container runs lib.headless,
       # which logs in, runs the bot and restarts it. Unset = manual mode.
       - BOT=${BOT:-}
       - LAUNCH=${LAUNCH:-}

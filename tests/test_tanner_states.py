@@ -7,7 +7,7 @@ from tanner.states import (
 )
 
 ACTION_STATES = ["walk_to_tanner", "trade_ellis", "tanning", "walk_to_bank",
-                 "banking", "restock", "look_around", "recover"]
+                 "banking", "restock", "look_around", "recover", "ge_bank"]
 
 
 @pytest.fixture(autouse=True)
@@ -48,9 +48,9 @@ def started(*args, **kwargs):
 
 
 def test_begin_normal_banks_first_then_walks_and_counts_run():
-    s = build_machine({}, restock_enabled=True, start_from_ge=False)
+    s = build_machine({}, restock_enabled=True, at_ge=False)
     assert s.state == "walk_to_bank"         # clicks the booth first
-    assert s.runs == 0 and s.skip_restock is True
+    assert s.runs == 0 and s.skip_restock is False   # and reads the hide count there
     assert s.charges == MAX_CHARGES == 6
     step(s, "ok")
     assert s.state == "banking"
@@ -70,7 +70,7 @@ def test_opening_bank_failure_looks_around_then_recovers(before):
 
 
 def test_opening_bank_out_of_hides_restocks():
-    s = build_machine({}, restock_enabled=True, start_from_ge=False)
+    s = build_machine({}, restock_enabled=True, at_ge=False)
     step(s, "ok", "restock")
     assert s.state == "restock"
 
@@ -81,62 +81,68 @@ def test_soft_stop_during_countdown_still_banks_first():
     assert final == "stopped" and visited == ["walk_to_bank", "banking"]
 
 
+# ── "Where are you?" — GE (PRO-101) ──────────────────────────────────────────
+
+def test_begin_at_ge_checks_the_ge_bank_first():
+    s = build_machine({}, restock_enabled=True, at_ge=True)
+    assert s.state == "ge_bank" and s.charges == 6
+
+
+def test_at_ge_with_hides_glories_to_al_kharid_and_tans():
+    s = build_machine({}, restock_enabled=True, at_ge=True)
+    step(s, "ok")                             # count shown
+    assert s.state == "recover" and s.charges == 5
+    assert s.skip_restock is True             # just read it: the recovery's bank doesn't again
+    step(s, "ok")
+    assert s.state == "walk_to_tanner" and s.skip_restock is False
+
+
 @pytest.mark.parametrize("restock_enabled", [True, False])
-def test_begin_from_ge_restocks_first_then_recovers(restock_enabled):
-    s = build_machine({}, restock_enabled=restock_enabled, start_from_ge=True)
-    assert s.state == "restock" and s.buy_only is True     # GE mode asks for it, RESTOCK_GE or not
-    assert s.charges == 6
-    s.trigger("ok")
+def test_at_ge_out_of_hides_restocks_right_there(restock_enabled):
+    s = build_machine({}, restock_enabled=restock_enabled, at_ge=True)
+    step(s, "restock")                        # no count on the hide stack
+    if not restock_enabled:
+        assert s.state == "done"
+        return
+    assert s.state == "restock" and s.at_ge is True      # the run handler skips the ring teleport
+    step(s, "ok")
     assert s.state == "recover" and s.charges == 5 and s.skip_restock is True
 
 
-def _ge_mode_trip(s):
-    step(s, "ok", "ok", "ok", "ok")          # walk_to_tanner -> trade_ellis -> tanning -> walk_to_bank -> banking
+def test_at_ge_without_charges_never_restocks():
+    s = build_machine({}, restock_enabled=True, at_ge=True, charges=0)
+    step(s, "restock")
+    assert s.state == "stopped" and "no glory charges" in s.stop_reason
 
 
-def test_ge_mode_tans_exactly_what_it_bought_then_stops():
-    s = build_machine({}, restock_enabled=True, start_from_ge=True)
-    s.bought(54)                              # 2 inventories
-    step(s, "ok", "ok")                       # restock -> recover -> walk_to_tanner
-    assert s.tan_target == 2 and not s.tanned_enough()
-    _ge_mode_trip(s)
-    step(s, "ok")                             # 1 tanned: bank, then the next trip
-    assert s.state == "walk_to_tanner"
-    _ge_mode_trip(s)
-    assert s.tanned_enough()                  # the run handler banks without withdrawing
-    step(s, "ok")
-    assert s.state == "done" and s.stop_reason == "tanned the 54 hides bought (2 trips)"
+def test_at_ge_bank_not_found_stops_with_why():
+    s = build_machine({}, restock_enabled=True, at_ge=True)
+    step(s, "fail")
+    assert s.state == "stopped" and s.stop_reason == "GE bank not found"
 
 
-def test_ge_mode_rounds_a_part_inventory_up():
-    s = build_machine({}, restock_enabled=True, start_from_ge=True)
-    s.bought(28)
-    assert s.tan_target == 2
-
-
-def test_a_recovered_trip_is_not_counted_twice():
-    s = build_machine({}, restock_enabled=True, start_from_ge=True)
-    s.bought(27)
-    step(s, "ok", "ok", "ok")                 # restock -> recover -> walk_to_tanner -> trade_ellis
-    step(s, "fail", "lost", "ok")             # trade failed -> look_around -> recover -> walk_to_tanner
-    assert s.tans == 0 and not s.tanned_enough()
-    _ge_mode_trip(s)
-    step(s, "ok")
-    assert s.state == "done"
-
-
-def test_a_normal_session_has_no_target():
-    s = started({}, True, False)
-    for _ in range(3):
-        step(s, *TRIP)
-    assert s.tans == 3 and s.state == "walk_to_tanner"
-
-
-def test_begin_from_ge_failed_restock_stops_with_why():
-    s = build_machine({}, restock_enabled=True, start_from_ge=True)
-    s.restock_error = "banker not found at the GE"
+def test_at_ge_failed_restock_stops_with_why():
+    s = build_machine({}, restock_enabled=True, at_ge=True)
+    step(s, "restock")
+    s.restock_error = "sell offer never completed"
     s.trigger("fail")
-    assert s.state == "stopped" and s.stop_reason == "GE restock failed: banker not found at the GE"
+    assert s.state == "stopped" and s.stop_reason == "GE restock failed: sell offer never completed"
+
+
+# ── "Where are you?" — Al Kharid: booth not found → glory, then the count decides ──
+
+def test_al_kharid_booth_not_found_recovers_and_the_recovery_bank_can_restock():
+    s = build_machine({}, restock_enabled=True, at_ge=False)
+    step(s, "fail", "lost")                   # booth not found -> look around -> glory
+    assert s.state == "recover" and s.skip_restock is False   # its bank reads the count
+    step(s, "restock")                        # last 1 hide
+    assert s.state == "restock" and s.at_ge is False         # ring to the GE as usual
+
+
+def test_recover_with_hides_goes_tanning():
+    s = build_machine({}, restock_enabled=True, at_ge=False)
+    step(s, "fail", "lost", "ok")
+    assert s.state == "walk_to_tanner"
 
 
 def test_happy_trip_loops_back():
@@ -183,7 +189,7 @@ def test_recover_fail_stops():
 
 
 def test_restock_enabled_goes_restock_then_recover():
-    s = started({}, restock_enabled=True, start_from_ge=False)
+    s = started({}, restock_enabled=True, at_ge=False)
     step(s, "ok", "ok", "ok", "ok", "restock")
     assert s.state == "restock"
     s.skip_restock = False
@@ -193,7 +199,7 @@ def test_restock_enabled_goes_restock_then_recover():
 
 
 def test_restock_disabled_goes_done():
-    s = started({}, restock_enabled=False, start_from_ge=False)
+    s = started({}, restock_enabled=False, at_ge=False)
     step(s, "ok", "ok", "ok", "ok", "restock")
     assert s.state == "done"
 
@@ -224,7 +230,7 @@ def test_stop_reason_soft_stop():
 
 
 def test_done_reason():
-    s = started({}, restock_enabled=False, start_from_ge=False)
+    s = started({}, restock_enabled=False, at_ge=False)
     step(s, "ok", "ok", "ok", "ok", "restock")
     assert s.state == "done" and s.stop_reason == "out of hides, GE restock disabled"
 
@@ -241,14 +247,18 @@ def test_restock_fail_stops():
     assert s.state == "stopped"
 
 
-def test_skip_restock_lifecycle():
+def test_skip_restock_only_right_after_a_restock():
     s = build_machine({}, True, False)
-    assert s.skip_restock is True             # the opening bank skips the empty-slot check
+    assert s.skip_restock is False            # every bank reads the hide count...
     step(s, "ok", "ok", *TRIP)
     assert s.skip_restock is False
-    step(s, "ok", "ok", "ok", "ok", "fail")   # banking fails -> look around
-    assert s.skip_restock is True
-    step(s, "lost", "ok", *TRIP)              # -> recover -> a normal trip
+    step(s, "ok", "ok", "ok", "ok", "fail")   # a failed bank -> look around: still reads it
+    assert s.skip_restock is False
+    step(s, "lost")
+    assert s.state == "recover" and s.skip_restock is False
+    step(s, "restock", "ok")                  # ...except the bank right after a restock
+    assert s.state == "recover" and s.skip_restock is True
+    step(s, "ok")
     assert s.skip_restock is False
 
 

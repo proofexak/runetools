@@ -62,3 +62,46 @@ def test_uncalibrated_booth_region_fails_before_searching(recover_env, monkeypat
     monkeypatch.setattr(actions, "find_color", lambda *a, **k: pytest.fail("searched an empty region"))
     assert actions.recover() is False
     assert calls == []   # fails before teleporting: no glory charge spent on a doomed recovery
+
+
+@pytest.mark.parametrize("skip", [True, False])
+def test_recovery_bank_reads_the_hide_count_unless_told_not_to(recover_env, monkeypatch, skip):
+    # PRO-101: a recovery that lands on the last hide restocks instead of walking to Ellis empty
+    actions, calls = recover_env
+    asked = []
+    monkeypatch.setattr(actions, "find_color", lambda *a, **k: ((330, 415), None))
+    monkeypatch.setattr(actions, "do_bank",
+                        lambda skip_restock_check=False: asked.append(skip_restock_check) or "restock")
+    assert actions.recover(skip_restock_check=skip) == "restock"
+    assert asked == [skip]
+
+
+# ── started at the GE: read the hide count there ──────────────────────────────
+
+@pytest.fixture
+def ge_bank(with_example_config, monkeypatch):
+    with_example_config("lib", "energy", config="energy_config")
+    ge = with_example_config("lib", "ge", config="ge_config")
+    actions = with_example_config("tanner", "actions")
+    calls = []
+    monkeypatch.setattr(actions.time, "sleep", lambda s: None)
+    monkeypatch.setattr(actions, "face", lambda d, cfg: calls.append(("face", d)))
+    monkeypatch.setattr(actions, "human_click", lambda x, y: calls.append(("click",)))
+    monkeypatch.setattr(ge, "open_bank", lambda region: calls.append(("open", region)) or True)
+    monkeypatch.setattr(ge, "close_bank", lambda: calls.append(("close",)))
+    return actions, ge, calls
+
+
+@pytest.mark.parametrize("shown,result", [(True, True), (False, "restock")])
+def test_check_ge_bank_reads_the_count_then_closes(ge_bank, monkeypatch, shown, result):
+    actions, ge, calls = ge_bank
+    monkeypatch.setattr(actions, "hide_count_shown", lambda: calls.append(("read",)) or shown)
+    assert actions.check_ge_bank() == result
+    assert calls == [("face", "west"), ("open", ge.cfg.GE_REGION), ("click",), ("read",), ("close",)]
+
+
+def test_check_ge_bank_without_a_banker_fails(ge_bank, monkeypatch):
+    actions, ge, calls = ge_bank
+    monkeypatch.setattr(ge, "open_bank", lambda region: False)
+    monkeypatch.setattr(actions, "hide_count_shown", lambda: pytest.fail("read the count"))
+    assert actions.check_ge_bank() is False

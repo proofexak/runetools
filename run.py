@@ -65,6 +65,30 @@ def _ask_int(prompt, on_value):
               relief="flat", padx=12).pack(pady=(6, 8))
 
 
+def _ask_choice(prompt, options, on_choice):
+    """One button per option; a click starts the bot with it. Mouse only, so no keyboard
+    focus is needed (Docker has no window manager)."""
+    import tkinter as tk
+
+    dlg = tk.Toplevel()
+    dlg.title("RuneTools")
+    dlg.configure(bg="#0f0f1e")
+    dlg.geometry(f"260x{60 + 34 * len(options)}+300+300")
+    dlg.wm_attributes("-topmost", True)
+
+    tk.Label(dlg, text=prompt, bg="#0f0f1e", fg="#ccccee", font=("Consolas", 9)
+             ).pack(padx=10, pady=(12, 6))
+
+    def _pick(option):
+        dlg.destroy()
+        on_choice(option)
+
+    for option in options:
+        tk.Button(dlg, text=option, command=lambda o=option: _pick(o),
+                  bg="#1a3322", fg="#00ff88", font=("Consolas", 9),
+                  relief="flat", padx=12).pack(fill="x", padx=16, pady=3)
+
+
 def _open_ge_editor():
     from lib.ge_config_editor import open_ge_editor
     open_ge_editor()
@@ -89,6 +113,7 @@ MENU = build_menu(
     discover(ROOT),
     begin   = _begin,
     ask_int = _ask_int,
+    ask_choice = _ask_choice,
     tools   = [("⚙ GE Config", _open_ge_editor), ("⚙ Energy Config", _open_energy_editor),
                ("⚙ Client Templates", _open_client_templates)],
 )

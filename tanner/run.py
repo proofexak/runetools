@@ -9,7 +9,7 @@ import time, random, sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import tanner.config as config
 from tanner.actions import (orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, look_around,
-                            recover, _wait_stopped)
+                            recover, check_ge_bank, _wait_stopped)
 import tanner.actions as actions
 from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
 from lib.state_machine import ok_or_fail
@@ -26,8 +26,7 @@ def _handlers(session):
         return "ok"
 
     def banking():
-        last = session.tanned_enough()      # GE mode, the bought hides all tanned: deposit only
-        event = bank_event(do_bank(skip_restock_check=session.skip_restock or last, withdraw=not last))
+        event = bank_event(do_bank(skip_restock_check=session.skip_restock))
         if event == "ok":
             time.sleep(random.uniform(0.5, 1.2))
         return event
@@ -39,17 +38,14 @@ def _handlers(session):
                                       sell_inv_slot=getattr(config, "SELL_INV_SLOT", None),
                                       bank_tab=config.HIDE_TAB,
                                       sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
-        # GE mode's first restock only buys, with the coins carried
-        ok, session.restock_error = run_ge_flow(restock, sell_first=not session.buy_only)
-        if ok and session.buy_only:
-            session.bought(restock.quantity)
-            print(f"[RESTOCK] Bought {restock.quantity} hides — {session.tan_target} trips, then stop.")
-        session.buy_only = False
+        # started at the GE and out of hides there: no ring teleport for this one
+        ok, session.restock_error = run_ge_flow(restock, teleport=not session.at_ge)
+        session.at_ge = False
         return ok_or_fail(ok)
 
     def recover_():
         print(f"\n[RECOVERY] Using charge ({session.charges} remaining after this)...")
-        return ok_or_fail(recover())
+        return bank_event(recover(skip_restock_check=session.skip_restock))
 
     return {
         "walk_to_tanner": lambda: ok_or_fail(walk_to_tanner()),
@@ -60,6 +56,7 @@ def _handlers(session):
         "restock":        restock,
         "look_around":    lambda: look_around(session.need),
         "recover":        recover_,
+        "ge_bank":        lambda: bank_event(check_ge_bank()),
     }
 
 
@@ -70,7 +67,8 @@ def _summary(session, final, last_step):
     return f"Runs: {session.runs}"
 
 
-def run(stats, start_from_ge=False):
+def run(stats, start_at="Al Kharid"):
+    """start_at: the answer to "Where are you?" — "Al Kharid" or "GE"."""
     if not actions.hide_count_calibrated():
         # without it the bot can't see it's out of hides: all-but-1 withdraws nothing, it walks
         # to Ellis empty-handed and spends glory charges recovering
@@ -80,12 +78,12 @@ def run(stats, start_from_ge=False):
     run_session(
         stats,
         bot          = "tanner",
-        params       = {"hide_type": config.HIDE_TYPE, "start_from_ge": start_from_ge,
+        params       = {"hide_type": config.HIDE_TYPE, "start_at": start_at,
                         "restock_ge": config.RESTOCK_GE},
         log_prefix   = os.path.join(os.path.dirname(__file__), "log", "tanner"),
-        intro        = [f"\nHide type: {config.HIDE_TYPE}"],
+        intro        = [f"\nHide type: {config.HIDE_TYPE} — starting at {start_at}"],
         setup        = orient_west,
-        session      = lambda: build_machine(stats, config.RESTOCK_GE, start_from_ge),
+        session      = lambda: build_machine(stats, config.RESTOCK_GE, at_ge=start_at.strip().lower() == "ge"),
         handlers     = _handlers,
         final_states = FINAL_STATES,
         cycle_start  = CYCLE_START,

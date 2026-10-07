@@ -88,6 +88,20 @@ def test_ask_int_launch_prompts_then_begins_with_value():
     assert got == [({"run": 0}, 7)]
 
 
+def test_ask_choice_launch_prompts_then_begins_with_the_pick():
+    got = []
+    bots = [Bot("Tanning", [Launch("Green", start=lambda stats, where: got.append(where),
+                                   ask_choice=("Where are you?", ["Al Kharid", "GE"]))])]
+    prompts, begun = [], []
+    menu = build_menu(bots, begin=lambda b, f: begun.append(f), ask_int=None, tools=[],
+                      ask_choice=lambda p, options, cb: prompts.append((p, options, cb)))
+    menu[0][1][0][1]()           # click "Green"
+    assert prompts[0][:2] == ("Where are you?", ["Al Kharid", "GE"]) and not begun
+    prompts[0][2]("GE")          # user picks GE
+    begun[0]({"run": 0})
+    assert got == ["GE"]
+
+
 def test_discover_skips_descriptor_that_is_not_a_bot(tmp_path, monkeypatch, capsys):
     monkeypatch.syspath_prepend(str(tmp_path))
     _pkg(tmp_path, "zz_bot_d", "from lib.bots import Bot\nBOT = Bot('D', [])\n")

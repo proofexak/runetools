@@ -79,7 +79,7 @@ webapp/                 web app (PRO-88): per-account stats + encrypted login va
   e2e/                  Playwright specs (pnpm e2e)
 
 tanner/                 Al Kharid leather tanning bot
-  bot.py                menu descriptor (4 hide launches + GE side buttons)
+  bot.py                menu descriptor (4 hide launches, each asks "Where are you? Al Kharid / GE")
   run.py                run(stats) — handlers + run_session()
   states.py             states, transition table, TannerSession (glory charges, skip_restock)
   actions.py            walk_to_tanner, trade_ellis, walk_to_bank, do_bank, recover
@@ -216,9 +216,11 @@ An uncalibrated (zero-size) `TP_BOOTH_REGION` fails recovery before the teleport
 `save_attr` appends a field missing from an older calibrated config, so new fields can be captured in the editor.
 
 **Bot contract (standard for all bots).** A bot is a package (`__init__.py`) with:
-- `bot.py` — `BOT = Bot(name, launches=[Launch(label, start, colors, alt=, ask_int=, configure=)],
+- `bot.py` — `BOT = Bot(name, launches=[Launch(label, start, colors, alt=, ask_int=, ask_choice=, configure=)],
   order=, colors=, configure=, stats_line=, suite="osrs")`. A launch has at most one side button:
-  `alt` (e.g. Tanner's "GE") or its own `configure` (⚙). `suite` picks the launcher. Import-light: import config/actions/run *inside* the
+  `alt` or its own `configure` (⚙). `ask_int="prompt"` → `start(stats, n)` after a number box;
+  `ask_choice=("question", [options])` → `start(stats, option)` after a one-button-per-option popup (tanner's
+  "Where are you?"); unattended mode takes either from `VALUE`. `suite` picks the launcher. Import-light: import config/actions/run *inside* the
   callables — `tests/test_bots.py` checks discovery pulls in no config, pyautogui or mss.
 - `run.py` — `run(stats, ...)` builds handlers and calls `lib.session.run_session(...)`, which
   owns logging, the 3s countdown (hint from `pause.hint()`, `game=` names the client),
@@ -322,17 +324,16 @@ takes plain data; capture happens only in `lib/screen.grab`.
 
 - Tanner bot: fully functional, recovery path + GE restock both tested and working. Now driven by the
   state machine (PRO-12). Every glory teleport — failure recovery, post-GE return — goes through the
-  `recover` state and uses one of the 6 charges. GE mode (the "GE" button) starts with a buy-only restock:
-  ring to the GE → face west → GE clerk (searched in `GE_APPROACH_REGION`, no bank first) → buy `GE_QUANTITY`
-  hides with the coins carried → deposit (`run_ge_flow(sell_first=False)`), RESTOCK_GE on or off — then
-  `recover`, and it tans exactly what it bought: ceil(quantity / `HIDES_PER_TRIP` 27) trips counted as tans
-  (`on_enter_tanning`, so a recovered trip isn't counted twice); the bank visit after the last one only
-  deposits (`do_bank(withdraw=False)`) and the session ends `done`;
-  a failed GE-mode
-  start now stops the session. With 0 charges left it won't start a GE restock (no way back).
+  `recover` state and uses one of the 6 charges. With 0 charges left it won't start a GE restock (no way back).
   The session summary prints why it stopped (`TannerSession.stop_reason`).
-  A normal start (not GE mode) banks first: face west → `walk_to_bank` (click the booth) →
-  `banking` (deposit + withdraw, empty-slot check skipped) → the usual trip.
+  Starting asks "Where are you?" (PRO-101):
+  **Al Kharid** → face west → `walk_to_bank` (click the booth; not found → look around → glory `recover`) →
+  `banking` reads the hide count: count → the usual trip, the last 1 → `restock` (ring → GE → sell → buy → glory).
+  **GE** → `ge_bank` (`actions.check_ge_bank`: face west, banker in `GE_REGION`, hide tab, read the count,
+  close): count → `recover` (glory to Al Kharid, its bank skips the read); the last 1 → `restock` right there
+  (`run_ge_flow(teleport=False)`), then glory; no banker → stopped "GE bank not found".
+  Every bank reads the hide count — `banking`, the bank inside `recover` (it can return "restock" too) and
+  `ge_bank` — except the one right after a restock (`skip_restock`).
 - Golden Nuggets miner: on the state machine and the scaffold; O/P work inside long waits (walking,
   mining, sack processing) too, and a pause during mining doesn't count toward the idle timeout.
   A failed hopper deposit fixes struts and retries once; only a successful (re)try counts toward

@@ -184,7 +184,7 @@ the top (`lib.camera.zoom_out_top_down`) — the view to calibrate the bots in.
    ```
    BOT=Tanning
    LAUNCH=Green Dragonhide
-   # VALUE=500      # only for launches that ask for a number (Choco Grind)
+   VALUE=Al Kharid  # launches that ask: Tanning "Where are you?" (Al Kharid / GE), Choco Grind a number
    ```
    then `docker compose -f docker/docker-compose.yml up -d`. Remove `BOT` to go
    back to manual mode (the container just idles, as before).
