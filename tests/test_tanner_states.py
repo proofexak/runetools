@@ -109,6 +109,16 @@ def test_at_ge_out_of_hides_restocks_right_there(restock_enabled):
     assert s.state == "recover" and s.charges == 5 and s.skip_restock is True
 
 
+def test_leaving_the_ge_by_glory_forgets_it_was_there():
+    # a GE start with hides glories to Al Kharid; 75 trips later the restock must ring to
+    # the GE again, not look for the GE banker in the Al Kharid bank (2026-10-08 session)
+    s = build_machine({}, restock_enabled=True, at_ge=True)
+    step(s, "ok")                             # count shown -> glory
+    assert s.state == "recover" and s.at_ge is False
+    step(s, "ok", *TRIP[:-1], "restock")      # tan a trip, the next bank finds the last 1
+    assert s.state == "restock" and s.at_ge is False
+
+
 def test_at_ge_without_charges_never_restocks():
     s = build_machine({}, restock_enabled=True, at_ge=True, charges=0)
     step(s, "restock")
