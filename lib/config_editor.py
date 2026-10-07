@@ -89,14 +89,15 @@ def _fullscreen_overlay(master):
     ov.configure(bg='black', cursor='crosshair')
     ov.deiconify()
     ov.update_idletasks()
-    _take_x_focus(ov)
+    take_x_focus(ov)
     return ov
 
 
-def _take_x_focus(win):
-    """Callers focus_force() the overlay for Esc/Enter. With no window manager
-    (Xvfb in Docker) that doesn't move X keyboard focus off RuneLite, which
-    keeps it, so Esc never arrives — set it on the X server directly."""
+def take_x_focus(win):
+    """Callers focus_force() the overlay for Esc/Enter (or a dialog for typing). With
+    no window manager (Xvfb in Docker) that doesn't move X keyboard focus off
+    RuneLite, which keeps it, so Esc / the typed keys never arrive (they go to the
+    game) — set it on the X server directly."""
     if not sys.platform.startswith("linux"):
         return
     win.wait_visibility()
@@ -583,7 +584,9 @@ def run_editor(title, fields, get_fn, apply_fn, save_fn, region_colors=None):
                 ent.bind("<Return>", lambda e: _submit())
                 tk.Button(dlg, text="OK", command=_submit,
                           bg=BG2, fg=FG, font=FONT, relief="flat", padx=12).pack()
-                ent.focus_set()
+                ent.select_range(0, "end")          # typing replaces the value
+                ent.focus_force()
+                take_x_focus(dlg)
             tk.Button(row, text="✎", bg="#223366", fg="white", font=FONT,
                       relief="flat", padx=5, command=_edit_number
                       ).pack(side="left", padx=4)

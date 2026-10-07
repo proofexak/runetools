@@ -47,7 +47,9 @@ def _ask_int(prompt, on_value):
     ent = tk.Entry(dlg, bg="#1a1a33", fg="#ccccee", font=("Consolas", 9),
                    insertbackground="#ccccee")
     ent.pack(padx=10, pady=4, fill="x")
-    ent.focus_set()
+    ent.focus_force()
+    from lib.config_editor import take_x_focus
+    take_x_focus(dlg)     # no window manager in Docker: else the keys go to RuneLite
 
     def _submit():
         try:

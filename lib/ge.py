@@ -116,10 +116,13 @@ def wait_offer(timeout):
 
 
 def collect(both=False):
-    """Collect the completed offer: slot 1 (coins / items), and slot 2 with `both`."""
-    _click(cfg.RETRIEVE_SLOT_1, 0.4, 0.7)
+    """Collect the offer: slot 1 (coins / items), with `both` slot 2 (a buy's change) first.
+    Slot 2 first: the click that empties the offer closes its view, and a click after it
+    would land on the overview (slot 8's Sell button sits where slot 2 is). An empty slot's
+    click does nothing."""
     if both:
         _click(cfg.RETRIEVE_SLOT_2)
+    _click(cfg.RETRIEVE_SLOT_1, 0.4, 0.7)
 
 
 def close_ge():

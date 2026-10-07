@@ -416,6 +416,6 @@ def test_edit_offer_collects_then_types_the_new_price(ge, monkeypatch):
     ge.edit_offer(1890, both=True)
     clicks = [c[1:] for c in log if c[0] == "click"]
     x, y, _ = ge.cfg.OFFER_COMPLETE
-    assert clicks == [(x, y), ge.cfg.RETRIEVE_SLOT_1, ge.cfg.RETRIEVE_SLOT_2, (50, 50),
+    assert clicks == [(x, y), ge.cfg.RETRIEVE_SLOT_2, ge.cfg.RETRIEVE_SLOT_1, (50, 50),
                       ge.cfg.PRICE_BTN, ge.cfg.CONFIRM_BTN]
     assert ("type", "1890") in log
