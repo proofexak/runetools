@@ -33,54 +33,81 @@ def _fresh_price_cache(monkeypatch):
     monkeypatch.setattr(prices, "_mapping", None)
 
 
-def test_latest_quotes_a_known_item_with_a_named_user_agent():
-    op = _Opener({"latest?id=1753": {"data": {"1753": {"high": 1570, "low": 1527}}}})
-    assert prices.latest("Green dragonhide", opener=op) == {"high": 1570, "low": 1527}
-    assert op.urls == [f"{prices.API}/latest?id=1753"]
-    assert op.agents == [prices.USER_AGENT]
+LEATHER_HOURS = [
+    {"timestamp": 1, "avgHighPrice": 4040, "avgLowPrice": 4037},
+    {"timestamp": 2, "avgHighPrice": 3973, "avgLowPrice": 4004},
+]
 
 
-def test_latest_is_cached_for_a_while():
-    op = _Opener({"latest?id=1973": {"data": {"1973": {"high": 30, "low": 28}}}})
+def _routes(iid, latest, hours):
+    return {f"latest?id={iid}": {"data": {str(iid): latest}},
+            f"timeseries?timestep=1h&id={iid}": {"itemId": iid, "data": hours}}
+
+
+def test_quote_is_the_latest_trade_plus_the_last_hours_average():
+    op = _Opener(_routes(2509, {"high": 3970, "low": 3886}, LEATHER_HOURS))
+    assert prices.quote("Black dragon leather", opener=op) == \
+        {"high": 3970, "low": 3886, "avg_high": 3973, "avg_low": 4004}
+    assert op.urls == [f"{prices.API}/latest?id=2509", f"{prices.API}/timeseries?timestep=1h&id=2509"]
+    assert op.agents == [prices.USER_AGENT] * 2
+
+
+def test_quote_is_cached_for_a_while():
+    op = _Opener(_routes(1973, {"high": 30, "low": 28}, []))
     now = [1000.0]
     for _ in range(2):
-        prices.latest("chocolate bar", opener=op, clock=lambda: now[0])
+        prices.quote("chocolate bar", opener=op, clock=lambda: now[0])
     now[0] += prices.CACHE_SECONDS + 1
-    prices.latest("chocolate bar", opener=op, clock=lambda: now[0])
-    assert len(op.urls) == 2
+    prices.quote("chocolate bar", opener=op, clock=lambda: now[0])
+    assert len(op.urls) == 4
 
 
-def test_latest_never_raises():
-    assert prices.latest("green dragonhide", opener=_Opener({"latest": OSError("offline")})) is None
-    assert prices.latest("green dragonhide", opener=_Opener({"latest": {"data": {}}})) is None
-    assert prices.latest("Not an item", opener=_Opener({"mapping": [{"id": 1, "name": "Coins"}]})) is None
-    assert prices.latest("Not an item", opener=_Opener({})) is None    # item list unreachable
+def test_quote_never_raises():
+    assert prices.quote("green dragonhide", opener=_Opener({"latest": OSError("offline")})) is None
+    assert prices.quote("green dragonhide", opener=_Opener(_routes(1753, {}, []))) is None
+    assert prices.quote("Not an item", opener=_Opener({"mapping": [{"id": 1, "name": "Coins"}]})) is None
+    assert prices.quote("Not an item", opener=_Opener({})) is None    # item list unreachable
 
 
 def test_unknown_names_come_from_the_item_list():
-    op = _Opener({"mapping": [{"id": 314, "name": "Feather"}],
-                  "latest?id=314": {"data": {"314": {"high": 3, "low": 2}}}})
-    assert prices.latest("feather", opener=op) == {"high": 3, "low": 2}
+    op = _Opener({"mapping": [{"id": 314, "name": "Feather"}], **_routes(314, {"high": 3, "low": 2}, [])})
+    assert prices.quote("feather", opener=op) == {"high": 3, "low": 2, "avg_high": None, "avg_low": None}
 
 
-@pytest.mark.parametrize("quote, margin, expected", [
-    ({"high": 1570, "low": 1527}, 0.05, 1649),     # ceil(1570 * 1.05)
-    ({"high": None, "low": 1527}, 0.0, 1527),      # no recent instant-buy: the instant-sell price
-    ({"high": 30, "low": 28}, 0.05, 32),
-    (None, 0.05, None),
+def test_hour_average_skips_hours_without_that_trade():
+    hours = [{"avgHighPrice": 10, "avgLowPrice": 9}, {"avgHighPrice": None, "avgLowPrice": 8}]
+    assert prices.hour_average(hours) == (10, 8)
+    assert prices.hour_average([]) == (None, None)
+
+
+Q = {"high": 3970, "low": 3886, "avg_high": 3973, "avg_low": 4004}
+
+
+@pytest.mark.parametrize("quote, latest, expected", [
+    (Q, False, 3974),                                    # 1h avg instant-buy + 1
+    (Q, True, 3971),                                     # latest instant-buy + 1
+    ({**Q, "avg_high": None}, False, 3971),              # no average: the latest trade
+    ({"high": None, "low": 28, "avg_high": None, "avg_low": None}, False, 29),   # no buys at all: the sell side
+    (None, False, None),
 ])
-def test_buy_price(quote, margin, expected):
-    assert prices.buy_price(quote, margin) == expected
+def test_buy_price(quote, latest, expected):
+    assert prices.buy_price(quote, latest)[0] == expected
 
 
-@pytest.mark.parametrize("quote, margin, expected", [
-    ({"high": 1811, "low": 1752}, 0.05, 1664),     # floor(1752 * 0.95)
-    ({"high": 1811, "low": None}, 0.0, 1811),      # no recent instant-sell: the instant-buy price
-    ({"high": 1, "low": 1}, 0.05, 1),              # never below 1
-    (None, 0.05, None),
+@pytest.mark.parametrize("quote, latest, expected", [
+    (Q, False, 4003),                                    # 1h avg instant-sell - 1
+    (Q, True, 3885),                                     # latest instant-sell - 1
+    ({**Q, "avg_low": None}, False, 3885),
+    ({"high": 1, "low": 1, "avg_high": 1, "avg_low": 1}, False, 1),    # never below 1
+    (None, False, None),
 ])
-def test_sell_price(quote, margin, expected):
-    assert prices.sell_price(quote, margin) == expected
+def test_sell_price(quote, latest, expected):
+    assert prices.sell_price(quote, latest)[0] == expected
+
+
+def test_prices_say_what_they_are_based_on():
+    assert prices.buy_price(Q) == (3974, "1h avg buy 3973 +1")
+    assert prices.sell_price(Q, latest=True) == (3885, "latest sell 3886 -1")
 
 
 # ── per-bot settings + offer price ────────────────────────────────────────────
@@ -100,7 +127,7 @@ def test_settings_come_from_the_bot_then_the_old_shared_config_then_defaults(ge_
 
 def test_restock_from_config_takes_the_quantity_it_is_given(ge_cfg):
     bot = types.SimpleNamespace(GE_QUANTITY=1, GE_BUY_PRICE=40, GE_MAX_PRICE=60, GE_LIVE_PRICES=True,
-                                GE_MARGIN_PCT=5, GE_OFFER_TIMEOUT=360)
+                                GE_OFFER_TIMEOUT=360)
     r = Restock.from_config(bot, "chocolate bar", quantity=270)
     assert (r.buy_item, r.quantity, r.buy_price, r.max_price, r.offer_timeout) == \
            ("chocolate bar", 270, 40, 60, 360)
@@ -111,12 +138,12 @@ def _r(**kw):
 
 
 def test_offer_price_live_fallback_and_cap():
-    quote = {"high": 1570, "low": 1527}
-    assert buy_offer_price(_r(), quote)[0] == 1649
+    quote = {"high": 1570, "low": 1527, "avg_high": 1580, "avg_low": 1560}
+    assert buy_offer_price(_r(), quote) == (1581, "1h avg buy 1580 +1")
     assert buy_offer_price(_r(), None) == (2000, "config")                  # API unreachable
     assert buy_offer_price(_r(live_prices=False), quote) == (2000, "config")
-    price, why = buy_offer_price(_r(max_price=1600), quote)
-    assert price is None and "1649" in why and "GE_MAX_PRICE 1600" in why
+    price, why = buy_offer_price(_r(max_price=1500), quote)
+    assert price is None and "1581" in why and "GE_MAX_PRICE 1500" in why
     assert buy_offer_price(_r(max_price=1500), None)[0] is None             # the cap covers the fallback too
 
 
@@ -155,20 +182,21 @@ def test_set_notes_clicks_only_until_it_shows(ge, monkeypatch, shown, want, clic
     assert sum(1 for c in log if c[0] == "click") == clicks
 
 
-QUOTES = {"green dragonhide": {"high": 1570, "low": 1527}, "green dragon leather": {"high": 1811, "low": 1752}}
+QUOTES = {"green dragonhide": {"high": 1570, "low": 1527, "avg_high": 1580, "avg_low": 1560},
+          "green dragon leather": {"high": 1811, "low": 1752, "avg_high": 1820, "avg_low": 1790}}
 
 
 def test_trade_sells_then_buys_at_live_prices(ge, monkeypatch):
     ge, log = ge
     steps = []
-    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: QUOTES[name])
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: QUOTES[name])
     monkeypatch.setattr(ge, "sell", lambda price=None: steps.append(("sell", price)))
     monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
     monkeypatch.setattr(ge, "wait_offer", lambda t: steps.append(("wait", t)) or True)
     monkeypatch.setattr(ge, "collect", lambda both=False: steps.append(("collect", both)))
     assert ge.trade(_r(sell_item="green dragon leather", reprice_minutes=0, offer_timeout=30)) == (True, None)
-    assert steps == [("sell", 1664), ("wait", 30), ("collect", False),
-                     ("buy", "green dragonhide", 100, 1649), ("wait", 30), ("collect", True)]
+    assert steps == [("sell", 1789), ("wait", 30), ("collect", False),
+                     ("buy", "green dragonhide", 100, 1581), ("wait", 30), ("collect", True)]
 
 
 def test_sell_without_a_live_price_keeps_the_guide_price(ge):
@@ -181,7 +209,7 @@ def test_sell_without_a_live_price_keeps_the_guide_price(ge):
 
 def test_trade_stops_before_selling_when_the_price_is_over_the_cap(ge, monkeypatch):
     ge, log = ge
-    monkeypatch.setattr(ge.prices, "latest", lambda name: {"high": 1570, "low": 1527})
+    monkeypatch.setattr(ge.prices, "quote", lambda name: QUOTES[name])
     monkeypatch.setattr(ge, "sell", lambda price=None: pytest.fail("sold"))
     ok, why = ge.trade(_r(max_price=1000))
     assert not ok and "GE_MAX_PRICE" in why
@@ -189,7 +217,7 @@ def test_trade_stops_before_selling_when_the_price_is_over_the_cap(ge, monkeypat
 
 def test_trade_names_the_offer_that_never_completed(ge, monkeypatch):
     ge, log = ge
-    monkeypatch.setattr(ge.prices, "latest", lambda name: None)
+    monkeypatch.setattr(ge.prices, "quote", lambda name: None)
     monkeypatch.setattr(ge, "sell", lambda price=None: None)
     monkeypatch.setattr(ge, "collect", lambda both=False: None)
     monkeypatch.setattr(ge, "buy", lambda *a: None)
@@ -202,7 +230,7 @@ def test_trade_names_the_offer_that_never_completed(ge, monkeypatch):
 def flow(ge, monkeypatch):
     ge, log = ge
     calls = []
-    monkeypatch.setattr(ge.prices, "latest", lambda name: None)
+    monkeypatch.setattr(ge.prices, "quote", lambda name: None)
     monkeypatch.setattr(ge, "_teleport", lambda: calls.append("teleport"))
     monkeypatch.setattr(ge, "face", lambda d, cfg: calls.append("face"))
     monkeypatch.setattr(ge, "withdraw_noted", lambda slot: calls.append(("withdraw", slot)) or True)
@@ -279,24 +307,20 @@ def test_wait_for_lets_p_through(monkeypatch):
 
 # ── re-pricing an offer that doesn't fill ─────────────────────────────────────
 
-def test_reprice_buy_follows_the_market_up_never_down():
-    assert reprice(_r(), 1649, {"high": 1800, "low": 1750})[0] == 1890           # live 1800 +5 %
-    assert reprice(_r(), 1649, {"high": 1500, "low": 1490})[0] == 1732           # live lower: still +5 %
-    assert reprice(_r(), 1649, None)[0] == 1732                                  # API down: +5 %
-    assert reprice(_r(margin_pct=0), 30, None)[0] == 31                          # always at least +1
-    price, why = reprice(_r(max_price=1700), 1649, None)
+def test_reprice_is_a_fresh_check_of_the_latest_trade_plus_minus_1():
+    q = {"high": 1800, "low": 1750, "avg_high": 1700, "avg_low": 1690}
+    assert reprice(_r(), 1649, q) == (1801, "latest buy 1800 +1")
+    assert reprice(_r(sell_item="green dragon leather"), 1789, q, "sell") == (1749, "latest sell 1750 -1")
+    assert reprice(_r(sell_item="green dragon leather"), None, q, "sell")[0] == 1749   # was at the guide price
+
+
+def test_reprice_leaves_the_offer_alone_when_there_is_nothing_new():
+    q = {"high": 1648, "low": 1600, "avg_high": None, "avg_low": None}
+    assert reprice(_r(), 1649, q) == (None, "still 1649 gp (latest buy 1648 +1)")
+    assert reprice(_r(), 1649, None)[0] is None                        # API down
+    assert reprice(_r(live_prices=False), 1649, q)[0] is None
+    price, why = reprice(_r(max_price=1700), 1649, {**q, "high": 1800})
     assert price is None and "GE_MAX_PRICE 1700" in why
-
-
-def test_reprice_sell_follows_the_market_down_never_up():
-    def sell(**kw):
-        return _r(sell_item="green dragon leather", **kw)
-    assert reprice(sell(), 1664, {"high": 1600, "low": 1500}, "sell")[0] == 1425  # live 1500 -5 %
-    assert reprice(sell(), 1664, {"high": 1900, "low": 1850}, "sell")[0] == 1580  # live higher: still -5 %
-    assert reprice(sell(margin_pct=0), 30, None, "sell")[0] == 29                 # always at least -1
-    assert reprice(sell(), 1, None, "sell")[0] is None                            # can't go under 1 gp
-    assert reprice(sell(), None, None, "sell")[0] is None                         # guide price, no live: leave it
-    assert reprice(sell(), None, {"high": 1600, "low": 1500}, "sell")[0] == 1425
 
 
 @pytest.fixture
@@ -304,7 +328,7 @@ def follow(ge, monkeypatch):
     ge, log = ge
     steps = []
     monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
-    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: None)
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: None)
     monkeypatch.setattr(ge, "collect", lambda both=False: steps.append(("collect", both)))
     monkeypatch.setattr(ge, "edit_offer", lambda price, both: steps.append(("edit", price, both)))
 
@@ -324,31 +348,35 @@ def test_follow_offer_that_completes_just_collects(follow):
 def test_follow_offer_edits_the_price_every_interval(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, False, True)
-    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: {"high": 1800, "low": 1750})
+    highs = iter([1800, 1850])
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: {"high": next(highs), "low": 1750})
     assert ge.follow_offer(_r(), "buy", 1649) == (True, None)
-    assert steps == [("wait", 300), ("edit", 1890, True),
-                     ("wait", 300), ("edit", 1985, True),
+    assert steps == [("wait", 300), ("edit", 1801, True),
+                     ("wait", 300), ("edit", 1851, True),
                      ("wait", 300), ("collect", True)]
 
 
 def test_follow_offer_sell_goes_down_and_collects_only_coins(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, True)
-    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: {"high": 1600, "low": 1500})
-    assert ge.follow_offer(_r(sell_item="green dragon leather"), "sell", 1664) == (True, None)
-    assert steps == [("wait", 300), ("edit", 1425, False), ("wait", 300), ("collect", False)]
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: {"high": 1600, "low": 1500})
+    assert ge.follow_offer(_r(sell_item="green dragon leather"), "sell", 1789) == (True, None)
+    assert steps == [("wait", 300), ("edit", 1499, False), ("wait", 300), ("collect", False)]
 
 
-def test_follow_offer_over_the_cap_leaves_the_offer_and_keeps_waiting(follow):
+def test_follow_offer_over_the_cap_leaves_the_offer_and_keeps_waiting(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, True)
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: {"high": 1800, "low": 1750})
     assert ge.follow_offer(_r(max_price=1700), "buy", 1649) == (True, None)
     assert not any(st[0] == "edit" for st in steps)
 
 
-def test_follow_offer_gives_up_after_its_rounds(follow):
+def test_follow_offer_gives_up_after_its_rounds(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, False, False)
+    highs = iter([1100, 1200])
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: {"high": next(highs), "low": 1000})
     ok, why = ge.follow_offer(_r(reprice_rounds=2), "buy", 1000)
     assert not ok and "after 2 price edits" in why
     assert sum(1 for st in steps if st[0] == "edit") == 2

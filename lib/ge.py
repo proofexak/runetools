@@ -162,7 +162,7 @@ def follow_offer(restock, side, price):
             return True, None
         if round_ == restock.reprice_rounds:
             break
-        quote = prices.latest(item, max_age=60) if restock.live_prices and item else None
+        quote = prices.quote(item, max_age=60) if restock.live_prices and item else None
         new, source = reprice(restock, price, quote, side)
         if new is None:
             say(f"[GE] {source} — the {side} stays at {shown}")
@@ -176,7 +176,7 @@ def follow_offer(restock, side, price):
 
 def offer_price(restock):
     """(price, source) for the buy — live when enabled — or (None, reason) above the cap."""
-    return buy_offer_price(restock, prices.latest(restock.buy_item) if restock.live_prices else None)
+    return buy_offer_price(restock, prices.quote(restock.buy_item) if restock.live_prices else None)
 
 
 def trade(restock):
@@ -185,7 +185,7 @@ def trade(restock):
     price, source = offer_price(restock)
     if price is None:
         return False, source
-    quote = prices.latest(restock.sell_item) if restock.live_prices and restock.sell_item else None
+    quote = prices.quote(restock.sell_item) if restock.live_prices and restock.sell_item else None
     sell_at, sell_source = sell_offer_price(restock, quote)
     say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
         f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")

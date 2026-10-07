@@ -47,8 +47,6 @@ GRIND_COUNT = 27
 # ── GE restock (lib/restock.py) ───────────────────────────────────────────────
 GE_BUY_PRICE       = 40      # per bar, when live prices are off or the API can't be reached
 GE_MAX_PRICE       = 60      # never offer more per bar (0 = no cap)
-GE_LIVE_PRICES     = True    # price both offers from prices.runescape.wiki (± GE_MARGIN_PCT)
-GE_MARGIN_PCT      = 5
 GE_OFFER_TIMEOUT   = 360     # seconds to wait for an offer when re-pricing is off
 GE_REPRICE_MINUTES = 5       # offer not complete after this long: collect, edit its price (0 = off)
 GE_REPRICE_ROUNDS  = 6       # price edits before the restock gives up

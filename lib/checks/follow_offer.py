@@ -2,7 +2,7 @@
 Live check for re-pricing an offer (lib.ge.follow_offer) on its own — spends a little gp.
 
 Puts in a buy too low to fill, so the first re-price has to open it, collect, edit the
-price up to the live price + margin, which should then fill. Needs the GE open on the
+price to a fresh check (latest instant-buy + 1 gp), which should then fill. Needs the GE open on the
 overview, slot 1 empty, coins in the inventory, and EDIT_BTN calibrated (GE Config →
 Re-price → Edit Offer Button).
 
@@ -27,7 +27,7 @@ def main():
         raise SystemExit(1)
 
     r = Restock(buy_item=item, quantity=qty, buy_price=start, max_price=0, live_prices=True,
-                margin_pct=5, offer_timeout=60, reprice_minutes=minutes, reprice_rounds=3)
+                offer_timeout=60, reprice_minutes=minutes, reprice_rounds=3)
     pause.setup()
     print(f"Buying {qty} x {item} at {start} gp, re-pricing every {minutes} min — switch to the "
           f"game, starting in 5 s. P stops.")

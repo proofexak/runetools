@@ -36,7 +36,8 @@ lib/                    universal helpers used by all bots
   ge.py                 GE building blocks (open_bank/open_ge, withdraw_noted, sell/buy/wait_offer/
                          collect, trade) + tanner's restock trip run_ge_flow — see "GE flow" below
   restock.py            Restock (what a bot buys, how many, price settings) + buy_offer_price — pure
-  prices.py             live GE prices from prices.runescape.wiki (latest(), buy_price()) — never raises
+  prices.py             live GE prices from prices.runescape.wiki (quote(): latest trade + last hour's
+                         average; buy_price / sell_price: ± 1 gp) — never raises
   interface.py          open_interface (click highlight → wait for check pixel), wait_for, close_interface
   ge_config.py          calibrated GE positions — GITIGNORED, copy from ge_config.example.py
   ge_config.example.py  zeroed template for ge_config.py
@@ -164,17 +165,17 @@ choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never
 **GE flow** (`lib/ge.py`). Bots build a `lib.restock.Restock` from their config (`Restock.from_config(cfg,
 buy_item, quantity=None, sell_item=None, ...)`); `ge.trade(restock)` (GE open, item to sell first in the inventory)
 sells, buys, collects, and returns `(ok, reason)` — the bot keeps the reason for its `stop_reason`. Prices come
-from the Wiki API (`lib/prices.py`): sell at instant-sell − `GE_MARGIN_PCT`, buy at instant-buy + margin (a GE
-trade goes through at the waiting offer's price, so the margin costs nothing — it only makes the offer fill at
-once). Normal prices raise no low-price warning, so there's no Yes click. No live price: the sell keeps the
+from the Wiki API (`lib/prices.py`): sell at the last hour's average instant-sell − 1 gp, buy at its average
+instant-buy + 1 gp (the average, not the latest trade: an item that trades in bursts can have a latest price
+minutes old and far off). Normal prices raise no low-price warning, so there's no Yes click. No live price: the sell keeps the
 price the GE fills in (guide price), the buy uses `GE_BUY_PRICE`; a buy is never above `GE_MAX_PRICE` (then it
 stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take focus (typed too early they go to
 public chat). O/P work in every wait.
 An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
 slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
-the game keeps the quantity left) to `restock.reprice` — the fresh live price ± margin, but at least the old
-price ± margin: an unfilled offer is on the wrong side of the market, so a buy only goes up (never past
-`GE_MAX_PRICE`: then the offer stays as it is) and a sell only goes down (not under 1 gp). Gives up after
+the game keeps the quantity left) to `restock.reprice` — always a fresh check: the latest trade + 1 gp (buy) /
+− 1 gp (sell), no minimum step. Same price as now, no live price, or a buy past `GE_MAX_PRICE` → the offer
+stays as it is. Gives up after
 `GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
 Live check: `lib.checks.follow_offer`.
 Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /
