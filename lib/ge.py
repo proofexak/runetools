@@ -71,9 +71,9 @@ def close_bank():
 
 # ── GE interface ──────────────────────────────────────────────────────────────
 
-def open_ge():
-    """Find the magenta GE clerk in GE_REGION, click, confirm the GE opened."""
-    return open_interface(cfg.MAGENTA, cfg.MAGENTA_TOL, cfg.GE_REGION, cfg.GE_CHECK,
+def open_ge(region=None):
+    """Find the magenta GE clerk in `region` (GE_REGION), click, confirm the GE opened."""
+    return open_interface(cfg.MAGENTA, cfg.MAGENTA_TOL, region or cfg.GE_REGION, cfg.GE_CHECK,
                           cfg.MAX_AGENT_TRIES, what="[GE] Exchange")
 
 
@@ -224,27 +224,24 @@ def _teleport():
     time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
-def run_ge_flow(restock, teleport=True, sell_first=True):
+def run_ge_flow(restock, sell_first=True):
     """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
     `restock` → deposit all. (True, None) or (False, reason). The bank positions are
     the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
     same at every bank, and deposit-all puts the hides back on their own slot (the bot
     withdraws all-but-1, so the stack never leaves the bank). The price is checked
-    first, so one over the cap costs no ring teleport. teleport=False: already standing
-    at the GE (tanner's GE mode) — the banker is looked for around the GE centre
-    (GE_REGION) instead of where the teleport lands (GE_APPROACH_REGION).
-    sell_first=False: only buy, with the coins carried — no leather out, no sell."""
+    first, so one over the cap costs no ring teleport. sell_first=False (tanner's GE
+    mode): only buy, with the coins carried — no bank before the GE, so the clerk is
+    looked for where the teleport lands (GE_APPROACH_REGION)."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
 
-    if teleport:
-        _teleport()
+    _teleport()
     if sell_first:
-        region = cfg.GE_APPROACH_REGION if teleport else cfg.GE_REGION
         for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
             face("west", cfg)
-            if open_bank(region):
+            if open_bank(cfg.GE_APPROACH_REGION):
                 break
             say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
         else:
@@ -257,7 +254,7 @@ def run_ge_flow(restock, teleport=True, sell_first=True):
     else:
         face("west", cfg)
 
-    if not open_ge():
+    if not open_ge(None if sell_first else cfg.GE_APPROACH_REGION):
         return False, "could not open the GE"
     ok, why = trade(restock, sell_first)
     if not ok:

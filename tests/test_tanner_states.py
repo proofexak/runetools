@@ -84,7 +84,7 @@ def test_soft_stop_during_countdown_still_banks_first():
 @pytest.mark.parametrize("restock_enabled", [True, False])
 def test_begin_from_ge_restocks_first_then_recovers(restock_enabled):
     s = build_machine({}, restock_enabled=restock_enabled, start_from_ge=True)
-    assert s.state == "restock" and s.at_ge is True        # GE mode asks for it, RESTOCK_GE or not
+    assert s.state == "restock" and s.buy_only is True     # GE mode asks for it, RESTOCK_GE or not
     assert s.charges == 6
     s.trigger("ok")
     assert s.state == "recover" and s.charges == 5 and s.skip_restock is True

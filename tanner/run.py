@@ -37,10 +37,9 @@ def _handlers(session):
                                       sell_inv_slot=getattr(config, "SELL_INV_SLOT", None),
                                       bank_tab=config.HIDE_TAB,
                                       sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
-        # GE mode's first restock: standing at the GE, only buying with the coins carried
-        ok, session.restock_error = run_ge_flow(restock, teleport=not session.at_ge,
-                                                sell_first=not session.at_ge)
-        session.at_ge = False
+        # GE mode's first restock only buys, with the coins carried
+        ok, session.restock_error = run_ge_flow(restock, sell_first=not session.buy_only)
+        session.buy_only = False
         return ok_or_fail(ok)
 
     def recover_():

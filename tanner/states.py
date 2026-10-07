@@ -27,7 +27,7 @@ _WALK_TRADE = ["walk_to_tanner", "trade_ellis", "walk_to_bank"]
 _ACTIONS    = _WALK_TRADE + ["banking"]
 
 TRANSITIONS = [
-    # GE mode: standing at the GE — restock there first (no ring teleport), then glory back
+    # GE mode: a buy-only restock first (ring to the GE, buy hides with the coins carried), then glory back
     {"trigger": "begin",   "source": "start",          "dest": "restock", "conditions": "start_from_ge"},
     {"trigger": "begin",   "source": "start",          "dest": "walk_to_bank"},   # open the bank, deposit + withdraw first
 
@@ -82,7 +82,7 @@ class TannerSession:
         self.looked          = False  # looked around since the last tan / recovery
         self.need            = None   # what look_around goes for: "ellis" or "bank"
         self.restock_error   = None   # why the last GE restock failed (lib.ge.run_ge_flow)
-        self.at_ge           = start_from_ge   # GE mode: the first restock needs no ring teleport
+        self.buy_only        = start_from_ge   # GE mode: the first restock only buys
 
     def has_charges(self):
         return self.charges > 0
@@ -119,8 +119,8 @@ class TannerSession:
         self.skip_restock = False
 
     def on_enter_restock(self):
-        if self.at_ge:
-            print("\n[RESTOCK] GE mode — restocking here first...")
+        if self.buy_only:
+            print("\n[RESTOCK] GE mode — to the GE to buy hides first...")
         else:
             print("\n[RESTOCK] Bank slot 2 empty — heading to GE...")
 

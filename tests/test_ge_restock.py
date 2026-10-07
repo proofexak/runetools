@@ -251,7 +251,7 @@ def flow(ge, monkeypatch):
     monkeypatch.setattr(ge, "withdraw_noted", lambda slot: calls.append(("withdraw", slot)) or True)
     monkeypatch.setattr(ge, "close_bank", lambda: None)
     monkeypatch.setattr(ge, "close_ge", lambda: None)
-    monkeypatch.setattr(ge, "open_ge", lambda: True)
+    monkeypatch.setattr(ge, "open_ge", lambda region=None: calls.append(("open_ge", region)) or True)
     monkeypatch.setattr(ge, "trade", lambda r, sell_first=True: calls.append(("trade", sell_first)) or (True, None))
     return ge, calls, log
 
@@ -277,21 +277,12 @@ def test_run_ge_flow_retries_the_banker_without_teleporting_again(flow, monkeypa
     assert [c for c in calls if isinstance(c, str)] == ["teleport", "face", "face", "face"]
 
 
-def test_run_ge_flow_already_at_the_ge_skips_the_teleport(flow, monkeypatch):
+def test_run_ge_flow_buy_only_teleports_then_skips_the_bank_and_the_sell(flow, monkeypatch):
     ge, calls, log = flow
     regions = []
     monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
-    assert ge.run_ge_flow(_trip(), teleport=False) == (True, None)
-    assert "teleport" not in calls and "face" in calls
-    assert regions == [ge.cfg.GE_REGION, ge.cfg.GE_REGION]     # the banker near the GE centre, both times
-
-
-def test_run_ge_flow_buy_only_skips_the_bank_and_the_sell(flow, monkeypatch):
-    ge, calls, log = flow
-    regions = []
-    monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
-    assert ge.run_ge_flow(_trip(), teleport=False, sell_first=False) == (True, None)
-    assert calls == ["face", ("trade", False)]                 # no teleport, no leather out
+    assert ge.run_ge_flow(_trip(), sell_first=False) == (True, None)
+    assert calls == ["teleport", "face", ("open_ge", ge.cfg.GE_APPROACH_REGION), ("trade", False)]
     assert regions == [ge.cfg.GE_REGION]                       # only the deposit after the GE
     assert [c[1:] for c in log if c[0] == "click"] == [(1043, 675)]
 
