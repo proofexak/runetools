@@ -25,24 +25,19 @@ FIELDS = [
     ("GE",         "Sell Slot",            "SELL_SLOT",            "point"),
     ("GE",         "Price Button",         "PRICE_BTN",            "point"),
     ("GE",         "Confirm Button",       "CONFIRM_BTN",          "point"),
-    ("GE",         "Yes Button",           "SELL_YES_BTN",         "point"),
     ("GE",         "Offer Complete",       "OFFER_COMPLETE",       "point_color"),
     ("GE",         "Retrieve Slot 1",      "RETRIEVE_SLOT_1",      "point"),
     ("GE",         "Buy Button",           "BUY_BTN",              "point"),
     ("GE",         "Search Result",        "BUY_SEARCH_RESULT",    "point"),
     ("GE",         "Quantity Button",      "BUY_QUANTITY_BTN",     "point"),
     ("GE",         "Retrieve Slot 2",      "RETRIEVE_SLOT_2",      "point"),
-    ("Re-price",   "Offer Bar (slot 1)",   "OFFER_BAR",            "region"),
-    ("Re-price",   "Bar Empty Colour",     "OFFER_BAR_EMPTY",      "color"),
-    ("Re-price",   "Bar Fill Colour",      "OFFER_BAR_FILL",       "color"),
-    ("Re-price",   "Abort Button",         "ABORT_BTN",            "point"),
+    ("Re-price",   "Edit Offer Button",    "EDIT_BTN",             "point"),
 ]
 
 REGION_COLORS = {
     "RING_MENU_REGION":   "#ff88ff",
     "GE_APPROACH_REGION": "#ff8800",
     "GE_REGION":        "#0088ff",
-    "OFFER_BAR":        "#ff8800",
 }
 
 

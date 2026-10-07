@@ -5,10 +5,9 @@ RuneLite's GE trade data). Used by lib.ge to price restock offers.
 - latest(name) → {"high": instant-buy, "low": instant-sell} or None. Never raises:
   no network / slow API / unknown item → None, and the caller falls back to its
   config price. One small request per item, cached for CACHE_SECONDS.
-- buy_price is the pure part: quote + margin → offer price. (Sells stay at 1 gp: a GE
-  trade goes through at the price of the offer that was already waiting, so dumping
-  at 1 still gets the best buyer's price — and the same way an overpaying buy pays
-  the seller's price. The live price is what keeps a buy above the market.)
+- buy_price / sell_price are the pure part: quote + margin → offer price. (A GE trade
+  goes through at the price of the offer that was already waiting, so a margin past
+  the market costs nothing extra — it only makes the offer fill at once.)
 
 The API asks for a descriptive User-Agent (generic ones get blocked) and no tight
 polling — one fetch per restock is well inside that.
@@ -80,3 +79,9 @@ def buy_price(quote, margin):
     base = quote and (quote.get("high") or quote.get("low"))
     return math.ceil(base * (1 + margin)) if base else None
 
+
+
+def sell_price(quote, margin):
+    """Instant-sell price minus `margin`, rounded down, at least 1; None without a quote."""
+    base = quote and (quote.get("low") or quote.get("high"))
+    return max(1, math.floor(base * (1 - margin))) if base else None

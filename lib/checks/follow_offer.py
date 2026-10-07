@@ -1,12 +1,12 @@
 """
-Live check for the re-price loop (lib.ge.follow_buy) on its own — spends a little gp.
+Live check for re-pricing an offer (lib.ge.follow_offer) on its own — spends a little gp.
 
-Puts in a buy too low to fill, so the first re-price has to abort it, collect, and
-put it back in at the live price + margin, which should then fill. Needs the GE open
-on the overview, slot 1 empty, coins in the inventory, and OFFER_BAR / ABORT_BTN
-calibrated (check those with lib.checks.offer_bar first).
+Puts in a buy too low to fill, so the first re-price has to open it, collect, edit the
+price up to the live price + margin, which should then fill. Needs the GE open on the
+overview, slot 1 empty, coins in the inventory, and EDIT_BTN calibrated (GE Config →
+Re-price → Edit Offer Button).
 
-    .venv/bin/python -m lib.checks.follow_buy [item] [quantity] [start price] [minutes]
+    .venv/bin/python -m lib.checks.follow_offer [item] [quantity] [start price] [minutes]
 
 Defaults: 100 feather at 1 gp, re-priced every 1 minute, 3 rounds. P stops it.
 """
@@ -22,8 +22,8 @@ def main():
     qty = int(sys.argv[2]) if len(sys.argv) > 2 else 100
     start = int(sys.argv[3]) if len(sys.argv) > 3 else 1
     minutes = float(sys.argv[4]) if len(sys.argv) > 4 else 1
-    if not ge._can_follow():
-        print("OFFER_BAR / ABORT_BTN aren't calibrated yet — GE Config → Re-price.")
+    if not ge._can_edit():
+        print("EDIT_BTN isn't calibrated yet — GE Config → Re-price → Edit Offer Button.")
         raise SystemExit(1)
 
     r = Restock(buy_item=item, quantity=qty, buy_price=start, max_price=0, live_prices=True,
@@ -34,7 +34,7 @@ def main():
     time.sleep(5)
     ge.buy(item, qty, start)
     try:
-        print(ge.follow_buy(r, start))
+        print(ge.follow_offer(r, "buy", start))
     except pause.ForceStop:
         print("Stopped (P) — check GE slot 1 by hand.")
 

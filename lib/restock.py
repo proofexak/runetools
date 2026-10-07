@@ -15,11 +15,11 @@ DEFAULTS = {
     "GE_QUANTITY":      1,
     "GE_BUY_PRICE":     2000,   # used when live prices are off or the API can't be reached
     "GE_MAX_PRICE":     0,      # never offer more than this per item (0 = no cap)
-    "GE_LIVE_PRICES":   True,   # price the buy from prices.runescape.wiki
-    "GE_MARGIN_PCT":    5,      # % over the live instant-buy price, so the offer fills at once
-    "GE_OFFER_TIMEOUT": 60,     # seconds to wait for the sell (and the buy when re-pricing is off)
-    "GE_REPRICE_MINUTES": 5,    # a buy not complete after this long: collect, re-price the rest (0 = off)
-    "GE_REPRICE_ROUNDS":  6,    # re-prices before the restock gives up
+    "GE_LIVE_PRICES":   True,   # price both offers from prices.runescape.wiki
+    "GE_MARGIN_PCT":    5,      # % past the live price (buy over, sell under), so offers fill at once
+    "GE_OFFER_TIMEOUT": 60,     # seconds to wait for an offer when re-pricing is off
+    "GE_REPRICE_MINUTES": 5,    # an offer not complete after this long: collect, edit its price (0 = off)
+    "GE_REPRICE_ROUNDS":  6,    # price edits before the restock gives up
 }
 
 
@@ -41,6 +41,7 @@ class Restock:
     buy_item:      str      # typed into the GE search, and its price is looked up by this name
     quantity:      int
     buy_price:     int      # fallback price
+    sell_item:     str = None   # what's sold first, by name for its live price (None: GE's guide price)
     max_price:     int = 0
     live_prices:   bool = True
     margin_pct:    int = 5
@@ -53,14 +54,23 @@ class Restock:
     deposit_btn: tuple = None
 
     @classmethod
-    def from_config(cls, bot_cfg, buy_item, quantity=None, **bank):
+    def from_config(cls, bot_cfg, buy_item, quantity=None, sell_item=None, **bank):
         s = lambda name: setting(bot_cfg, name)
-        return cls(buy_item=buy_item,
+        return cls(buy_item=buy_item, sell_item=sell_item,
                    quantity=quantity if quantity is not None else s("GE_QUANTITY"),
                    buy_price=s("GE_BUY_PRICE"), max_price=s("GE_MAX_PRICE"),
                    live_prices=s("GE_LIVE_PRICES"), margin_pct=s("GE_MARGIN_PCT"),
                    offer_timeout=s("GE_OFFER_TIMEOUT"), reprice_minutes=s("GE_REPRICE_MINUTES"),
                    reprice_rounds=s("GE_REPRICE_ROUNDS"), **bank)
+
+
+def _live(quote, side, pct):
+    base = quote.get("high") or quote.get("low") if side == "buy" else quote.get("low") or quote.get("high")
+    return f"live {base} {'+' if side == 'buy' else '-'}{pct}%"
+
+
+def _over_cap(r, price, source):
+    return f"{r.buy_item} at {price} gp ({source}) is above GE_MAX_PRICE {r.max_price}"
 
 
 def buy_offer_price(r, quote=None):
@@ -70,27 +80,44 @@ def buy_offer_price(r, quote=None):
     if r.live_prices:
         live = prices.buy_price(quote, r.margin_pct / 100)
         if live is not None:
-            price, source = live, f"live {quote.get('high') or quote.get('low')} +{r.margin_pct}%"
+            price, source = live, _live(quote, "buy", r.margin_pct)
     if r.max_price and price > r.max_price:
-        return None, f"{r.buy_item} at {price} gp ({source}) is above GE_MAX_PRICE {r.max_price}"
+        return None, _over_cap(r, price, source)
     return price, source
 
 
-def reprice(r, current, quote=None):
-    """Next price for a buy that sat unfilled at `current`: the fresh live price
-    (+ margin), but at least `current` + margin — an offer that hasn't filled is
-    below the market, so following it only ever goes up. (price, source), or
-    (None, reason) once that passes GE_MAX_PRICE (the offer then stays as it is)."""
-    price = max(current + 1, math.ceil(current * (1 + r.margin_pct / 100)))
-    source = f"{current} +{r.margin_pct}%"
-    live = prices.buy_price(quote, r.margin_pct / 100) if r.live_prices else None
-    if live is not None and live > price:
-        price, source = live, f"live {quote.get('high') or quote.get('low')} +{r.margin_pct}%"
-    if r.max_price and price > r.max_price:
-        return None, f"{r.buy_item} at {price} gp ({source}) is above GE_MAX_PRICE {r.max_price}"
+def sell_offer_price(r, quote=None):
+    """(price, source) to sell r.sell_item at: the live instant-sell price - margin.
+    (None, "GE guide price") without one — then the price the GE fills in is kept."""
+    live = prices.sell_price(quote, r.margin_pct / 100) if r.live_prices else None
+    if live is None:
+        return None, "GE guide price"
+    return live, _live(quote, "sell", r.margin_pct)
+
+
+def reprice(r, current, quote=None, side="buy"):
+    """Next price for an offer that sat unfilled at `current` — it's on the wrong side of
+    the market, so a buy only goes up and a sell only goes down: the fresh live price
+    (± margin), but at least `current` ± margin. (price, source), or (None, reason) to
+    leave the offer as it is (a buy past GE_MAX_PRICE; a sell at 1 gp or, placed at the
+    GE's guide price, with no live price to go by)."""
+    m = r.margin_pct / 100
+    if side == "buy":
+        price, source = max(current + 1, math.ceil(current * (1 + m))), f"{current} +{r.margin_pct}%"
+        live = prices.buy_price(quote, m) if r.live_prices else None
+        if live is not None and live > price:
+            price, source = live, _live(quote, "buy", r.margin_pct)
+        if r.max_price and price > r.max_price:
+            return None, _over_cap(r, price, source)
+        return price, source
+
+    live = prices.sell_price(quote, m) if r.live_prices else None
+    if current is None:
+        return (live, _live(quote, "sell", r.margin_pct)) if live is not None \
+            else (None, "no live price to re-price the sell")
+    if current <= 1:
+        return None, "the sell is already at 1 gp"
+    price, source = max(1, min(current - 1, math.floor(current * (1 - m)))), f"{current} -{r.margin_pct}%"
+    if live is not None and live < price:
+        price, source = live, _live(quote, "sell", r.margin_pct)
     return price, source
-
-
-def still_to_buy(wanted, done):
-    """Items left to buy of `wanted` once the progress bar shows `done` (0..1)."""
-    return max(0, wanted - round(wanted * done))

@@ -112,7 +112,7 @@ tests/                  pytest suite (stub handlers, fake screen — no game nee
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
                          tanner (inventory_check, slot_check, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
-                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, offer_bar, follow_buy)
+                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, follow_offer)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
                          bot.py is never picked up by discovery)
@@ -162,20 +162,21 @@ choc), energy's booth, golden_nuggets hopper / strut to fix / sack / bank. Never
 **smart_right_click(x, y, menu_scan_region)** takes a before/after screenshot diff limited to `menu_scan_region` to find where the right-click menu actually appeared (handles menus that open upward). Always pass `menu_scan_region` — without it the diff covers a huge area and picks up game animation noise.
 
 **GE flow** (`lib/ge.py`). Bots build a `lib.restock.Restock` from their config (`Restock.from_config(cfg,
-item, quantity=None)`); `ge.trade(restock)` (GE open, item to sell first in the inventory) sells at 1 gp, buys,
-collects, and returns `(ok, reason)` — the bot keeps the reason for its `stop_reason`. Prices: a GE trade goes
-through at the price of the offer that was already waiting, so selling at 1 still gets the best buyer's price
-(and keeps the low-price warning whose Yes `sell` clicks), and the buy is priced live — instant-buy +
-`GE_MARGIN_PCT` from the Wiki API (`lib/prices.py`), falling back to `GE_BUY_PRICE` when it can't be reached,
-never above `GE_MAX_PRICE` (then it stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take
-focus (typed too early they go to public chat); offer waits are `GE_OFFER_TIMEOUT` seconds, O/P working.
-A buy that sits unfilled is followed (`follow_buy`): every `GE_REPRICE_MINUTES` it reads slot 1's progress
-bar (`OFFER_BAR`, `vision.bar_fraction`), aborts (`ABORT_BTN`), collects, and puts the rest back in at
-`restock.reprice` — fresh live price + margin but at least the old price + margin (an unfilled offer is under the
-market; it only goes up), never past `GE_MAX_PRICE` (then the offer stays as it is). Gives up after
-`GE_REPRICE_ROUNDS`. No live offer edit exists in OSRS, hence abort + re-place. Sells (1 gp) aren't followed.
-Uncalibrated `OFFER_BAR` / `ABORT_BTN` (or `GE_REPRICE_MINUTES = 0`) → the plain wait. Live check:
-`lib.checks.offer_bar`.
+buy_item, quantity=None, sell_item=None, ...)`); `ge.trade(restock)` (GE open, item to sell first in the inventory)
+sells, buys, collects, and returns `(ok, reason)` — the bot keeps the reason for its `stop_reason`. Prices come
+from the Wiki API (`lib/prices.py`): sell at instant-sell − `GE_MARGIN_PCT`, buy at instant-buy + margin (a GE
+trade goes through at the waiting offer's price, so the margin costs nothing — it only makes the offer fill at
+once). Normal prices raise no low-price warning, so there's no Yes click. No live price: the sell keeps the
+price the GE fills in (guide price), the buy uses `GE_BUY_PRICE`; a buy is never above `GE_MAX_PRICE` (then it
+stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take focus (typed too early they go to
+public chat). O/P work in every wait.
+An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
+slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
+the game keeps the quantity left) to `restock.reprice` — the fresh live price ± margin, but at least the old
+price ± margin: an unfilled offer is on the wrong side of the market, so a buy only goes up (never past
+`GE_MAX_PRICE`: then the offer stays as it is) and a sell only goes down (not under 1 gp). Gives up after
+`GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
+Live check: `lib.checks.follow_offer`.
 Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /
 `deposit_btn`; tanner: `HIDE_TAB`, `BANK_SLOT_2`, `DEPOSIT_BTN`), not lib/ge_config.py's:
 1. Price check (over the cap → stop before spending a ring teleport)

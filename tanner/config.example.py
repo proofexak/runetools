@@ -87,8 +87,8 @@ RESTOCK_GE = True   # if False, bot stops when hides run out instead of restocki
 GE_QUANTITY        = 1       # hides bought per restock
 GE_BUY_PRICE       = 2000    # per hide, when live prices are off or the API can't be reached
 GE_MAX_PRICE       = 0       # never offer more per hide (0 = no cap) — one value for every hide type
-GE_LIVE_PRICES     = True    # price the buy from prices.runescape.wiki: instant-buy + GE_MARGIN_PCT
+GE_LIVE_PRICES     = True    # price both offers from prices.runescape.wiki (± GE_MARGIN_PCT)
 GE_MARGIN_PCT      = 5
-GE_OFFER_TIMEOUT   = 60      # seconds to wait for the sell (and the buy when re-pricing is off)
-GE_REPRICE_MINUTES = 5       # buy not complete after this long: collect, re-price the rest (0 = off)
-GE_REPRICE_ROUNDS  = 6       # re-prices before the restock gives up
+GE_OFFER_TIMEOUT   = 60      # seconds to wait for an offer when re-pricing is off
+GE_REPRICE_MINUTES = 5       # offer not complete after this long: collect, edit its price (0 = off)
+GE_REPRICE_ROUNDS  = 6       # price edits before the restock gives up

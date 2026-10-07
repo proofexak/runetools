@@ -4,8 +4,8 @@ restock trip (run_ge_flow).
 
 Building blocks (positions from lib/ge_config.py, the GE interface is the same for
 every bot): open_bank / open_ge, withdraw_noted, sell / buy / wait_offer / collect,
-follow_buy (re-prices a buy that sits unfilled), and trade(), which sells the first
-inventory item then buys a lib.restock.Restock.
+edit_offer, follow_offer (edits the price of an offer that sits unfilled), and
+trade(), which sells the first inventory item then buys a lib.restock.Restock.
 What to buy, how many and at what price is the bot's, not this module's.
 """
 import time, random
@@ -13,12 +13,11 @@ import time, random
 import pyautogui
 
 from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite
-from lib.screen    import pixel_matches, grab
+from lib.screen    import pixel_matches
 from lib.interface import open_interface, close_interface, wait_for, shows
 from lib.camera    import face
 from lib.log       import say
-from lib.restock   import buy_offer_price, reprice, still_to_buy
-import lib.vision    as vision
+from lib.restock   import buy_offer_price, sell_offer_price, reprice
 import lib.prices    as prices
 import lib.ge_config as cfg
 
@@ -86,12 +85,12 @@ def _type_into(box, text):
     _pause()
 
 
-def sell(price=1):
-    """GE open: offer the first inventory item at `price`, confirm the low-price warning."""
+def sell(price=None):
+    """GE open: offer the first inventory item at `price` (None: keep the GE's guide price)."""
     _click(cfg.SELL_SLOT, 0.4, 0.7)
-    _type_into(cfg.PRICE_BTN, str(price))
+    if price is not None:
+        _type_into(cfg.PRICE_BTN, str(price))
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
-    _click(cfg.SELL_YES_BTN, 0.5, 0.8)
 
 
 def buy(item, quantity, price):
@@ -126,64 +125,53 @@ def close_ge():
     close_interface(still_open=shows(cfg.GE_CHECK))
 
 
-# ── Following a buy that doesn't fill ─────────────────────────────────────────
-# There's no editing a live offer: abort it, collect what it bought and the coins
-# back, put the rest in again at the new price.
+# ── Following an offer that doesn't fill ───────────────────────────────────────
 
-def _can_follow():
-    bar, abort = getattr(cfg, "OFFER_BAR", (0, 0, 0, 0)), getattr(cfg, "ABORT_BTN", (0, 0))
-    return bar[2] > 0 and bar[3] > 0 and tuple(abort) != (0, 0)
+def _can_edit():
+    return tuple(getattr(cfg, "EDIT_BTN", (0, 0))) != (0, 0)
 
 
-def offer_progress():
-    """How far slot 1's offer got (0..1), from its bar on the overview; None = no offer there."""
-    frame, _ = grab(cfg.OFFER_BAR)
-    return vision.bar_fraction(frame, cfg.OFFER_BAR_EMPTY, cfg.OFFER_BAR_FILL)
-
-
-def abort_and_collect():
-    """Open slot 1's offer, abort it, collect what it bought and the coins back."""
+def edit_offer(price, both):
+    """Open slot 1's offer, collect what it has done so far, change its price to `price`.
+    The game keeps the quantity still to go."""
     x, y, _ = cfg.OFFER_COMPLETE
     _click((x, y), 0.6, 0.9)
-    _click(cfg.ABORT_BTN, 1.2, 1.6)      # the abort lands on the next game tick
-    collect(both=True)
+    collect(both)
+    _click(cfg.EDIT_BTN, 0.5, 0.8)
+    _type_into(cfg.PRICE_BTN, str(price))
+    _click(cfg.CONFIRM_BTN, 0.5, 0.8)
 
 
-def follow_buy(restock, price):
-    """The buy is in slot 1 at `price`: wait for it and collect. With re-pricing on (and
-    calibrated), every reprice_minutes it hasn't completed: read how much it bought,
-    abort, collect, put the rest back in at reprice(). Ends on the overview with
-    everything collected. (True, None) or (False, reason)."""
-    if not restock.reprice_minutes or not _can_follow():
+def follow_offer(restock, side, price):
+    """The `side` ("buy" / "sell") offer is in slot 1 at `price` (None: the GE's guide price):
+    wait for it and collect. With re-pricing on (and EDIT_BTN calibrated), every
+    reprice_minutes it hasn't completed: collect what it did, edit the price to reprice().
+    Ends on the overview with everything collected. (True, None) or (False, reason)."""
+    both = side == "buy"                 # a buy leaves items + change; a sell just coins
+    item = restock.buy_item if side == "buy" else restock.sell_item
+    shown = f"{price} gp" if price is not None else "guide price"
+    if not restock.reprice_minutes or not _can_edit():
         if not wait_offer(restock.offer_timeout):
-            return False, f"buy offer never completed ({price} gp)"
-        collect(both=True)
+            return False, f"{side} offer never completed ({shown})"
+        collect(both)
         return True, None
 
-    left = restock.quantity
     for round_ in range(restock.reprice_rounds + 1):
         if wait_offer(restock.reprice_minutes * 60):
-            collect(both=True)
+            collect(both)
             return True, None
         if round_ == restock.reprice_rounds:
             break
-        quote = prices.latest(restock.buy_item, max_age=60) if restock.live_prices else None
-        new, source = reprice(restock, price, quote)
+        quote = prices.latest(item, max_age=60) if restock.live_prices and item else None
+        new, source = reprice(restock, price, quote, side)
         if new is None:
-            say(f"[GE] {source} — the offer stays at {price} gp")
+            say(f"[GE] {source} — the {side} stays at {shown}")
             continue
-        done = offer_progress()
-        if done is None:
-            return False, "no buy offer in GE slot 1"
-        left = still_to_buy(left, done)
-        say(f"[GE] Buy {done:.0%} done after {restock.reprice_minutes} min — "
-            f"re-pricing the other {left} at {new} gp ({source})")
-        abort_and_collect()
-        if left == 0:
-            return True, None
-        buy(restock.buy_item, left, new)
-        price = new
-    return False, f"buy offer not complete after {restock.reprice_rounds} re-prices ({price} gp)"
+        say(f"[GE] {side.capitalize()} not complete after {restock.reprice_minutes} min — "
+            f"collecting, price {shown} → {new} gp ({source})")
+        edit_offer(new, both)
+        price, shown = new, f"{new} gp"
+    return False, f"{side} offer not complete after {restock.reprice_rounds} price edits ({shown})"
 
 
 def offer_price(restock):
@@ -192,18 +180,22 @@ def offer_price(restock):
 
 
 def trade(restock):
-    """GE open, the item to sell first in the inventory: sell it at 1 gp, buy
-    `restock`, collect. (True, None) or (False, reason)."""
+    """GE open, the item to sell first in the inventory: sell it, buy `restock`,
+    collect both. (True, None) or (False, reason)."""
     price, source = offer_price(restock)
     if price is None:
         return False, source
-    say(f"[GE] Selling, then buying {restock.quantity} x {restock.buy_item} at {price} gp ({source})")
-    sell(1)
-    if not wait_offer(restock.offer_timeout):
-        return False, "sell offer never completed"
-    collect()
+    quote = prices.latest(restock.sell_item) if restock.live_prices and restock.sell_item else None
+    sell_at, sell_source = sell_offer_price(restock, quote)
+    say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
+        f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
+    sell(sell_at)
+    ok, why = follow_offer(restock, "sell", sell_at)
+    if not ok:
+        return False, why
+    say(f"[GE] Buying {restock.quantity} x {restock.buy_item} at {price} gp ({source})")
     buy(restock.buy_item, restock.quantity, price)
-    return follow_buy(restock, price)
+    return follow_offer(restock, "buy", price)
 
 
 # ── Tanner's restock trip ─────────────────────────────────────────────────────

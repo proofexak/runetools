@@ -6,9 +6,7 @@ import pytest
 
 import lib.pause as pause
 import lib.prices as prices
-from lib.restock import Restock, buy_offer_price, reprice, setting, still_to_buy, DEFAULTS
-from lib.vision import bar_fraction
-from tests.fakescreen import canvas, paint
+from lib.restock import Restock, buy_offer_price, sell_offer_price, reprice, setting, DEFAULTS
 
 
 # ── prices ────────────────────────────────────────────────────────────────────
@@ -73,6 +71,16 @@ def test_unknown_names_come_from_the_item_list():
 ])
 def test_buy_price(quote, margin, expected):
     assert prices.buy_price(quote, margin) == expected
+
+
+@pytest.mark.parametrize("quote, margin, expected", [
+    ({"high": 1811, "low": 1752}, 0.05, 1664),     # floor(1752 * 0.95)
+    ({"high": 1811, "low": None}, 0.0, 1811),      # no recent instant-sell: the instant-buy price
+    ({"high": 1, "low": 1}, 0.05, 1),              # never below 1
+    (None, 0.05, None),
+])
+def test_sell_price(quote, margin, expected):
+    assert prices.sell_price(quote, margin) == expected
 
 
 # ── per-bot settings + offer price ────────────────────────────────────────────
@@ -147,23 +155,34 @@ def test_set_notes_clicks_only_until_it_shows(ge, monkeypatch, shown, want, clic
     assert sum(1 for c in log if c[0] == "click") == clicks
 
 
-def test_trade_sells_then_buys_at_the_live_price(ge, monkeypatch):
+QUOTES = {"green dragonhide": {"high": 1570, "low": 1527}, "green dragon leather": {"high": 1811, "low": 1752}}
+
+
+def test_trade_sells_then_buys_at_live_prices(ge, monkeypatch):
     ge, log = ge
     steps = []
-    monkeypatch.setattr(ge.prices, "latest", lambda name: {"high": 1570, "low": 1527})
-    monkeypatch.setattr(ge, "sell", lambda price=1: steps.append(("sell", price)))
+    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: QUOTES[name])
+    monkeypatch.setattr(ge, "sell", lambda price=None: steps.append(("sell", price)))
     monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
     monkeypatch.setattr(ge, "wait_offer", lambda t: steps.append(("wait", t)) or True)
     monkeypatch.setattr(ge, "collect", lambda both=False: steps.append(("collect", both)))
-    assert ge.trade(_r(offer_timeout=30)) == (True, None)
-    assert steps == [("sell", 1), ("wait", 30), ("collect", False),
+    assert ge.trade(_r(sell_item="green dragon leather", reprice_minutes=0, offer_timeout=30)) == (True, None)
+    assert steps == [("sell", 1664), ("wait", 30), ("collect", False),
                      ("buy", "green dragonhide", 100, 1649), ("wait", 30), ("collect", True)]
+
+
+def test_sell_without_a_live_price_keeps_the_guide_price(ge):
+    ge, log = ge
+    assert sell_offer_price(_r(sell_item="green dragon leather"), None) == (None, "GE guide price")
+    ge.sell(None)
+    assert not any(c[0] == "type" for c in log)
+    assert [c[1:] for c in log if c[0] == "click"] == [ge.cfg.SELL_SLOT, ge.cfg.CONFIRM_BTN]
 
 
 def test_trade_stops_before_selling_when_the_price_is_over_the_cap(ge, monkeypatch):
     ge, log = ge
     monkeypatch.setattr(ge.prices, "latest", lambda name: {"high": 1570, "low": 1527})
-    monkeypatch.setattr(ge, "sell", lambda price=1: pytest.fail("sold"))
+    monkeypatch.setattr(ge, "sell", lambda price=None: pytest.fail("sold"))
     ok, why = ge.trade(_r(max_price=1000))
     assert not ok and "GE_MAX_PRICE" in why
 
@@ -171,12 +190,12 @@ def test_trade_stops_before_selling_when_the_price_is_over_the_cap(ge, monkeypat
 def test_trade_names_the_offer_that_never_completed(ge, monkeypatch):
     ge, log = ge
     monkeypatch.setattr(ge.prices, "latest", lambda name: None)
-    monkeypatch.setattr(ge, "sell", lambda price=1: None)
+    monkeypatch.setattr(ge, "sell", lambda price=None: None)
     monkeypatch.setattr(ge, "collect", lambda both=False: None)
     monkeypatch.setattr(ge, "buy", lambda *a: None)
     results = iter([True, False])
     monkeypatch.setattr(ge, "wait_offer", lambda t: next(results))
-    assert ge.trade(_r()) == (False, "buy offer never completed (2000 gp)")
+    assert ge.trade(_r(reprice_minutes=0)) == (False, "buy offer never completed (2000 gp)")
 
 
 @pytest.fixture
@@ -258,30 +277,9 @@ def test_wait_for_lets_p_through(monkeypatch):
         interface.wait_for(lambda: False, timeout=5)
 
 
-# ── following a buy that doesn't fill ─────────────────────────────────────────
+# ── re-pricing an offer that doesn't fill ─────────────────────────────────────
 
-EMPTY, FILL = (40, 35, 30), (220, 130, 20)
-
-
-def _bar(filled, width=100, other=None):
-    frame = paint(canvas(width, 6), 0, 0, width, 6, EMPTY)
-    if filled:
-        frame = paint(frame, 0, 0, filled, 6, FILL)
-    if other:
-        frame = paint(frame, width - other, 0, other, 6, (200, 200, 200))
-    return frame
-
-
-@pytest.mark.parametrize("frame, expected", [
-    (_bar(0), 0.0), (_bar(40), 0.4), (_bar(100), 1.0),
-    (_bar(0, other=60), None),                  # mostly neither colour: no offer bar there
-])
-def test_bar_fraction(frame, expected):
-    got = bar_fraction(frame, EMPTY, FILL)
-    assert got == (pytest.approx(expected) if expected is not None else None)
-
-
-def test_reprice_follows_the_market_up_never_down():
+def test_reprice_buy_follows_the_market_up_never_down():
     assert reprice(_r(), 1649, {"high": 1800, "low": 1750})[0] == 1890           # live 1800 +5 %
     assert reprice(_r(), 1649, {"high": 1500, "low": 1490})[0] == 1732           # live lower: still +5 %
     assert reprice(_r(), 1649, None)[0] == 1732                                  # API down: +5 %
@@ -290,21 +288,25 @@ def test_reprice_follows_the_market_up_never_down():
     assert price is None and "GE_MAX_PRICE 1700" in why
 
 
-@pytest.mark.parametrize("wanted, done, left", [(100, 0.4, 60), (100, 0.0, 100), (100, 1.0, 0), (3, 0.5, 1)])
-def test_still_to_buy(wanted, done, left):
-    assert still_to_buy(wanted, done) == left
+def test_reprice_sell_follows_the_market_down_never_up():
+    def sell(**kw):
+        return _r(sell_item="green dragon leather", **kw)
+    assert reprice(sell(), 1664, {"high": 1600, "low": 1500}, "sell")[0] == 1425  # live 1500 -5 %
+    assert reprice(sell(), 1664, {"high": 1900, "low": 1850}, "sell")[0] == 1580  # live higher: still -5 %
+    assert reprice(sell(margin_pct=0), 30, None, "sell")[0] == 29                 # always at least -1
+    assert reprice(sell(), 1, None, "sell")[0] is None                            # can't go under 1 gp
+    assert reprice(sell(), None, None, "sell")[0] is None                         # guide price, no live: leave it
+    assert reprice(sell(), None, {"high": 1600, "low": 1500}, "sell")[0] == 1425
 
 
 @pytest.fixture
 def follow(ge, monkeypatch):
     ge, log = ge
     steps = []
-    monkeypatch.setattr(ge.cfg, "OFFER_BAR", (10, 10, 100, 6))
-    monkeypatch.setattr(ge.cfg, "ABORT_BTN", (50, 50))
+    monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
     monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: None)
     monkeypatch.setattr(ge, "collect", lambda both=False: steps.append(("collect", both)))
-    monkeypatch.setattr(ge, "abort_and_collect", lambda: steps.append(("abort",)))
-    monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
+    monkeypatch.setattr(ge, "edit_offer", lambda price, both: steps.append(("edit", price, both)))
 
     def waits(*results):
         it = iter(results)
@@ -312,63 +314,65 @@ def follow(ge, monkeypatch):
     return ge, steps, waits
 
 
-def test_follow_buy_that_completes_just_collects(follow):
+def test_follow_offer_that_completes_just_collects(follow):
     ge, steps, waits = follow
     waits(True)
-    assert ge.follow_buy(_r(), 1649) == (True, None)
+    assert ge.follow_offer(_r(), "buy", 1649) == (True, None)
     assert steps == [("wait", 300), ("collect", True)]
 
 
-def test_follow_buy_re_prices_the_rest_every_interval(follow, monkeypatch):
+def test_follow_offer_edits_the_price_every_interval(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, False, True)
-    progress = iter([0.4, 0.5])
-    monkeypatch.setattr(ge, "offer_progress", lambda: next(progress))
     monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: {"high": 1800, "low": 1750})
-    assert ge.follow_buy(_r(quantity=100), 1649) == (True, None)
-    assert steps == [("wait", 300), ("abort",), ("buy", "green dragonhide", 60, 1890),
-                     ("wait", 300), ("abort",), ("buy", "green dragonhide", 30, 1985),
+    assert ge.follow_offer(_r(), "buy", 1649) == (True, None)
+    assert steps == [("wait", 300), ("edit", 1890, True),
+                     ("wait", 300), ("edit", 1985, True),
                      ("wait", 300), ("collect", True)]
 
 
-def test_follow_buy_over_the_cap_leaves_the_offer_and_keeps_waiting(follow, monkeypatch):
+def test_follow_offer_sell_goes_down_and_collects_only_coins(follow, monkeypatch):
     ge, steps, waits = follow
     waits(False, True)
-    monkeypatch.setattr(ge, "offer_progress", lambda: pytest.fail("read the bar"))
-    assert ge.follow_buy(_r(max_price=1700), 1649) == (True, None)
-    assert ("abort",) not in steps
+    monkeypatch.setattr(ge.prices, "latest", lambda name, max_age=None: {"high": 1600, "low": 1500})
+    assert ge.follow_offer(_r(sell_item="green dragon leather"), "sell", 1664) == (True, None)
+    assert steps == [("wait", 300), ("edit", 1425, False), ("wait", 300), ("collect", False)]
 
 
-def test_follow_buy_gives_up_after_its_rounds(follow, monkeypatch):
+def test_follow_offer_over_the_cap_leaves_the_offer_and_keeps_waiting(follow):
+    ge, steps, waits = follow
+    waits(False, True)
+    assert ge.follow_offer(_r(max_price=1700), "buy", 1649) == (True, None)
+    assert not any(st[0] == "edit" for st in steps)
+
+
+def test_follow_offer_gives_up_after_its_rounds(follow):
     ge, steps, waits = follow
     waits(False, False, False)
-    monkeypatch.setattr(ge, "offer_progress", lambda: 0.0)
-    ok, why = ge.follow_buy(_r(reprice_rounds=2), 1000)
-    assert not ok and "after 2 re-prices" in why and steps.count(("abort",)) == 2
+    ok, why = ge.follow_offer(_r(reprice_rounds=2), "buy", 1000)
+    assert not ok and "after 2 price edits" in why
+    assert sum(1 for st in steps if st[0] == "edit") == 2
 
 
-def test_follow_buy_stops_when_slot_1_holds_no_offer(follow, monkeypatch):
-    ge, steps, waits = follow
-    waits(False)
-    monkeypatch.setattr(ge, "offer_progress", lambda: None)
-    assert ge.follow_buy(_r(), 1649) == (False, "no buy offer in GE slot 1")
-    assert ("abort",) not in steps
-
-
-def test_follow_buy_finished_between_checks_needs_no_new_offer(follow, monkeypatch):
-    ge, steps, waits = follow
-    waits(False)
-    monkeypatch.setattr(ge, "offer_progress", lambda: 1.0)
-    assert ge.follow_buy(_r(), 1649) == (True, None)
-    assert steps == [("wait", 300), ("abort",)]
-
-
-def test_follow_buy_uncalibrated_or_off_just_waits(follow, monkeypatch):
+def test_follow_offer_uncalibrated_or_off_just_waits(follow, monkeypatch):
     ge, steps, waits = follow
     waits(True)
-    monkeypatch.setattr(ge.cfg, "ABORT_BTN", (0, 0))
-    assert ge.follow_buy(_r(offer_timeout=45), 1649) == (True, None)
+    monkeypatch.setattr(ge.cfg, "EDIT_BTN", (0, 0))
+    assert ge.follow_offer(_r(offer_timeout=45), "buy", 1649) == (True, None)
     assert steps == [("wait", 45), ("collect", True)]
-    steps.clear(); waits(False)
-    monkeypatch.setattr(ge.cfg, "ABORT_BTN", (50, 50))
-    assert ge.follow_buy(_r(offer_timeout=45, reprice_minutes=0), 1649) == (False, "buy offer never completed (1649 gp)")
+    steps.clear()
+    waits(False)
+    monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
+    assert ge.follow_offer(_r(offer_timeout=45, reprice_minutes=0), "sell", None) == \
+        (False, "sell offer never completed (guide price)")
+
+
+def test_edit_offer_collects_then_types_the_new_price(ge, monkeypatch):
+    ge, log = ge
+    monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
+    ge.edit_offer(1890, both=True)
+    clicks = [c[1:] for c in log if c[0] == "click"]
+    x, y, _ = ge.cfg.OFFER_COMPLETE
+    assert clicks == [(x, y), ge.cfg.RETRIEVE_SLOT_1, ge.cfg.RETRIEVE_SLOT_2, (50, 50),
+                      ge.cfg.PRICE_BTN, ge.cfg.CONFIRM_BTN]
+    assert ("type", "1890") in log
