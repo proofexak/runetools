@@ -435,6 +435,22 @@ def test_follow_offer_uncalibrated_or_off_just_waits(follow, monkeypatch):
         (False, "sell offer never completed (guide price)")
 
 
+def test_edit_offer_waits_for_the_loading_box_and_aims_small_buttons_tight(ge, monkeypatch):
+    # the pencil shows "Please wait..." for 1-2 s (and withdraws the offer until Confirm):
+    # clicks before the set-up screen is up do nothing and the offer is left withdrawn
+    ge, log = ge
+    spreads = []
+    monkeypatch.setattr(ge, "jitter", lambda x, y, n=8: spreads.append(((x, y), n)) or (x, y))
+    monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
+    monkeypatch.setattr(ge.cfg, "PRICE_BTN", (987, 490))
+    ge.edit_offer(1890, both=True)
+    edit_at = log.index(("click", 50, 50))
+    price_at = log.index(("click",) + tuple(ge.cfg.PRICE_BTN))
+    waited = sum(e[1] for e in log[edit_at + 1:price_at] if e[0] == "sleep")
+    assert waited >= ge.EDIT_LOAD[0]
+    assert dict(spreads)[(50, 50)] <= 3 and dict(spreads)[tuple(ge.cfg.PRICE_BTN)] <= 3
+
+
 def test_edit_offer_collects_then_types_the_new_price(ge, monkeypatch):
     ge, log = ge
     monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))

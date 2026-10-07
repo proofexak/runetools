@@ -28,14 +28,20 @@ OFFER_TOL = 30    # the "complete" pixel varied by 17 in one channel while genui
 # The game logs out after 5 minutes without a click or key press — and an offer can sit for
 # longer than that. While waiting on one, a key tap every 2.5-4 minutes keeps the account in.
 KEEP_AWAKE = (150, 240)
+# The edit pencil shows "Please wait..." for 1-2 s before the set-up screen — and from that
+# click until Confirm, the offer is withdrawn. Clicks during the wait do nothing.
+EDIT_LOAD = (2.5, 3.5)
+# Spread of a click's random offset: ±8 px for big targets, ±3 for the ~20 px icon buttons
+# (the edit pencil, the price "..." button).
+SMALL = 3
 
 
 def _pause(lo=0.3, hi=0.5):
     time.sleep(random.uniform(lo, hi))
 
 
-def _click(point, lo=0.3, hi=0.5):
-    human_click(*jitter(*point))
+def _click(point, lo=0.3, hi=0.5, spread=8):
+    human_click(*jitter(*point, n=spread))
     _pause(lo, hi)
 
 
@@ -80,8 +86,8 @@ def open_ge():
                           cfg.MAX_AGENT_TRIES, what="[GE] Exchange")
 
 
-def _type_into(box, text):
-    human_click(*jitter(*box))
+def _type_into(box, text, spread=8):
+    human_click(*jitter(*box, n=spread))
     time.sleep(random.uniform(*BOX_FOCUS))
     human_typewrite(text)
     pyautogui.press("enter")
@@ -93,7 +99,7 @@ def sell(inv_slot, price=None):
     the quantity already at all — and offer it at `price` (None: keep the GE's guide price)."""
     _click(inv_slot, 0.4, 0.7)
     if price is not None:
-        _type_into(cfg.PRICE_BTN, str(price))
+        _type_into(cfg.PRICE_BTN, str(price), spread=SMALL)
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
 
 
@@ -103,8 +109,8 @@ def buy(item, quantity, price):
     human_typewrite(item)
     _pause(0.4, 0.7)
     _click(cfg.BUY_SEARCH_RESULT, 0.4, 0.7)
-    _type_into(cfg.BUY_QUANTITY_BTN, str(quantity))
-    _type_into(cfg.PRICE_BTN, str(price))
+    _type_into(cfg.BUY_QUANTITY_BTN, str(quantity), spread=SMALL)
+    _type_into(cfg.PRICE_BTN, str(price), spread=SMALL)
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
 
 
@@ -162,8 +168,8 @@ def edit_offer(price, both):
     x, y, _ = cfg.OFFER_COMPLETE
     _click((x, y), 0.6, 0.9)
     collect(both)
-    _click(cfg.EDIT_BTN, 0.5, 0.8)
-    _type_into(cfg.PRICE_BTN, str(price))
+    _click(cfg.EDIT_BTN, *EDIT_LOAD, spread=SMALL)       # "Please wait..." — then the set-up screen
+    _type_into(cfg.PRICE_BTN, str(price), spread=SMALL)
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
 
 

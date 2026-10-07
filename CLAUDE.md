@@ -174,7 +174,9 @@ public chat). O/P work in every wait. The game logs out after 5 min with no clic
 wait taps ← then → (`keep_awake`, camera turns and back) every `KEEP_AWAKE` 150-240 s.
 An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
 slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
-the game keeps the quantity left) to `restock.reprice` — always a fresh check: the latest trade + 1 gp (buy) /
+the game keeps the quantity left). The pencil shows "Please wait..." for 1-2 s before the set-up screen
+(`EDIT_LOAD` wait) and withdraws the offer until Confirm — clicked too early, nothing registers and the offer stays
+withdrawn. Small icon buttons (pencil, price "...") get a ±3 px click offset (`SMALL`), big ones ±8 to `restock.reprice` — always a fresh check: the latest trade + 1 gp (buy) /
 − 1 gp (sell), no minimum step. Same price as now, no live price, or a buy past `GE_MAX_PRICE` → the offer
 stays as it is. Gives up after
 `GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
