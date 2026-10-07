@@ -189,22 +189,6 @@ def _summed_diff(before, after):
     return np.abs(before.astype(int) - after.astype(int)).sum(axis=2)
 
 
-def changed_slot(before, after, slot_w=36, slot_h=32, min_score=1000):
-    """Centre of the slot-sized window that changed most between the frames
-    (scanned on a half-slot grid), or None if no window changed by min_score."""
-    diff = _summed_diff(before, after)
-    h, w = diff.shape
-    best_score, best = 0, None
-    for y in range(0, h - slot_h, slot_h // 2):
-        for x in range(0, w - slot_w, slot_w // 2):
-            score = int(diff[y:y + slot_h, x:x + slot_w].sum())
-            if score > best_score:
-                best_score, best = score, (x + slot_w // 2, y + slot_h // 2)
-    if best is None or best_score < min_score:
-        return None
-    return best
-
-
 def menu_origin(before, after, threshold=20, min_pixels=20):
     """Top-left of the area that changed (e.g. a right-click menu opening):
     pixels whose summed channel difference exceeds `threshold`. None unless

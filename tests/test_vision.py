@@ -164,19 +164,6 @@ def test_frame_difference():
     assert vision.frame_difference(a, b) == 30.0
 
 
-def test_changed_slot_centre_on_half_stride_grid():
-    before = canvas(200, 150)
-    after = paint(canvas(200, 150), 72, 48, 36, 32, (140, 110, 60))
-    assert vision.changed_slot(before, after) == (90, 64)
-
-
-def test_changed_slot_below_min_score():
-    before = canvas(200, 150)
-    after = paint(canvas(200, 150), 72, 48, 1, 1, (1, 1, 1))      # score 3
-    assert vision.changed_slot(before, after) is None
-    assert vision.changed_slot(before, before) is None
-
-
 def test_menu_origin_top_left_of_change():
     before = canvas(200, 200)
     after = paint(canvas(200, 200), 20, 30, 40, 60, (93, 84, 71))

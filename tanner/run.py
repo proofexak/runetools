@@ -32,7 +32,9 @@ def _handlers(session):
 
     def restock():
         # Return teleport goes through the recover state so it uses a glory charge.
-        ok, session.restock_error = run_ge_flow(Restock.from_config(config, config.HIDE_TYPE))
+        restock = Restock.from_config(config, config.HIDE_TYPE, bank_tab=config.HIDE_TAB,
+                                      sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
+        ok, session.restock_error = run_ge_flow(restock)
         return ok_or_fail(ok)
 
     def recover_():

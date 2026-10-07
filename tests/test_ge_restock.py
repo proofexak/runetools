@@ -186,33 +186,45 @@ def flow(ge, monkeypatch):
     monkeypatch.setattr(ge.prices, "latest", lambda name: None)
     monkeypatch.setattr(ge, "_teleport", lambda: calls.append("teleport"))
     monkeypatch.setattr(ge, "face", lambda d, cfg: calls.append("face"))
-    monkeypatch.setattr(ge, "withdraw_noted", lambda slot: True)
+    monkeypatch.setattr(ge, "withdraw_noted", lambda slot: calls.append(("withdraw", slot)) or True)
     monkeypatch.setattr(ge, "close_bank", lambda: None)
     monkeypatch.setattr(ge, "close_ge", lambda: None)
     monkeypatch.setattr(ge, "open_ge", lambda: True)
     monkeypatch.setattr(ge, "trade", lambda r: (True, None))
-    monkeypatch.setattr(ge, "_deposit_and_relocate", lambda: True)
-    return ge, calls
+    return ge, calls, log
+
+
+def _trip(**kw):
+    return _r(bank_tab=(720, 253), sell_slot=(736, 294), deposit_btn=(1043, 675), **kw)
+
+
+def test_run_ge_flow_uses_the_bots_bank_and_just_deposits_all(flow, monkeypatch):
+    ge, calls, log = flow
+    monkeypatch.setattr(ge, "open_bank", lambda region: True)
+    assert ge.run_ge_flow(_trip()) == (True, None)
+    clicks = [c[1:] for c in log if c[0] == "click"]
+    assert clicks == [(720, 253), (1043, 675)]                 # hide tab, then deposit all at the end
+    assert ("withdraw", (736, 294)) in calls
 
 
 def test_run_ge_flow_retries_the_banker_without_teleporting_again(flow, monkeypatch):
-    ge, calls = flow
+    ge, calls, log = flow
     banker = iter([False, False, True, True])       # approach region twice, then found; bank after the GE
     monkeypatch.setattr(ge, "open_bank", lambda region: next(banker))
-    assert ge.run_ge_flow(_r()) == (True, None)
-    assert calls == ["teleport", "face", "face", "face"]
+    assert ge.run_ge_flow(_trip()) == (True, None)
+    assert [c for c in calls if isinstance(c, str)] == ["teleport", "face", "face", "face"]
 
 
 def test_run_ge_flow_spends_no_teleport_on_a_price_over_the_cap(flow):
-    ge, calls = flow
-    ok, why = ge.run_ge_flow(_r(max_price=1000))     # fallback 2000 > 1000
+    ge, calls, log = flow
+    ok, why = ge.run_ge_flow(_trip(max_price=1000))     # fallback 2000 > 1000
     assert not ok and "GE_MAX_PRICE" in why and calls == []
 
 
 def test_run_ge_flow_reports_why(flow, monkeypatch):
-    ge, calls = flow
+    ge, calls, log = flow
     monkeypatch.setattr(ge, "open_bank", lambda region: False)
-    assert ge.run_ge_flow(_r()) == (False, "banker not found at the GE")
+    assert ge.run_ge_flow(_trip()) == (False, "banker not found at the GE")
     assert calls.count("teleport") == 1 and calls.count("face") == ge.cfg.GE_MAX_RETRIES
 
 

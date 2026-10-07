@@ -19,12 +19,8 @@ FIELDS = [
     ("Banker",     "Approach Region",      "GE_APPROACH_REGION",   "region"),
     ("Banker",     "GE Region",            "GE_REGION",            "region"),
     ("Banker",     "Bank Check",           "BANK_CHECK",           "point_color"),
-    ("Bank",       "Second Tab",           "SECOND_TAB",           "point"),
     ("Bank",       "Notes Check",          "NOTES_CHECK",          "point_color"),
     ("Bank",       "Notes Button",         "NOTES_BTN",            "point"),
-    ("Bank",       "Bank Slot 1",          "BANK_SLOT_1",          "point"),
-    ("Bank",       "Deposit Button",       "DEPOSIT_BTN",          "point"),
-    ("Bank",       "Bank Area",            "GE_BANK_AREA",         "region"),
     ("GE",         "GE Check",             "GE_CHECK",             "point_color"),
     ("GE",         "Sell Slot",            "SELL_SLOT",            "point"),
     ("GE",         "Price Button",         "PRICE_BTN",            "point"),
@@ -46,7 +42,6 @@ REGION_COLORS = {
     "RING_MENU_REGION":   "#ff88ff",
     "GE_APPROACH_REGION": "#ff8800",
     "GE_REGION":        "#0088ff",
-    "GE_BANK_AREA":     "#44ff88",
     "OFFER_BAR":        "#ff8800",
 }
 

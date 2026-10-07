@@ -176,13 +176,15 @@ market; it only goes up), never past `GE_MAX_PRICE` (then the offer stays as it 
 `GE_REPRICE_ROUNDS`. No live offer edit exists in OSRS, hence abort + re-place. Sells (1 gp) aren't followed.
 Uncalibrated `OFFER_BAR` / `ABORT_BTN` (or `GE_REPRICE_MINUTES = 0`) → the plain wait. Live check:
 `lib.checks.offer_bar`.
-Tanner's trip, `run_ge_flow(restock)`:
+Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /
+`deposit_btn`; tanner: `HIDE_TAB`, `BANK_SLOT_2`, `DEPOSIT_BTN`), not lib/ge_config.py's:
 1. Price check (over the cap → stop before spending a ring teleport)
 2. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
 3. Face west → find banker (BLUE) in `GE_APPROACH_REGION` → confirm via `BANK_CHECK`; not found → face west and look again (`GE_MAX_RETRIES`, never a second teleport)
-4. Second tab → `withdraw_noted(BANK_SLOT_1)` (notes toggled only when `NOTES_CHECK` says so, then checked) → close bank
+4. Bot's tab → `withdraw_noted(sell_slot)` (notes toggled only when `NOTES_CHECK` says so, then checked) → close bank
 5. `open_ge()` (MAGENTA in `GE_REGION`, `GE_CHECK`) → `trade(restock)` → close GE
-6. Find banker (BLUE) in `GE_REGION` → deposit all → snapshot diff to find changed slot → drag to `SECOND_TAB`
+6. Find banker (BLUE) in `GE_REGION` → deposit all → close. The hides go back on their own slot (tanner withdraws
+   all-but-1, so the stack never leaves the bank) — no tab click, no moving them
 7. Tanner's state machine goes to `recover` next (glory back to Al Kharid)
 Choc's `restock_ge` uses the same blocks without the teleport.
 

@@ -108,36 +108,6 @@ def test_read_number_unknown_glyph_is_question_mark(fake_screen):
     assert raw == "4?" and value is None
 
 
-# ── GE: find the bank slot the deposit landed in ──────────────────────────────
-
-@pytest.fixture
-def ge(fake_screen, with_example_config, monkeypatch):
-    ge = with_example_config("lib", "ge", config="ge_config")
-    monkeypatch.setattr(ge.cfg, "GE_BANK_AREA", (100, 100, 200, 150))
-    monkeypatch.setattr(ge.cfg, "DEPOSIT_BTN", (5, 5))
-    monkeypatch.setattr(ge.cfg, "SECOND_TAB", (50, 50))
-    monkeypatch.setattr(ge.time, "sleep", lambda s: None)
-    fake_screen.show(canvas(400, 400))
-    drags = []
-    monkeypatch.setattr(ge, "drag_and_drop", lambda *a: drags.append(a))
-    return ge, drags
-
-
-def test_deposit_and_relocate_drags_changed_slot(ge, fake_screen, monkeypatch):
-    ge, drags = ge
-    after = paint(canvas(400, 400), 100 + 72, 100 + 48, 36, 32, (140, 110, 60))
-    monkeypatch.setattr(ge, "human_click", lambda x, y: fake_screen.show(after))
-    assert ge._deposit_and_relocate() is True
-    assert drags == [(190, 164, 50, 50)]
-
-
-def test_deposit_and_relocate_no_change_returns_false(ge, monkeypatch):
-    ge, drags = ge
-    monkeypatch.setattr(ge, "human_click", lambda x, y: None)
-    assert ge._deposit_and_relocate() is False
-    assert drags == []
-
-
 # ── energy: when to drink ─────────────────────────────────────────────────────
 
 @pytest.fixture

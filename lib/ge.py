@@ -12,8 +12,7 @@ import time, random
 
 import pyautogui
 
-from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite, \
-                          drag_and_drop
+from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite
 from lib.screen    import pixel_matches, grab
 from lib.interface import open_interface, close_interface, wait_for, shows
 from lib.camera    import face
@@ -225,33 +224,13 @@ def _teleport():
     time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
-def _deposit_and_relocate():
-    """Deposit all, find where hides landed via snapshot diff, drag to SECOND_BANK_TAB_SLOT."""
-    l, t, _, _ = cfg.GE_BANK_AREA
-    before, _ = grab(cfg.GE_BANK_AREA)
-    human_click(*jitter(*cfg.DEPOSIT_BTN))
-    time.sleep(random.uniform(0.7, 1.1))
-    after, _ = grab(cfg.GE_BANK_AREA)
-
-    slot = vision.changed_slot(before, after)
-    if slot is None:
-        say("[GE] Could not detect changed bank slot.")
-        return False
-    best_cx, best_cy = l + slot[0], t + slot[1]
-
-    say(f"[GE] Hides at ({best_cx}, {best_cy}) — dragging to slot...")
-    tx, ty = cfg.SECOND_TAB
-    drag_and_drop(best_cx, best_cy, tx, ty)
-    time.sleep(random.uniform(0.4, 0.7))
-    human_click(*jitter(tx, ty))
-    time.sleep(random.uniform(0.3, 0.5))
-    return True
-
-
 def run_ge_flow(restock):
     """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
-    `restock` → bank the hides on the hide tab. (True, None) or (False, reason).
-    The price is checked first, so one over the cap costs no ring teleport."""
+    `restock` → deposit all. (True, None) or (False, reason). The bank positions are
+    the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
+    same at every bank, and deposit-all puts the hides back on their own slot (the bot
+    withdraws all-but-1, so the stack never leaves the bank). The price is checked
+    first, so one over the cap costs no ring teleport."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
@@ -265,8 +244,8 @@ def run_ge_flow(restock):
     else:
         return False, "banker not found at the GE"
 
-    _click(cfg.SECOND_TAB)
-    if not withdraw_noted(cfg.BANK_SLOT_1):
+    _click(restock.bank_tab)
+    if not withdraw_noted(restock.sell_slot):
         return False, "notes toggle didn't respond"
     close_bank()
 
@@ -279,8 +258,7 @@ def run_ge_flow(restock):
 
     if not open_bank(cfg.GE_REGION):
         return False, "could not open the bank after the GE"
-    if not _deposit_and_relocate():
-        return False, "could not find the hides in the bank"
+    _click(restock.deposit_btn, 0.6, 0.9)
     close_bank()
     say("[GE] Restock complete.")
     return True, None

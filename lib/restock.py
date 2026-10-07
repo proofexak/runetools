@@ -47,16 +47,20 @@ class Restock:
     offer_timeout: float = 60
     reprice_minutes: float = 5
     reprice_rounds:  int = 6
+    # The bot's own bank layout, for a trip that banks at the GE (lib.ge.run_ge_flow):
+    bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB)
+    sell_slot:   tuple = None   # its slot there, withdrawn as notes (tanner: BANK_SLOT_2)
+    deposit_btn: tuple = None
 
     @classmethod
-    def from_config(cls, bot_cfg, buy_item, quantity=None):
+    def from_config(cls, bot_cfg, buy_item, quantity=None, **bank):
         s = lambda name: setting(bot_cfg, name)
         return cls(buy_item=buy_item,
                    quantity=quantity if quantity is not None else s("GE_QUANTITY"),
                    buy_price=s("GE_BUY_PRICE"), max_price=s("GE_MAX_PRICE"),
                    live_prices=s("GE_LIVE_PRICES"), margin_pct=s("GE_MARGIN_PCT"),
                    offer_timeout=s("GE_OFFER_TIMEOUT"), reprice_minutes=s("GE_REPRICE_MINUTES"),
-                   reprice_rounds=s("GE_REPRICE_ROUNDS"))
+                   reprice_rounds=s("GE_REPRICE_ROUNDS"), **bank)
 
 
 def buy_offer_price(r, quote=None):
