@@ -23,6 +23,7 @@ FIELDS = [
     ("Inventory", "Knife Slot",         "KNIFE_SLOT",    "point"),
     ("Inventory", "Chocolate Inv Slot", "CHOC_INV_SLOT", "point"),
     ("Behaviour", "Grind Count", "GRIND_COUNT", "number"),
+    ("GE", "Sell Item (inv slot)", "SELL_INV_SLOT", "point"),
     ("GE", "Buy Price (fallback)", "GE_BUY_PRICE", "number"),
     ("GE", "Max Price (0 = none)", "GE_MAX_PRICE", "number"),
     ("GE", "Live Prices", "GE_LIVE_PRICES", "bool"),

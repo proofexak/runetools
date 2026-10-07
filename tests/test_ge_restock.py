@@ -190,40 +190,55 @@ def test_trade_sells_then_buys_at_live_prices(ge, monkeypatch):
     ge, log = ge
     steps = []
     monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: QUOTES[name])
-    monkeypatch.setattr(ge, "sell", lambda price=None: steps.append(("sell", price)))
+    monkeypatch.setattr(ge, "sell", lambda slot, price=None: steps.append(("sell", slot, price)))
     monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
     monkeypatch.setattr(ge, "wait_offer", lambda t: steps.append(("wait", t)) or True)
     monkeypatch.setattr(ge, "collect", lambda both=False: steps.append(("collect", both)))
-    assert ge.trade(_r(sell_item="green dragon leather", reprice_minutes=0, offer_timeout=30)) == (True, None)
-    assert steps == [("sell", 1789), ("wait", 30), ("collect", False),
+    assert ge.trade(_r(sell_item="green dragon leather", sell_inv_slot=(1444, 587), reprice_minutes=0,
+                       offer_timeout=30)) == (True, None)
+    assert steps == [("sell", (1444, 587), 1789), ("wait", 30), ("collect", False),
                      ("buy", "green dragonhide", 100, 1581), ("wait", 30), ("collect", True)]
 
 
 def test_sell_without_a_live_price_keeps_the_guide_price(ge):
     ge, log = ge
     assert sell_offer_price(_r(sell_item="green dragon leather"), None) == (None, "GE guide price")
-    ge.sell(None)
-    assert not any(c[0] == "type" for c in log)
-    assert [c[1:] for c in log if c[0] == "click"] == [ge.cfg.SELL_SLOT, ge.cfg.CONFIRM_BTN]
+    ge.sell((1444, 587), None)
+    assert not any(c[0] == "type" for c in log)                       # quantity: all by default; price kept
+    assert [c[1:] for c in log if c[0] == "click"] == [(1444, 587), ge.cfg.CONFIRM_BTN]
+
+
+def test_sell_clicks_the_item_in_the_inventory_then_types_only_the_price(ge):
+    ge, log = ge
+    ge.sell((1444, 587), 4003)
+    assert [c[1:] for c in log if c[0] == "click"] == [(1444, 587), ge.cfg.PRICE_BTN, ge.cfg.CONFIRM_BTN]
+    assert [c[1] for c in log if c[0] == "type"] == ["4003"]
+
+
+def test_trade_without_a_sell_slot_stops(ge, monkeypatch):
+    ge, log = ge
+    monkeypatch.setattr(ge, "sell", lambda *a: pytest.fail("sold"))
+    assert ge.trade(_r()) == (False, "no inventory slot for the item to sell (SELL_INV_SLOT)")
 
 
 def test_trade_stops_before_selling_when_the_price_is_over_the_cap(ge, monkeypatch):
     ge, log = ge
     monkeypatch.setattr(ge.prices, "quote", lambda name: QUOTES[name])
-    monkeypatch.setattr(ge, "sell", lambda price=None: pytest.fail("sold"))
-    ok, why = ge.trade(_r(max_price=1000))
+    monkeypatch.setattr(ge, "sell", lambda *a: pytest.fail("sold"))
+    ok, why = ge.trade(_r(max_price=1000, sell_inv_slot=(1444, 587)))
     assert not ok and "GE_MAX_PRICE" in why
 
 
 def test_trade_names_the_offer_that_never_completed(ge, monkeypatch):
     ge, log = ge
     monkeypatch.setattr(ge.prices, "quote", lambda name: None)
-    monkeypatch.setattr(ge, "sell", lambda price=None: None)
+    monkeypatch.setattr(ge, "sell", lambda *a: None)
     monkeypatch.setattr(ge, "collect", lambda both=False: None)
     monkeypatch.setattr(ge, "buy", lambda *a: None)
     results = iter([True, False])
     monkeypatch.setattr(ge, "wait_offer", lambda t: next(results))
-    assert ge.trade(_r(reprice_minutes=0)) == (False, "buy offer never completed (2000 gp)")
+    assert ge.trade(_r(reprice_minutes=0, sell_inv_slot=(1444, 587))) == \
+        (False, "buy offer never completed (2000 gp)")
 
 
 @pytest.fixture

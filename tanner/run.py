@@ -33,7 +33,9 @@ def _handlers(session):
     def restock():
         # Return teleport goes through the recover state so it uses a glory charge.
         leather = config.HIDE_TYPE.replace("dragonhide", "dragon leather")
-        restock = Restock.from_config(config, config.HIDE_TYPE, sell_item=leather, bank_tab=config.HIDE_TAB,
+        restock = Restock.from_config(config, config.HIDE_TYPE, sell_item=leather,
+                                      sell_inv_slot=getattr(config, "SELL_INV_SLOT", None),
+                                      bank_tab=config.HIDE_TAB,
                                       sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
         ok, session.restock_error = run_ge_flow(restock)
         return ok_or_fail(ok)

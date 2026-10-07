@@ -38,6 +38,7 @@ FIELDS = [
     ("Interface",   "Black Dragonhide", "IB:black dragonhide",  "point_color"),
     ("Movement",    "Movement Region",  "MOVEMENT_REGION",      "region"),
     ("GE",          "Restock at GE",    "RESTOCK_GE",           "bool"),
+    ("GE",          "Sell Item (inv slot)", "SELL_INV_SLOT",    "point"),
     ("GE",          "Quantity",         "GE_QUANTITY",          "number"),
     ("GE",          "Buy Price (fallback)", "GE_BUY_PRICE",     "number"),
     ("GE",          "Max Price (0 = none)", "GE_MAX_PRICE",     "number"),

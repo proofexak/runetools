@@ -179,7 +179,9 @@ stays as it is. Gives up after
 `GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
 Live check: `lib.checks.follow_offer`.
 Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /
-`deposit_btn`; tanner: `HIDE_TAB`, `BANK_SLOT_2`, `DEPOSIT_BTN`), not lib/ge_config.py's:
+`deposit_btn`; tanner: `HIDE_TAB`, `BANK_SLOT_2`, `DEPOSIT_BTN`), not lib/ge_config.py's. Selling clicks the
+item in the inventory (`Restock.sell_inv_slot` = the bot's `SELL_INV_SLOT`; tanner: slot 2, after the coins), not
+the GE's Sell button — that opens its offer with the quantity at all, so only the price is typed:
 1. Price check (over the cap → stop before spending a ring teleport)
 2. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
 3. Face west → find banker (BLUE) in `GE_APPROACH_REGION` → confirm via `BANK_CHECK`; not found → face west and look again (`GE_MAX_RETRIES`, never a second teleport)

@@ -84,6 +84,7 @@ RESTOCK_GE = True   # if False, bot stops when hides run out instead of restocki
 # ── GE restock (lib/restock.py) ───────────────────────────────────────────────
 # A line missing here falls back to lib/ge_config.py, where older configs kept it.
 
+SELL_INV_SLOT      = (0, 0)  # inventory slot the noted leather lands in (2nd: the coins are 1st) — clicked to sell
 GE_QUANTITY        = 1       # hides bought per restock
 GE_BUY_PRICE       = 2000    # per hide, when live prices are off or the API can't be reached
 GE_MAX_PRICE       = 0       # never offer more per hide (0 = no cap) — one value for every hide type

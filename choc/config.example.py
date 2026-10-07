@@ -45,6 +45,7 @@ CHOC_INV_SLOT = (0, 0)
 GRIND_COUNT = 27
 
 # ── GE restock (lib/restock.py) ───────────────────────────────────────────────
+SELL_INV_SLOT      = (0, 0)  # inventory slot the noted dust lands in — clicked to sell it
 GE_BUY_PRICE       = 40      # per bar, when live prices are off or the API can't be reached
 GE_MAX_PRICE       = 60      # never offer more per bar (0 = no cap)
 GE_OFFER_TIMEOUT   = 360     # seconds to wait for an offer when re-pricing is off

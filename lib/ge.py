@@ -5,7 +5,7 @@ restock trip (run_ge_flow).
 Building blocks (positions from lib/ge_config.py, the GE interface is the same for
 every bot): open_bank / open_ge, withdraw_noted, sell / buy / wait_offer / collect,
 edit_offer, follow_offer (edits the price of an offer that sits unfilled), and
-trade(), which sells the first inventory item then buys a lib.restock.Restock.
+trade(), which sells an inventory item then buys a lib.restock.Restock.
 What to buy, how many and at what price is the bot's, not this module's.
 """
 import time, random
@@ -85,9 +85,10 @@ def _type_into(box, text):
     _pause()
 
 
-def sell(price=None):
-    """GE open: offer the first inventory item at `price` (None: keep the GE's guide price)."""
-    _click(cfg.SELL_SLOT, 0.4, 0.7)
+def sell(inv_slot, price=None):
+    """GE open: click the item in inventory slot `inv_slot` — that opens its sell offer with
+    the quantity already at all — and offer it at `price` (None: keep the GE's guide price)."""
+    _click(inv_slot, 0.4, 0.7)
     if price is not None:
         _type_into(cfg.PRICE_BTN, str(price))
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
@@ -180,8 +181,10 @@ def offer_price(restock):
 
 
 def trade(restock):
-    """GE open, the item to sell first in the inventory: sell it, buy `restock`,
-    collect both. (True, None) or (False, reason)."""
+    """GE open, the item to sell in inventory slot restock.sell_inv_slot: sell it, buy
+    `restock`, collect both. (True, None) or (False, reason)."""
+    if not restock.sell_inv_slot:
+        return False, "no inventory slot for the item to sell (SELL_INV_SLOT)"
     price, source = offer_price(restock)
     if price is None:
         return False, source
@@ -189,7 +192,7 @@ def trade(restock):
     sell_at, sell_source = sell_offer_price(restock, quote)
     say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
         f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
-    sell(sell_at)
+    sell(restock.sell_inv_slot, sell_at)
     ok, why = follow_offer(restock, "sell", sell_at)
     if not ok:
         return False, why

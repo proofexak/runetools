@@ -43,7 +43,6 @@ GE_CHECK        = (0, 0, (0, 0, 0))
 
 # ── GE interface (sell + buy share most buttons) ──────────────────────────────
 
-SELL_SLOT            = (0, 0)
 PRICE_BTN            = (0, 0)
 CONFIRM_BTN          = (0, 0)
 OFFER_COMPLETE       = (0, 0, (0, 0, 0))

@@ -22,7 +22,6 @@ FIELDS = [
     ("Bank",       "Notes Check",          "NOTES_CHECK",          "point_color"),
     ("Bank",       "Notes Button",         "NOTES_BTN",            "point"),
     ("GE",         "GE Check",             "GE_CHECK",             "point_color"),
-    ("GE",         "Sell Slot",            "SELL_SLOT",            "point"),
     ("GE",         "Price Button",         "PRICE_BTN",            "point"),
     ("GE",         "Confirm Button",       "CONFIRM_BTN",          "point"),
     ("GE",         "Offer Complete",       "OFFER_COMPLETE",       "point_color"),

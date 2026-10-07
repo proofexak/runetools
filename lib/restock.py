@@ -45,6 +45,7 @@ class Restock:
     offer_timeout: float = 60
     reprice_minutes: float = 5
     reprice_rounds:  int = 6
+    sell_inv_slot: tuple = None   # inventory slot the item to sell is in, clicked to sell it
     # The bot's own bank layout, for a trip that banks at the GE (lib.ge.run_ge_flow):
     bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB)
     sell_slot:   tuple = None   # its slot there, withdrawn as notes (tanner: BANK_SLOT_2)

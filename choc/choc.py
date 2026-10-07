@@ -102,7 +102,8 @@ def restock_ge(quantity):
     is already within reach of both the bank and the GE. `quantity` is the
     bar count the session started with, so restocking always brings the
     bank back up to that same starting amount. (True, None) or (False, reason)."""
-    restock = Restock.from_config(cfg, "chocolate bar", quantity, sell_item="chocolate dust")
+    restock = Restock.from_config(cfg, "chocolate bar", quantity, sell_item="chocolate dust",
+                                  sell_inv_slot=cfg.SELL_INV_SLOT)
 
     print("Restock: opening bank...")
     if not open_bank():
