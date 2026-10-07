@@ -18,6 +18,7 @@ DEFAULTS = {
     "GE_OFFER_TIMEOUT": 60,     # seconds to wait for an offer when re-pricing is off
     "GE_REPRICE_MINUTES": 5,    # an offer not complete after this long: collect, edit its price (0 = off)
     "GE_REPRICE_ROUNDS":  6,    # price edits before the restock gives up
+    "GE_REPRICE_STEP":    5,    # a fresh price within this many gp of the offer's -> step this much
 }
 
 
@@ -45,6 +46,7 @@ class Restock:
     offer_timeout: float = 60
     reprice_minutes: float = 5
     reprice_rounds:  int = 6
+    reprice_step:    int = 5      # gp: buy up / sell down when the fresh price is this close
     sell_inv_slot: tuple = None   # inventory slot the item to sell is in, clicked to sell it
     # The bot's own bank layout, for a trip that banks at the GE (lib.ge.run_ge_flow):
     bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB)
@@ -59,7 +61,7 @@ class Restock:
                    buy_price=s("GE_BUY_PRICE"), max_price=s("GE_MAX_PRICE"),
                    live_prices=s("GE_LIVE_PRICES"),
                    offer_timeout=s("GE_OFFER_TIMEOUT"), reprice_minutes=s("GE_REPRICE_MINUTES"),
-                   reprice_rounds=s("GE_REPRICE_ROUNDS"), **bank)
+                   reprice_rounds=s("GE_REPRICE_ROUNDS"), reprice_step=s("GE_REPRICE_STEP"), **bank)
 
 
 def _over_cap(r, price, source):
@@ -86,16 +88,30 @@ def sell_offer_price(r, quote=None):
 
 
 def reprice(r, current, quote=None, side="buy"):
-    """New price for an offer that sat unfilled at `current`: a fresh check — the latest
-    trade + 1 gp (buy) / - 1 gp (sell). (price, source), or (None, reason) to leave the
-    offer as it is: no live price, the same price, or a buy past GE_MAX_PRICE."""
-    if not r.live_prices:
-        return None, "live prices are off"
-    price, source = prices.buy_price(quote, latest=True) if side == "buy" else prices.sell_price(quote, latest=True)
-    if price is None:
-        return None, "no live price"
+    """New price for an offer that sat unfilled at `current`: at least one step of
+    `reprice_step` gp the way that makes it fill — a buy up, a sell down — or the fresh
+    check (the latest trade + 1 gp / - 1 gp) when that goes further. So an offer the market
+    isn't taking keeps moving round after round, and never bounces back toward a price it
+    already didn't fill at. (price, source), or (None, reason) to leave the offer as it is:
+    a sell at 1 gp, a sell at the GE's guide price with no live price to go by, or a buy
+    past GE_MAX_PRICE."""
+    step, buy = r.reprice_step, side == "buy"
+    fresh, fresh_source = (None, None)
+    if r.live_prices:
+        fresh, fresh_source = prices.buy_price(quote, latest=True) if buy             else prices.sell_price(quote, latest=True)
+    if current is None:                       # a sell placed at the guide price: nothing to step from
+        if fresh is None:
+            return None, "no live price to re-price the sell"
+        price, source = fresh, fresh_source
+    else:
+        stepped = current + step if buy else max(1, current - step)
+        if fresh is not None and (fresh > stepped if buy else fresh < stepped):
+            price, source = fresh, fresh_source
+        else:
+            price = stepped
+            source = f"{current} {'+' if buy else '-'}{step}" +                 (f" ({fresh_source} isn't further)" if fresh is not None else " (no live price)")
     if price == current:
-        return None, f"still {price} gp ({source})"
-    if side == "buy" and r.max_price and price > r.max_price:
+        return None, "the sell is already at 1 gp"
+    if buy and r.max_price and price > r.max_price:
         return None, _over_cap(r, price, source)
     return price, source

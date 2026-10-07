@@ -176,9 +176,11 @@ An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `G
 slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
 the game keeps the quantity left). The pencil shows "Please wait..." for 1-2 s before the set-up screen
 (`EDIT_LOAD` wait) and withdraws the offer until Confirm — clicked too early, nothing registers and the offer stays
-withdrawn. Small icon buttons (pencil, price "...") get a ±3 px click offset (`SMALL`), big ones ±8 to `restock.reprice` — always a fresh check: the latest trade + 1 gp (buy) /
-− 1 gp (sell), no minimum step. Same price as now, no live price, or a buy past `GE_MAX_PRICE` → the offer
-stays as it is. Gives up after
+withdrawn. Small icon buttons (pencil, price "...") get a ±3 px click offset (`SMALL`), big ones ±8.
+The new price (`restock.reprice`): at least one `GE_REPRICE_STEP` (5 gp) the way that makes it fill — a buy up,
+a sell down — or the fresh check (the latest trade + 1 gp / − 1 gp) when that goes further; so a stuck offer
+keeps moving every round and never bounces back toward a price it already didn't fill at. A buy past
+`GE_MAX_PRICE` or a sell at 1 gp stays as it is. Gives up after
 `GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
 Live check: `lib.checks.follow_offer`.
 Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /

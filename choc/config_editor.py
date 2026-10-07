@@ -30,6 +30,7 @@ FIELDS = [
     ("GE", "Offer Timeout (s)", "GE_OFFER_TIMEOUT", "number"),
     ("GE", "Re-price Every (min)", "GE_REPRICE_MINUTES", "number"),
     ("GE", "Re-price Rounds", "GE_REPRICE_ROUNDS", "number"),
+    ("GE", "Re-price Step (gp)", "GE_REPRICE_STEP", "number"),
 ]
 
 REGION_COLORS = {

@@ -91,3 +91,4 @@ GE_MAX_PRICE       = 0       # never offer more per hide (0 = no cap) — one va
 GE_OFFER_TIMEOUT   = 60      # seconds to wait for an offer when re-pricing is off
 GE_REPRICE_MINUTES = 5       # offer not complete after this long: collect, edit its price (0 = off)
 GE_REPRICE_ROUNDS  = 6       # price edits before the restock gives up
+GE_REPRICE_STEP    = 5       # fresh price within this many gp of the offer: step it (buy +, sell -)

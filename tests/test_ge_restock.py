@@ -354,13 +354,51 @@ def test_reprice_is_a_fresh_check_of_the_latest_trade_plus_minus_1():
     assert reprice(_r(sell_item="green dragon leather"), None, q, "sell")[0] == 1749   # was at the guide price
 
 
-def test_reprice_leaves_the_offer_alone_when_there_is_nothing_new():
+@pytest.mark.parametrize("current, latest, expected", [
+    (1649, 1648, 1654),        # fresh 1649 = the same -> +5
+    (1649, 1651, 1654),        # fresh 1652, within 5 -> +5 (never a 3 gp nudge)
+    (1649, 1655, 1656),        # fresh 1656, further than +5 -> the fresh price
+    (1659, 1648, 1664),        # fresh 1649 is below it (after earlier steps) -> still +5, no bounce back
+])
+def test_reprice_buy_steps_5_when_the_fresh_price_is_within_5(current, latest, expected):
+    q = {"high": latest, "low": 1500, "avg_high": None, "avg_low": None}
+    assert reprice(_r(), current, q)[0] == expected
+
+
+@pytest.mark.parametrize("current, latest, expected", [
+    (3932, 3933, 3927),        # fresh 3932 = the same -> -5
+    (3932, 3930, 3927),        # fresh 3929, within 5 -> -5
+    (3932, 3865, 3864),        # fresh 3864, further than -5 -> the fresh price
+    (3922, 3933, 3917),        # fresh 3932 is above it (after earlier steps) -> still -5
+    (3, 4, 1),                 # never under 1 gp
+])
+def test_reprice_sell_steps_5_down_when_the_fresh_price_is_within_5(current, latest, expected):
+    q = {"high": 9999, "low": latest, "avg_high": None, "avg_low": None}
+    r = _r(sell_item="green dragon leather")
+    assert reprice(r, current, q, "sell")[0] == expected
+
+
+def test_reprice_keeps_stepping_round_after_round():
+    q = {"high": 1648, "low": 1600, "avg_high": None, "avg_low": None}     # the market doesn't move
+    price = 1649
+    for _ in range(3):
+        price, _ = reprice(_r(), price, q)
+    assert price == 1664
+
+
+def test_reprice_without_a_fresh_price_still_steps():
+    assert reprice(_r(), 1649, None) == (1654, "1649 +5 (no live price)")
+    assert reprice(_r(live_prices=False), 1649, {"high": 1800})[0] == 1654
+    assert reprice(_r(sell_item="x"), 1789, None, "sell")[0] == 1784
+    assert reprice(_r(sell_item="x"), None, None, "sell")[0] is None   # at the guide price, nothing to step from
+
+
+def test_reprice_step_is_a_setting_and_the_cap_still_holds():
     q = {"high": 1648, "low": 1600, "avg_high": None, "avg_low": None}
-    assert reprice(_r(), 1649, q) == (None, "still 1649 gp (latest buy 1648 +1)")
-    assert reprice(_r(), 1649, None)[0] is None                        # API down
-    assert reprice(_r(live_prices=False), 1649, q)[0] is None
-    price, why = reprice(_r(max_price=1700), 1649, {**q, "high": 1800})
-    assert price is None and "GE_MAX_PRICE 1700" in why
+    assert reprice(_r(reprice_step=10), 1649, q)[0] == 1659
+    price, why = reprice(_r(max_price=1650), 1649, q)                 # +5 would be 1654
+    assert price is None and "GE_MAX_PRICE 1650" in why
+    assert reprice(_r(sell_item="x"), 1, None, "sell") == (None, "the sell is already at 1 gp")
 
 
 @pytest.fixture
