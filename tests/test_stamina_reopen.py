@@ -103,6 +103,15 @@ def test_do_bank_normal_still_withdraws(tanner, monkeypatch):
     assert seen["bank_open"] is actions.bank_is_open
 
 
+def test_do_bank_last_trip_deposits_without_withdrawing(tanner, monkeypatch):
+    actions, energy, calls = tanner
+    monkeypatch.setattr(actions, "bank_is_open", lambda timeout=5.0: True)
+    monkeypatch.setattr(energy, "restock_stamina_at_bank", lambda **k: False)
+    assert actions.do_bank(skip_restock_check=True, withdraw=False) is True
+    assert not _withdrew(actions, calls)
+    assert any(c[0] == "click" and abs(c[1] - 1043) <= 10 for c in calls)     # still deposited
+
+
 def _near(c, point, tol=10):
     return c[0] == "click" and abs(c[1] - point[0]) <= tol and abs(c[2] - point[1]) <= tol
 
