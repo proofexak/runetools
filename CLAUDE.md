@@ -141,7 +141,7 @@ GE Config, Energy Config, Exit.
 - Config editors draw coloured overlays on screen (regions = rectangles, points = crosshairs).
 - `config_editor.py` supports ftypes: `point`, `point_color`, `region`, `number`.
 - In `tanner/config_editor.py`, prefix `IB:` routes to `INTERFACE_BUTTONS` dict.
-- GE restock settings (`GE_QUANTITY`, `GE_BUY_PRICE`, `GE_MAX_PRICE`, `GE_LIVE_PRICES`, `GE_MARGIN_PCT`,
+- GE restock settings (`GE_QUANTITY`, `GE_BUY_PRICE`, `GE_MAX_PRICE`, `GE_LIVE_PRICES`,
   `GE_OFFER_TIMEOUT`) are each bot's own config (`lib.restock.setting`: bot config → `lib/ge_config.py`,
   where older configs kept them → `DEFAULTS`). `lib/ge_config.py` holds only the shared GE interface positions.
 
