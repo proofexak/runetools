@@ -306,6 +306,21 @@ def test_run_ge_flow_without_leather_only_buys(flow, monkeypatch):
     assert ("trade", False) in calls
 
 
+def test_the_leather_count_is_read_with_the_mouse_off_the_tab(flow, monkeypatch):
+    # 2026-10-08: the mouse stayed on the tab it had just clicked and RuneLite's "View tab 1"
+    # tooltip covered the leather's count box — its white text read as a count, so it "sold"
+    # leather it didn't have. The mouse rests on Deposit first (its tooltip is far from both).
+    ge, calls, log = flow
+    monkeypatch.setattr(ge, "open_bank", lambda region: True)
+    moves = []
+    monkeypatch.setattr(ge, "human_move", lambda x, y: moves.append((x, y)) or log.append(("move", x, y)))
+    monkeypatch.setattr(ge, "stack_shown", lambda region: log.append(("read",)) or False)
+    ge.run_ge_flow(_trip(sell_count_region=(721, 276, 30, 12)))
+    tab = log.index(("click", 720, 253))
+    read = log.index(("read",))
+    assert ("move", 1043, 675) in log[tab:read]
+
+
 def test_stack_shown_reads_the_region(ge, fake_screen):
     from tests.fakescreen import canvas, paint
     ge, log = ge

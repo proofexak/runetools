@@ -12,7 +12,7 @@ import time, random
 
 import pyautogui
 
-from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite
+from lib.mouse     import smart_right_click, human_click, human_move, menu_click, jitter, human_typewrite
 from lib.screen    import pixel_matches, grab
 import lib.vision    as vision
 from lib.interface import open_interface, close_interface, wait_for, shows
@@ -286,6 +286,10 @@ def run_ge_flow(restock, teleport=True):
         return False, "banker not found at the GE"
 
     _click(restock.bank_tab)
+    # the tab just clicked shows RuneLite's "View tab" tooltip right over the leather's count box
+    # (its white text reads as a count): rest the mouse on Deposit, whose tooltip is far away
+    human_move(*jitter(*restock.deposit_btn, n=SMALL))
+    _pause(0.4, 0.6)
     # no count on the leather stack = 1 or none left (all-but-1): nothing to sell, only buy
     sell_first = stack_shown(restock.sell_count_region) is not False
     if not sell_first:
