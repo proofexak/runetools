@@ -37,7 +37,8 @@ def _handlers(session):
         restock = Restock.from_config(config, config.HIDE_TYPE, sell_item=leather,
                                       sell_inv_slot=getattr(config, "SELL_INV_SLOT", None),
                                       bank_tab=config.HIDE_TAB,
-                                      sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN)
+                                      sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN,
+                                      sell_count_region=actions.leather_count_region())
         # started at the GE and out of hides there: no ring teleport for this one
         ok, session.restock_error = run_ge_flow(restock, teleport=not session.at_ge)
         session.at_ge = False

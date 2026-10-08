@@ -190,7 +190,9 @@ the GE's Sell button — that opens its offer with the quantity at all, so only 
 1. Price check (over the cap → stop before spending a ring teleport)
 2. F4 → left-click ring (`RING_LEFT_CLICK_TP`, RuneLite Menu Entry Swapper makes it the GE teleport) or right-click ring → menu row → teleport to GE (sleep 4.5–5.5s, no wait_stopped — character lands in place)
 3. Face west → find banker (BLUE) in `GE_APPROACH_REGION` → confirm via `BANK_CHECK`; not found → face west and look again (`GE_MAX_RETRIES`, never a second teleport)
-4. Bot's tab → `withdraw_noted(sell_slot)` (notes toggled only when `NOTES_CHECK` says so, then checked) → close bank
+4. Bot's tab → the leather stack's count (`stack_shown(Restock.sell_count_region)`; tanner: the hide count box moved
+   from slot 1 to slot 2): a count → `withdraw_noted(sell_slot)` (notes toggled only when `NOTES_CHECK` says so, then
+   checked); none (1 or 0 left) → nothing to sell, `trade(sell_first=False)` only buys with the coins carried → close bank
 5. `open_ge()` (MAGENTA in `GE_REGION`, `GE_CHECK`) → `trade(restock)` → close GE
 6. Find banker (BLUE) in `GE_REGION` → deposit all → close. The hides go back on their own slot (tanner withdraws
    all-but-1, so the stack never leaves the bank) — no tab click, no moving them

@@ -51,6 +51,7 @@ class Restock:
     # The bot's own bank layout, for a trip that banks at the GE (lib.ge.run_ge_flow):
     bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB)
     sell_slot:   tuple = None   # its slot there, withdrawn as notes (tanner: BANK_SLOT_2)
+    sell_count_region: tuple = None   # where that stack's count is drawn: none shown → nothing to sell
     deposit_btn: tuple = None
 
     @classmethod

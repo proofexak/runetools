@@ -268,7 +268,7 @@ def flow(ge, monkeypatch):
     monkeypatch.setattr(ge, "close_bank", lambda: None)
     monkeypatch.setattr(ge, "close_ge", lambda: None)
     monkeypatch.setattr(ge, "open_ge", lambda: True)
-    monkeypatch.setattr(ge, "trade", lambda r: (True, None))
+    monkeypatch.setattr(ge, "trade", lambda r, sell_first=True: calls.append(("trade", sell_first)) or (True, None))
     return ge, calls, log
 
 
@@ -283,6 +283,48 @@ def test_run_ge_flow_uses_the_bots_bank_and_just_deposits_all(flow, monkeypatch)
     clicks = [c[1:] for c in log if c[0] == "click"]
     assert clicks == [(720, 253), (1043, 675)]                 # hide tab, then deposit all at the end
     assert ("withdraw", (736, 294)) in calls
+
+
+@pytest.mark.parametrize("leather", [True, None])     # a count on the leather stack / no region to read
+def test_run_ge_flow_sells_when_there_is_leather(flow, monkeypatch, leather):
+    ge, calls, log = flow
+    monkeypatch.setattr(ge, "open_bank", lambda region: True)
+    monkeypatch.setattr(ge, "stack_shown", lambda region: leather)
+    assert ge.run_ge_flow(_trip()) == (True, None)
+    assert ("withdraw", (736, 294)) in calls and ("trade", True) in calls
+
+
+def test_run_ge_flow_without_leather_only_buys(flow, monkeypatch):
+    # 2026-10-08: the leather was gone (sold the run before) — it "sold" an empty inventory slot
+    ge, calls, log = flow
+    monkeypatch.setattr(ge, "open_bank", lambda region: True)
+    regions = []
+    monkeypatch.setattr(ge, "stack_shown", lambda region: regions.append(region) or False)
+    assert ge.run_ge_flow(_trip(sell_count_region=(736, 278, 26, 10))) == (True, None)
+    assert regions == [(736, 278, 26, 10)]
+    assert not any(c[0] == "withdraw" for c in calls if isinstance(c, tuple))
+    assert ("trade", False) in calls
+
+
+def test_stack_shown_reads_the_region(ge, fake_screen):
+    from tests.fakescreen import canvas, paint
+    ge, log = ge
+    assert ge.stack_shown(None) is None and ge.stack_shown((0, 0, 0, 0)) is None
+    fake_screen.show(paint(canvas(100, 60), 10, 10, 8, 6, (255, 255, 0)))
+    assert ge.stack_shown((5, 5, 26, 10)) is True
+    fake_screen.show(canvas(100, 60))
+    assert ge.stack_shown((5, 5, 26, 10)) is False
+
+
+def test_trade_buy_only_needs_no_sell_slot(ge, monkeypatch):
+    ge, log = ge
+    steps = []
+    monkeypatch.setattr(ge.prices, "quote", lambda name, max_age=None: QUOTES[name])
+    monkeypatch.setattr(ge, "sell", lambda *a: pytest.fail("sold"))
+    monkeypatch.setattr(ge, "buy", lambda *a: steps.append(("buy",) + a))
+    monkeypatch.setattr(ge, "follow_offer", lambda r, side, price: steps.append((side, price)) or (True, None))
+    assert ge.trade(_r(), sell_first=False) == (True, None)
+    assert steps == [("buy", "green dragonhide", 100, 1581), ("buy", 1581)]
 
 
 def test_run_ge_flow_retries_the_banker_without_teleporting_again(flow, monkeypatch):

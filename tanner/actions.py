@@ -43,6 +43,16 @@ def orient_west():
     face("west", _cfg)
 
 
+def leather_count_region():
+    """Where the leather stack's (BANK_SLOT_2) count is drawn: HIDE_COUNT_REGION moved by the
+    step from bank slot 1 to slot 2. None while the hide count isn't calibrated."""
+    if not hide_count_calibrated():
+        return None
+    x, y, w, h = HIDE_COUNT_REGION
+    dx, dy = BANK_SLOT_2[0] - BANK_SLOT_1[0], BANK_SLOT_2[1] - BANK_SLOT_1[1]
+    return (x + dx, y + dy, w, h)
+
+
 def hide_count_calibrated():
     return HIDE_COUNT_REGION[2] > 0 and HIDE_COUNT_REGION[3] > 0
 

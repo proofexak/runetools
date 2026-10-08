@@ -13,7 +13,8 @@ import time, random
 import pyautogui
 
 from lib.mouse     import smart_right_click, human_click, menu_click, jitter, human_typewrite
-from lib.screen    import pixel_matches
+from lib.screen    import pixel_matches, grab
+import lib.vision    as vision
 from lib.interface import open_interface, close_interface, wait_for, shows
 from lib.camera    import face
 from lib.log       import say
@@ -76,6 +77,15 @@ def withdraw_noted(slot):
 
 def close_bank():
     close_interface(still_open=shows(cfg.BANK_CHECK))
+
+
+def stack_shown(region):
+    """Bank open: does the stack under `region` (the corner its count is drawn in) show a
+    count? True = 2 or more, False = 1 or none, None = no region to read."""
+    if not region or region[2] <= 0 or region[3] <= 0:
+        return None
+    frame, _ = grab(region)
+    return vision.stack_number_shown(frame)
 
 
 # ── GE interface ──────────────────────────────────────────────────────────────
@@ -210,22 +220,24 @@ def offer_price(restock):
     return buy_offer_price(restock, prices.quote(restock.buy_item) if restock.live_prices else None)
 
 
-def trade(restock):
-    """GE open, the item to sell in inventory slot restock.sell_inv_slot: sell it, buy
-    `restock`, collect both. (True, None) or (False, reason)."""
-    if not restock.sell_inv_slot:
+def trade(restock, sell_first=True):
+    """GE open: sell the item in inventory slot restock.sell_inv_slot (unless not
+    `sell_first`: nothing to sell, buy with the coins carried), buy `restock`, collect.
+    (True, None) or (False, reason)."""
+    if sell_first and not restock.sell_inv_slot:
         return False, "no inventory slot for the item to sell (SELL_INV_SLOT)"
     price, source = offer_price(restock)
     if price is None:
         return False, source
-    quote = prices.quote(restock.sell_item) if restock.live_prices and restock.sell_item else None
-    sell_at, sell_source = sell_offer_price(restock, quote)
-    say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
-        f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
-    sell(restock.sell_inv_slot, sell_at)
-    ok, why = follow_offer(restock, "sell", sell_at)
-    if not ok:
-        return False, why
+    if sell_first:
+        quote = prices.quote(restock.sell_item) if restock.live_prices and restock.sell_item else None
+        sell_at, sell_source = sell_offer_price(restock, quote)
+        say(f"[GE] Selling {restock.sell_item or 'the first item'} at "
+            f"{f'{sell_at} gp' if sell_at is not None else 'the guide price'} ({sell_source})")
+        sell(restock.sell_inv_slot, sell_at)
+        ok, why = follow_offer(restock, "sell", sell_at)
+        if not ok:
+            return False, why
     say(f"[GE] Buying {restock.quantity} x {restock.buy_item} at {price} gp ({source})")
     buy(restock.buy_item, restock.quantity, price)
     return follow_offer(restock, "buy", price)
@@ -274,13 +286,17 @@ def run_ge_flow(restock, teleport=True):
         return False, "banker not found at the GE"
 
     _click(restock.bank_tab)
-    if not withdraw_noted(restock.sell_slot):
+    # no count on the leather stack = 1 or none left (all-but-1): nothing to sell, only buy
+    sell_first = stack_shown(restock.sell_count_region) is not False
+    if not sell_first:
+        say(f"[GE] No {restock.sell_item or 'item'} to sell — buying only.")
+    elif not withdraw_noted(restock.sell_slot):
         return False, "notes toggle didn't respond"
     close_bank()
 
     if not open_ge():
         return False, "could not open the GE"
-    ok, why = trade(restock)
+    ok, why = trade(restock, sell_first)
     if not ok:
         return False, why
     close_ge()

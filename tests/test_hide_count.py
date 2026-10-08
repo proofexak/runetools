@@ -105,3 +105,12 @@ def test_tanner_starts_once_it_is_calibrated(with_example_config, monkeypatch):
     monkeypatch.setattr(run, "run_session", lambda *a, **k: started.append((k["bot"], k["params"]["start_at"])))
     run.run({}, "GE")
     assert started == [("tanner", "GE")]
+
+
+def test_the_leather_count_box_is_the_hide_box_moved_to_slot_2(with_example_config, monkeypatch):
+    actions = with_example_config("tanner", "actions")
+    assert actions.leather_count_region() is None                   # nothing calibrated
+    monkeypatch.setattr(actions, "HIDE_COUNT_REGION", (680, 280, 26, 10))
+    monkeypatch.setattr(actions, "BANK_SLOT_1", (690, 295))
+    monkeypatch.setattr(actions, "BANK_SLOT_2", (736, 294))
+    assert actions.leather_count_region() == (726, 279, 26, 10)
