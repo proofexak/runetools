@@ -19,7 +19,8 @@ import json, time, urllib.parse, urllib.request
 
 API            = "https://prices.runescape.wiki/api/v1/osrs"
 USER_AGENT     = "runetools GE restock (github.com/proofexak/runetools)"
-TIMEOUT        = 5.0
+TIMEOUT        = 10.0   # the API has taken > 5 s now and then
+TRIES          = 2      # one more go before falling back (guide price / GE_BUY_PRICE)
 CACHE_SECONDS  = 300
 AVG_LOOKBACK   = 3      # hours back to look for an average when the last hour had no trade
 
@@ -38,8 +39,13 @@ _cache = {}        # id → (fetched_at, quote)
 
 def _get_json(path, opener=None):
     req = urllib.request.Request(f"{API}/{path}", headers={"User-Agent": USER_AGENT})
-    with (opener or urllib.request.urlopen)(req, timeout=TIMEOUT) as res:
-        return json.loads(res.read().decode("utf-8"))
+    for attempt in range(TRIES):
+        try:
+            with (opener or urllib.request.urlopen)(req, timeout=TIMEOUT) as res:
+                return json.loads(res.read().decode("utf-8"))
+        except Exception:
+            if attempt == TRIES - 1:
+                raise
 
 
 def item_id(name, opener=None):

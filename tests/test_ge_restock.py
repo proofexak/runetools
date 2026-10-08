@@ -69,6 +69,20 @@ def test_quote_never_raises():
     assert prices.quote("Not an item", opener=_Opener({})) is None    # item list unreachable
 
 
+def test_quote_tries_once_more_after_a_timeout():
+    # 2026-10-08: three restocks sold at the guide price because the API took > 5 s once
+    calls = []
+    good = _Opener(_routes(2509, {"high": 3970, "low": 3886}, LEATHER_HOURS))
+
+    def flaky(req, timeout):
+        calls.append(timeout)
+        if len(calls) == 1:
+            raise TimeoutError("The read operation timed out")
+        return good(req, timeout)
+    assert prices.quote("black dragon leather", opener=flaky)["avg_low"] == 4004
+    assert calls[0] == prices.TIMEOUT >= 10
+
+
 def test_unknown_names_come_from_the_item_list():
     op = _Opener({"mapping": [{"id": 314, "name": "Feather"}], **_routes(314, {"high": 3, "low": 2}, [])})
     assert prices.quote("feather", opener=op) == {"high": 3, "low": 2, "avg_high": None, "avg_low": None}
