@@ -578,12 +578,14 @@ def test_edit_offer_waits_for_the_loading_box_and_aims_small_buttons_tight(ge, m
     assert dict(spreads)[(50, 50)] <= 3 and dict(spreads)[tuple(ge.cfg.PRICE_BTN)] <= 3
 
 
-def test_edit_offer_collects_then_types_the_new_price(ge, monkeypatch):
+def test_edit_offer_collects_then_reopens_the_offer_before_the_pencil(ge, monkeypatch):
+    # 2026-10-08: collecting part of a buy (3,691 of 5,000 hides) sent the GE back to the
+    # overview; the "pencil" click then hit a lower slot's Sell button and opened an empty sell
     ge, log = ge
     monkeypatch.setattr(ge.cfg, "EDIT_BTN", (50, 50))
+    monkeypatch.setattr(ge.cfg, "OFFER_COMPLETE", (730, 445, (0, 95, 0)))
     ge.edit_offer(1890, both=True)
     clicks = [c[1:] for c in log if c[0] == "click"]
-    x, y, _ = ge.cfg.OFFER_COMPLETE
-    assert clicks == [(x, y), ge.cfg.RETRIEVE_SLOT_2, ge.cfg.RETRIEVE_SLOT_1, (50, 50),
+    assert clicks == [(730, 445), ge.cfg.RETRIEVE_SLOT_2, ge.cfg.RETRIEVE_SLOT_1, (730, 445), (50, 50),
                       ge.cfg.PRICE_BTN, ge.cfg.CONFIRM_BTN]
     assert ("type", "1890") in log

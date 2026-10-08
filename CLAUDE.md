@@ -173,7 +173,8 @@ stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take focus (
 public chat). O/P work in every wait. The game logs out after 5 min with no click / key press, so every offer
 wait taps ← then → (`keep_awake`, camera turns and back) every `KEEP_AWAKE` 150-240 s.
 An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
-slot 1's offer, collects what it did so far, and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
+slot 1's offer, collects what it did so far (that sends the GE back to the overview, so the offer is opened again),
+and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
 the game keeps the quantity left). The pencil shows "Please wait..." for 1-2 s before the set-up screen
 (`EDIT_LOAD` wait) and withdraws the offer until Confirm — clicked too early, nothing registers and the offer stays
 withdrawn. Small icon buttons (pencil, price "...") get a ±3 px click offset (`SMALL`), big ones ±8.

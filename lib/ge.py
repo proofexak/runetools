@@ -174,10 +174,13 @@ def _can_edit():
 
 def edit_offer(price, both):
     """Open slot 1's offer, collect what it has done so far, change its price to `price`.
-    The game keeps the quantity still to go."""
+    The game keeps the quantity still to go. Collecting sends the GE back to the overview,
+    so the offer is opened again before the pencil (with nothing to collect it stays open,
+    and that click lands harmlessly on its "Quantity" label)."""
     x, y, _ = cfg.OFFER_COMPLETE
     _click((x, y), 0.6, 0.9)
     collect(both)
+    _click((x, y), 0.6, 0.9)
     _click(cfg.EDIT_BTN, *EDIT_LOAD, spread=SMALL)       # "Please wait..." — then the set-up screen
     _type_into(cfg.PRICE_BTN, str(price), spread=SMALL)
     _click(cfg.CONFIRM_BTN, 0.5, 0.8)
