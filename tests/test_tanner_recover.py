@@ -92,12 +92,19 @@ def ge_bank(with_example_config, monkeypatch):
     return actions, ge, calls
 
 
-@pytest.mark.parametrize("shown,result", [(True, True), (False, "restock")])
-def test_check_ge_bank_reads_the_count_then_closes(ge_bank, monkeypatch, shown, result):
+def test_check_ge_bank_with_hides_reads_the_count_then_closes(ge_bank, monkeypatch):
     actions, ge, calls = ge_bank
-    monkeypatch.setattr(actions, "hide_count_shown", lambda: calls.append(("read",)) or shown)
-    assert actions.check_ge_bank() == result
-    assert calls == [("face", "west"), ("open", ge.cfg.GE_REGION), ("click",), ("read",), ("close",)]
+    monkeypatch.setattr(actions, "hide_count_shown", lambda: calls.append(("read",)) or True)
+    assert actions.check_ge_bank() is True
+    # no turn west: the session start just did that
+    assert calls == [("open", ge.cfg.GE_REGION), ("click",), ("read",), ("close",)]
+
+
+def test_check_ge_bank_out_of_hides_leaves_the_bank_open_for_the_restock(ge_bank, monkeypatch):
+    actions, ge, calls = ge_bank
+    monkeypatch.setattr(actions, "hide_count_shown", lambda: calls.append(("read",)) or False)
+    assert actions.check_ge_bank() == "restock"
+    assert calls == [("open", ge.cfg.GE_REGION), ("click",), ("read",)]
 
 
 def test_check_ge_bank_without_a_banker_fails(ge_bank, monkeypatch):

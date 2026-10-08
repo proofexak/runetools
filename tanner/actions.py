@@ -282,22 +282,22 @@ def recover(skip_restock_check=True):
 
 
 def check_ge_bank():
-    """Started at the GE: open the GE bank, read the hide count on the hide tab, close.
-    True = hides to tan, "restock" = the last 1, False = no banker / bank didn't open."""
+    """Started at the GE (the session start already faced west): open the GE bank, read the
+    hide count on the hide tab. True = hides to tan (bank closed), "restock" = the last 1 —
+    the bank stays open for the restock (run_ge_flow(bank_open=True)), False = no banker."""
     import lib.ge as ge
     import lib.ge_config as ge_cfg
     print("\n[GE BANK] Reading the hide count at the GE...")
-    face("west", ge_cfg)
     if not ge.open_bank(ge_cfg.GE_REGION):
         print("[GE BANK] Banker not found.")
         return False
     human_click(*jitter(*HIDE_TAB))
     time.sleep(random.uniform(0.6, 0.9))
     shown = hide_count_shown()
-    ge.close_bank()
     if shown is False:
         print("[GE BANK] Hide stack down to its last 1.")
         return "restock"
+    ge.close_bank()
     print("[GE BANK] Hides in the bank — off to Al Kharid.")
     return True
 

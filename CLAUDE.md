@@ -335,9 +335,10 @@ takes plain data; capture happens only in `lib/screen.grab`.
   Starting asks "Where are you?" (PRO-101):
   **Al Kharid** → face west → `walk_to_bank` (click the booth; not found → look around → glory `recover`) →
   `banking` reads the hide count: count → the usual trip, the last 1 → `restock` (ring → GE → sell → buy → glory).
-  **GE** → `ge_bank` (`actions.check_ge_bank`: face west, banker in `GE_REGION`, hide tab, read the count,
-  close): count → `recover` (glory to Al Kharid, its bank skips the read); the last 1 → `restock` right there
-  (`run_ge_flow(teleport=False)`), then glory; no banker → stopped "GE bank not found".
+  **GE** → `ge_bank` (`actions.check_ge_bank`: banker in `GE_REGION`, hide tab, read the count — no turn, the
+  session start faced west): count → close, `recover` (glory to Al Kharid, its bank skips the read); the last 1 →
+  the bank stays open and `restock` carries on in it (`run_ge_flow(teleport=False, bank_open=True)`: one bank
+  visit, one turn west), then glory; no banker → stopped "GE bank not found".
   Every bank reads the hide count — `banking`, the bank inside `recover` (it can return "restock" too) and
   `ge_bank` — except the one right after a restock (`skip_restock`).
 - Golden Nuggets miner: on the state machine and the scaffold; O/P work inside long waits (walking,

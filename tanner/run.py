@@ -40,7 +40,9 @@ def _handlers(session):
                                       sell_slot=config.BANK_SLOT_2, deposit_btn=config.DEPOSIT_BTN,
                                       sell_count_region=actions.leather_count_region())
         # started at the GE and out of hides there: no ring teleport for this one
-        ok, session.restock_error = run_ge_flow(restock, teleport=not session.at_ge)
+        # at the GE it only comes from ge_bank, which left the bank open on the hide tab
+        ok, session.restock_error = run_ge_flow(restock, teleport=not session.at_ge,
+                                                bank_open=session.at_ge)
         session.at_ge = False
         return ok_or_fail(ok)
 

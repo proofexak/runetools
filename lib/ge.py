@@ -261,7 +261,7 @@ def _teleport():
     time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
 
 
-def run_ge_flow(restock, teleport=True):
+def run_ge_flow(restock, teleport=True, bank_open=False):
     """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
     `restock` → deposit all. (True, None) or (False, reason). The bank positions are
     the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
@@ -269,7 +269,9 @@ def run_ge_flow(restock, teleport=True):
     withdraws all-but-1, so the stack never leaves the bank). The price is checked
     first, so one over the cap costs no ring teleport. teleport=False: already at the GE
     (tanner started there) — the banker is looked for around the GE centre (GE_REGION)
-    instead of where the teleport lands (GE_APPROACH_REGION)."""
+    instead of where the teleport lands (GE_APPROACH_REGION), and the camera isn't turned
+    (nothing moved it) unless the banker needs a second look. bank_open: the GE bank is
+    already open (tanner's GE start read the hide count there) — one bank visit, not two."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
@@ -277,13 +279,15 @@ def run_ge_flow(restock, teleport=True):
     if teleport:
         _teleport()
     region = cfg.GE_APPROACH_REGION if teleport else cfg.GE_REGION
-    for attempt in range(cfg.GE_MAX_RETRIES):    # a retry turns the camera again, never re-teleports
-        face("west", cfg)
+    for attempt in range(0 if bank_open else cfg.GE_MAX_RETRIES):
+        if teleport or attempt:                  # the teleport turns the camera; a retry looks again
+            face("west", cfg)
         if open_bank(region):
             break
         say(f"[GE] Banker not found — retrying ({attempt + 1}/{cfg.GE_MAX_RETRIES})...")
     else:
-        return False, "banker not found at the GE"
+        if not bank_open:
+            return False, "banker not found at the GE"
 
     _click(restock.bank_tab)
     # the tab just clicked shows RuneLite's "View tab" tooltip right over the leather's count box

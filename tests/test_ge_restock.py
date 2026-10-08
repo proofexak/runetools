@@ -364,13 +364,31 @@ def test_run_ge_flow_retries_the_banker_without_teleporting_again(flow, monkeypa
     assert [c for c in calls if isinstance(c, str)] == ["teleport", "face", "face", "face"]
 
 
-def test_run_ge_flow_already_at_the_ge_skips_the_teleport(flow, monkeypatch):
+def test_run_ge_flow_already_at_the_ge_skips_the_teleport_and_the_turn(flow, monkeypatch):
     ge, calls, log = flow
     regions = []
     monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
     assert ge.run_ge_flow(_trip(), teleport=False) == (True, None)
-    assert "teleport" not in calls and "face" in calls and ("withdraw", (736, 294)) in calls
+    assert "teleport" not in calls and "face" not in calls and ("withdraw", (736, 294)) in calls
     assert regions == [ge.cfg.GE_REGION, ge.cfg.GE_REGION]     # the banker near the GE centre, both times
+
+
+def test_run_ge_flow_at_the_ge_turns_west_only_to_look_again(flow, monkeypatch):
+    ge, calls, log = flow
+    banker = iter([False, True, True])
+    monkeypatch.setattr(ge, "open_bank", lambda region: next(banker))
+    assert ge.run_ge_flow(_trip(), teleport=False) == (True, None)
+    assert calls.count("face") == 1                            # the retry, not the first look
+
+
+def test_run_ge_flow_with_the_bank_already_open_goes_straight_to_the_tab(flow, monkeypatch):
+    # a GE start that found the last hide left the bank open: one bank visit, not two
+    ge, calls, log = flow
+    regions = []
+    monkeypatch.setattr(ge, "open_bank", lambda region: regions.append(region) or True)
+    assert ge.run_ge_flow(_trip(), teleport=False, bank_open=True) == (True, None)
+    assert "face" not in calls and regions == [ge.cfg.GE_REGION]     # only the deposit after the GE
+    assert [c[1:] for c in log if c[0] == "click"][0] == (720, 253)   # the hide tab first
 
 
 def test_run_ge_flow_spends_no_teleport_on_a_price_over_the_cap(flow):
