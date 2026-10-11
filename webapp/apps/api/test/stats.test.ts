@@ -107,7 +107,8 @@ describe("sessions", () => {
     const d = (await c.get(`/api/sessions/${id}`)).json();
     expect(d).toMatchObject({ file: "tanner/log/tanner_20261005_100000.jsonl", params: { hide_type: "green" }, pauses: 1 });
     expect(d.steps).toHaveLength(4);
-    expect(d.steps[0]).toEqual({ ts: "2026-10-05T10:00:20", state: "walk_to_tanner", result: "ok", seconds: 15, run: 1 });
+    expect(d.steps[0]).toEqual({ ts: "2026-10-05T10:00:20", state: "walk_to_tanner", result: "ok", seconds: 15, run: 1,
+      screenshot: null });
     expect(d.stateTime.map((x: { state: string }) => x.state)).toEqual(["recover", "trade_ellis", "walk_to_tanner", "banking"]);
     expect(d.stateTime[1]).toEqual({ state: "trade_ellis", seconds: 20, count: 1, failures: 1 });
 

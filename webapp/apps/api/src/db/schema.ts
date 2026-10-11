@@ -147,6 +147,7 @@ export const steps = pgTable("steps", {
   result: text("result"),
   seconds: doublePrecision("seconds").notNull().default(0),
   run: integer("run"),
+  screenshot: text("screenshot"),                            // failure screenshot's file name (PRO-91)
 }, (t) => [index("steps_session").on(t.sessionId)]);
 
 export const errors = pgTable("errors", {
@@ -158,6 +159,7 @@ export const errors = pgTable("errors", {
   traceback: text("traceback"),
   state: text("state"),
   where: text("where"),
+  screenshot: text("screenshot"),                            // failure screenshot's file name (PRO-91)
 }, (t) => [index("errors_session").on(t.sessionId)]);
 
 /** How far each log file has been read. Only whole lines are consumed. */
