@@ -14,8 +14,10 @@ from miner.golden_nuggets.actions import (
     click_struts, wait_stopped,
 )
 from miner.golden_nuggets.states import (
-    build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK,
+    build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK, STATE_MARKS,
 )
+from lib.screenshots import config_marks
+import miner.golden_nuggets.config as config
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -88,4 +90,5 @@ def run(stats):
         final_states = FINAL_STATES,
         cycle_start  = CYCLE_START,
         summary      = lambda session, final, last: f"Veins: {session.vein_n} | Ores: {stats['run']}",
+        marks        = config_marks(STATE_MARKS, config),
     )

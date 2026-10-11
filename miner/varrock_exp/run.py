@@ -9,7 +9,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from lib.session import run_session
 from lib.mouse import release_key
 from miner.varrock_exp.actions import orient_south, click_magenta_rock, click_blue_rock, wait_and_drop
-from miner.varrock_exp.states import build_machine, FINAL_STATES, CYCLE_START
+from miner.varrock_exp.states import build_machine, FINAL_STATES, CYCLE_START, STATE_MARKS
+from lib.screenshots import config_marks
+import miner.varrock_exp.config as config
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -56,4 +58,5 @@ def run(stats):
         cycle_start  = CYCLE_START,
         summary      = lambda session, final, last: f"Ores dropped: {session.ores}",
         teardown     = lambda: release_key("shift"),   # never leave a shift-drop held
+        marks        = config_marks(STATE_MARKS, config),
     )

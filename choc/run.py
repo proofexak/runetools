@@ -9,8 +9,9 @@ import time, random, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import choc.config as config
 from choc.choc import run_sequence, bootstrap_withdraw, restock_ge, bar_count_calibrated, bar_slot_calibrated
-from choc.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
+from choc.states import build_machine, bank_event, FINAL_STATES, CYCLE_START, STATE_MARKS
 from lib.session import run_session
+from lib.screenshots import config_marks
 import lib.human as human
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -77,4 +78,5 @@ def run(stats, restock_count):
         final_states = FINAL_STATES,
         cycle_start  = CYCLE_START,
         summary      = _summary,
+        marks        = config_marks(STATE_MARKS, config),
     )

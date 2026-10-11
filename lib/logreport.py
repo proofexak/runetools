@@ -3,7 +3,7 @@ Session report from the structured event logs (see lib/events.py).
 
     python -m lib.logreport                      # recent sessions (default)
     python -m lib.logreport sessions --bot tanner --last 50
-    python -m lib.logreport session latest       # one session in detail, incl. tracebacks
+    python -m lib.logreport session latest       # one session in detail, incl. tracebacks + screenshots
     python -m lib.logreport session 20260930_210455
     python -m lib.logreport stats --since 2026-09-01
     python -m lib.logreport supervisor --last 30 # unattended-mode events (log/launcher.jsonl)
@@ -100,6 +100,10 @@ def summarize(events):
         "non_ok": [(s["ts"], s["state"], s.get("result")) for s in steps if s.get("result") != "ok"],
         "pauses": len(pauses),
         "recoveries": sum(1 for s in steps if s["state"] == "recover"),
+        # failure screenshots (lib/screenshots.py): (ts, state, result / error type, file name)
+        "screenshots": [(e["ts"], e.get("state"), e.get("result") if e["event"] == "step" else e.get("type"),
+                         e["screenshot"])
+                        for e in events if e["event"] in ("step", "error") and isinstance(e.get("screenshot"), str)],
     }
 
 
@@ -145,7 +149,7 @@ def load_sessions(root):
             events, n = parse_lines(f)
         bad += n
         if events:
-            summaries.append(summarize(events))
+            summaries.append(dict(summarize(events), log_dir=os.path.dirname(os.path.abspath(path))))
     launcher = []
     lpath = os.path.join(root, "log", "launcher.jsonl")
     if os.path.exists(lpath):
@@ -186,6 +190,10 @@ def _print_session(s):
         print(f"  ERROR ({e.get('where')}) in {e.get('state')}: {e.get('type')}: {e.get('message')}")
         for line in (e.get("traceback") or "").rstrip().splitlines():
             print(f"    {line}")
+    if s.get("screenshots"):
+        print("  screenshots:")
+        for ts, state, what, name in s["screenshots"]:
+            print(f"    {ts[11:19]}  {state} -> {what}  {os.path.join(s.get('log_dir') or '', name)}")
 
 
 def _print_stats(agg, launcher):
