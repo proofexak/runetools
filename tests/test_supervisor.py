@@ -71,11 +71,11 @@ def test_budget_allows_five_per_rolling_hour():
     (out(final="done"), True, False, "skip_block"),                # finished: sit out the rest
     (out(final="crashed", crashed=True), True, False, "restart"),
     (out(reason="recovery failed"), False, False, "restart"),
-    (out(reason="recovery failed"), True, False, "idle_giving_up"),
+    (out(reason="recovery failed"), True, False, "give_up_block"),   # this block is lost, not every later one
 ])
 def test_schedule_decide(outcome, logged_in, block_over, action):
     assert sv.schedule_decide(outcome, logged_in, block_over) == action
 
 
 def test_schedule_constants():
-    assert (sv.SCHEDULE_RECHECK, sv.BLOCK_FORCE_GRACE) == (60, 1200)
+    assert (sv.SCHEDULE_RECHECK, sv.BLOCK_FORCE_GRACE, sv.MAX_BLOCK_GIVE_UPS) == (60, 1200, 3)

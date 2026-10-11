@@ -429,7 +429,7 @@ class FakeWatcher:
         self.ends, self.soft, self.force, self.stops = [], None, None, 0
 
     def __call__(self, end, soft, force):
-        self.ends.append(end)
+        self.ends.append(end())                  # end: the block's end as the schedule says now
         self.soft, self.force = soft, force
 
         def stop():
@@ -581,7 +581,7 @@ def test_default_watcher_soft_then_force():
     sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"])
     sup.WATCH_POLL = 0.01
     fired = []
-    stop = sup._watch(100, lambda: fired.append("soft"), lambda: fired.append("force"))
+    stop = sup._watch(lambda: 100, lambda: fired.append("soft"), lambda: fired.append("force"))
     import time
     for t, want in ((50, []), (100, ["soft"]), (1299, ["soft"]), (1300, ["soft", "force"])):
         now["t"] = t
@@ -612,3 +612,139 @@ def test_setup_from_env_needs_an_account_in_schedule_mode(monkeypatch):
 def test_setup_from_env_plain_mode():
     bot, start, extra = headless.setup({"BOT": "Tanning", "LAUNCH": "Green Dragonhide"}, _bots())
     assert bot.name == "Tanning" and start({}) == "green" and extra == {}
+
+
+# ── review fixes (PRO-102) ────────────────────────────────────────────────────
+
+def test_block_end_follows_the_file():
+    state = {"enabled": True, "blocks": [blk(1, 0, 1000)]}
+    now = {"t": 500.0}
+    sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"],
+                              schedule=lambda: (state["enabled"], state["blocks"]))
+    b = blk(1, 0, 1000)
+    assert sup._block_end(b) == 1000
+    state["blocks"] = [blk(1, 0, 700)]                       # shortened
+    assert sup._block_end(b) == 700
+    state["blocks"] = []                                     # deleted
+    assert sup._block_end(b) == 500
+    state["blocks"], state["enabled"] = [blk(1, 0, 1000)], False   # schedule switched off
+    assert sup._block_end(b) == 500
+
+
+def test_default_watcher_follows_a_moved_end():
+    now, end = {"t": 0.0}, {"t": 1000.0}
+    sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"])
+    sup.WATCH_POLL = 0.01
+    fired = []
+    stop = sup._watch(lambda: end["t"], lambda: fired.append("soft"), lambda: fired.append("force"))
+    import time
+    now["t"] = 150
+    time.sleep(0.1)
+    assert fired == []
+    end["t"] = 100                                           # the block was shortened in the web app
+    time.sleep(0.1)
+    assert fired == ["soft"]
+    stop()
+
+
+def test_switched_off_mid_block_moves_on(tmp_path):
+    state = {"enabled": True}
+    holder = {}
+
+    def session(stats):
+        state["enabled"] = False                             # Off in the web app at 1500
+        stats["step"], stats["reason"] = ("stopped", "stopped via overlay")
+    start, calls = bot_script(session)
+    client = FakeClient()
+    watcher = FakeWatcher()
+    sup, clock = make(start, client, end_after=1, schedule=lambda: (state["enabled"], [blk(1, 1000, 2000)]),
+                      resolver=lambda b: (Bot(b.bot, []), start), watcher=watcher)
+    clock["t"] = 1500
+    sup.run_forever()
+    assert len(calls) == 1 and client.kills == 1
+    assert kinds(tmp_path, "idle") == []
+
+
+def test_watcher_never_forces_while_a_human_has_control():
+    now = {"t": 0.0}
+    sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"])
+    sup.WATCH_POLL = 0.01
+    fired = []
+    pause.hold()
+    stop = sup._watch(lambda: 100, lambda: fired.append("soft"), lambda: fired.append("force"))
+    import time
+    now["t"] = 5000
+    time.sleep(0.1)
+    assert "force" not in fired
+    pause.unhold()
+    time.sleep(0.1)
+    assert fired.count("force") == 1
+    stop()
+
+
+def test_watcher_never_forces_while_paused():
+    now = {"t": 5000.0}
+    sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"])
+    sup.WATCH_POLL = 0.01
+    fired = []
+    pause.set_paused(True)                                   # O / botctl pause: a human is looking
+    stop = sup._watch(lambda: 100, lambda: fired.append("soft"), lambda: fired.append("force"))
+    import time
+    time.sleep(0.1)
+    assert "force" not in fired
+    stop()
+
+
+def test_no_logout_while_a_human_has_control():
+    pause.hold()
+    try:
+        start, _ = bot_script()
+        client = FakeClient()
+        sup, clock, _ = scheduled(start, client, [], end_after=2)
+        sup.run_forever()
+        assert client.kills == 0
+    finally:
+        pause.unhold()
+
+
+def test_giving_up_loses_the_block_not_the_schedule(tmp_path):
+    holder = {}
+
+    def second(stats):
+        holder["at"] = holder["clock"]["t"]
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(("stopped", "GE bank not found"), second)
+    client = FakeClient(logged_in=True)
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 1000), blk(2, 2000, 3000)])
+    holder.update(sup=sup, clock=clock)
+    sup.run_forever()
+    assert len(calls) == 2 and holder["at"] == 2000
+    assert kinds(tmp_path, "idle") == [] and client.kills >= 1      # logged out while it sat out
+
+
+def test_three_lost_blocks_in_a_row_idle_logged_out(tmp_path):
+    start, calls = bot_script(*[("stopped", "GE bank not found")] * 3)
+    client = FakeClient(logged_in=True)
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 1000), blk(2, 2000, 3000), blk(3, 4000, 5000)])
+    sup.run_forever()
+    assert len(calls) == 3
+    idle = [e for e in supervisor_events(tmp_path) if e["event"] == "idle"]
+    assert idle[-1]["why"] == "giving_up" and "3 blocks" in idle[-1]["reason"]
+    assert client.kills == 3                                          # each lost block, and the idle
+
+
+def test_failed_logins_lose_the_block_not_the_schedule(tmp_path):
+    holder = {}
+
+    def session(stats):
+        holder["at"] = holder["clock"]["t"]
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(session)
+    client = FakeClient(logins=[(False, "login screen never appeared")] * 3)
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 1000), blk(2, 2000, 3000)])
+    holder.update(sup=sup, clock=clock)
+    sup.run_forever()
+    assert len(calls) == 1 and holder["at"] == 2000
+    assert kinds(tmp_path, "idle") == [] and "schedule_skip" in kinds(tmp_path, "schedule_skip")

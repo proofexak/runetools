@@ -101,6 +101,11 @@ def reset():
     _force_stop = False
 
 
+def is_held():
+    """A human has the game (web app live view)."""
+    return _held
+
+
 def hold():
     """A human takes the game (web app live view): pause, ignore O/P until unhold()."""
     global _held, _held_paused, _paused

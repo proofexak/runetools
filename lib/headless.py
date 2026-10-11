@@ -84,8 +84,8 @@ class Supervisor:
     def __init__(self, bot, start, client, clock=time.time, sleeper=None, idle_waiter=None,
                  schedule=None, resolver=None, watcher=None):
         """schedule: () -> (enabled, blocks) turns on schedule mode; resolver: Block ->
-        (Bot, start), ValueError for names it doesn't know; watcher(end, soft, force) -> stop
-        (default: _watch, a thread)."""
+        (Bot, start), ValueError for names it doesn't know; watcher(end, soft, force) -> stop,
+        end() the block's end as the file says now (default: _watch, a thread)."""
         self.bot, self.start, self.client, self.clock = bot, start, client, clock
         self.schedule, self.resolver = schedule, resolver
         self.watcher = watcher or self._watch
@@ -93,6 +93,7 @@ class Supervisor:
         self._client_up = True            # unknown at start: closing it is harmless
         self._playing = self._waiting_for = None
         self._deadline_forced = False
+        self._give_ups = 0                # schedule mode: blocks lost in a row
         self.stats = {"run": 0, "step": "starting", "start": None, "stop": False}
         self._wake = threading.Event()
         self._sleep = sleeper or self._interruptible_sleep
@@ -155,7 +156,8 @@ class Supervisor:
     def _run_session(self, block=None):
         self.operator = False
         began = self.clock()
-        stop_watch = self.watcher(block.end, self._block_over, self._block_overrun) if block else None
+        stop_watch = (self.watcher(lambda: self._block_end(block), self._block_over, self._block_overrun)
+                      if block else None)
         try:
             with pause.session():
                 self.start(self.stats)
@@ -183,22 +185,51 @@ class Supervisor:
         self._deadline_forced = True
         pause.force_stop()
 
+    def _block_end(self, block):
+        """The block's end as the schedule says now: moved, or now if it was deleted or the
+        schedule switched off — a running block follows edits made in the web app."""
+        enabled, blocks = self.schedule()
+        same = next((b for b in blocks if b.id == block.id), None) if enabled else None
+        return same.end if same else self.clock()
+
+    def _lose_block(self, block, reason):
+        """The bot gave up (or couldn't log in) in this block: sit it out, logged out — and after
+        MAX_BLOCK_GIVE_UPS in a row, idle: something needs a human, not the next block."""
+        self._give_ups += 1
+        if self._give_ups < policy.MAX_BLOCK_GIVE_UPS:
+            self._skipped.add(block.id)
+            self._event("schedule_skip", id=block.id, reason=reason)
+            return
+        if self._client_up and not pause.is_held():
+            self.client.kill()
+            self._client_up = False
+        self._give_ups = 0
+        self._idle("giving_up", f"{reason} ({policy.MAX_BLOCK_GIVE_UPS} blocks in a row)")
+
     def _watch(self, end, soft, force):
-        """Calls soft() once at `end`, force() once BLOCK_FORCE_GRACE later; returns stop()."""
+        """Calls soft() once when end() has passed, force() once BLOCK_FORCE_GRACE later — but
+        never while a human has the game or paused it (they get to finish). Returns stop()."""
         done = threading.Event()
 
         def run():
             softened = False
             while not done.wait(self.WATCH_POLL):
-                now = self.clock()
-                if not softened and now >= end:
+                now, until = self.clock(), end()
+                if now < until:
+                    continue
+                if not softened:
                     softened = True
                     soft()
-                if now >= end + policy.BLOCK_FORCE_GRACE:
+                if now >= until + policy.BLOCK_FORCE_GRACE and not pause.is_held() and not pause.is_paused():
                     force()
                     return
-        threading.Thread(target=run, name="block-watch", daemon=True).start()
-        return done.set
+        thread = threading.Thread(target=run, name="block-watch", daemon=True)
+        thread.start()
+
+        def stop():
+            done.set()
+            thread.join(self.WATCH_POLL + 1)
+        return stop
 
     def _schedule_block(self):
         """The block to play now, with self.bot / self.start set from it — or None after
@@ -219,7 +250,7 @@ class Supervisor:
                                 value=block.value, end=block.end)
                 return block
         self._playing = None
-        if self._client_up:               # nothing to play: logged out, like closing the client
+        if self._client_up and not pause.is_held():   # nothing to play: logged out (not under a human)
             self.client.kill()
             self._client_up = False
             self._event("schedule_logout")
@@ -276,7 +307,10 @@ class Supervisor:
             if not ok:
                 self.login_failures += 1
                 self.client.kill()
-                if self.login_failures >= policy.MAX_LOGIN_FAILURES:
+                if self.login_failures >= policy.MAX_LOGIN_FAILURES and block is not None:
+                    self.login_failures = 0
+                    self._lose_block(block, f"login: {reason}")
+                elif self.login_failures >= policy.MAX_LOGIN_FAILURES:
                     self._idle("giving_up", "login")
                 else:
                     self._pause_before_retry(self.backoff.next(), after="login failure")
@@ -295,14 +329,19 @@ class Supervisor:
             if block is None:
                 action = decide(outcome, self._logged_in())
             else:
-                action = policy.schedule_decide(outcome, self._logged_in(), self.clock() >= block.end)
+                action = policy.schedule_decide(outcome, self._logged_in(), self.clock() >= self._block_end(block))
             self._event("session_end", final=outcome.final, reason=outcome.reason,
                         seconds=round(outcome.seconds, 1), action=action)
             if action == "next_block":
+                self._give_ups = 0
                 continue
             if action == "skip_block":
+                self._give_ups = 0
                 self._skipped.add(block.id)
                 self._event("schedule_skip", id=block.id, reason=outcome.reason or "finished")
+                continue
+            if action == "give_up_block":
+                self._lose_block(block, outcome.reason or outcome.final)
                 continue
             if action == "restart":
                 if not self.budget.allow():
