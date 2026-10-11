@@ -14,14 +14,17 @@ by config_marks(). A name "ge.X" / "energy.X" is lib/ge_config.py's /
 lib/energy_config.py's X.
 
 Like the event log this never raises into a bot: a grab or save that fails
-prints one warning and the event goes without `screenshot`. At most
-MAX_PER_SESSION per session (a bot failing in a loop must not fill the disk).
+prints one warning and the event goes without `screenshot`. Failing steps get
+at most MAX_PER_STATE per state (a routine "not_found" loop — a vein, a rock —
+leaves room for the rarer failures) and MAX_PER_SESSION in all (a bot failing
+in a loop must not fill the disk); the session's error always gets one.
 """
 import importlib, os, re, sys, time
 
 from lib.logreport import FAILURE_RESULTS
 
 MAX_PER_SESSION = 20
+MAX_PER_STATE   = 5
 ERROR_ATTR = "_runetools_screenshot"   # the file name, on an exception a session recorded
 
 # prefix of a config name → loader of the lib config it names
@@ -76,24 +79,32 @@ def config_marks(table, config):
 
 
 class Shooter:
-    """One session's screenshots: numbered files next to its log, up to `cap`."""
+    """One session's screenshots: numbered files next to its log."""
 
-    def __init__(self, log_path, marks=None, cap=None):
+    def __init__(self, log_path, marks=None):
         self.log_path = log_path
         self.folder = os.path.dirname(os.path.abspath(log_path))
         self.marks = marks
-        self.cap = MAX_PER_SESSION if cap is None else cap
         self.taken = 0
-        self._capped = False
+        self.per_state = {}
+        self._capped = set()
 
-    def take(self, state, title=None):
-        """Grab, draw `state`'s marks and `title`, save; the file name, or None (cap reached,
-        or anything failed)."""
+    def _over_cap(self, state):
+        for key, n, cap in (("session", self.taken, MAX_PER_SESSION),
+                            (state, self.per_state.get(state, 0), MAX_PER_STATE)):
+            if n >= cap:
+                if key not in self._capped:
+                    self._capped.add(key)
+                    print(f"  [screenshots] {cap} taken {'this session' if key == 'session' else 'in ' + str(state)}"
+                          " — no more")
+                return True
+        return False
+
+    def take(self, state, title=None, capped=True):
+        """Grab, draw `state`'s marks and `title`, save; the file name, or None (over a cap,
+        unless `capped` is False, or anything failed)."""
         try:
-            if self.taken >= self.cap:
-                if not self._capped:
-                    self._capped = True
-                    print(f"  [screenshots] {self.cap} taken this session — no more")
+            if capped and self._over_cap(state):
                 return None
             import lib.vision as vision
             from PIL import Image
@@ -106,6 +117,7 @@ class Shooter:
             name = file_name(self.log_path, self.taken + 1, state)
             Image.fromarray(image[:, :, ::-1]).save(os.path.join(self.folder, name))
             self.taken += 1
+            self.per_state[state] = self.per_state.get(state, 0) + 1
             return name
         except Exception as e:
             _warn(f"screenshot not saved: {e!r}")
@@ -128,9 +140,9 @@ def finish():
     _current = None
 
 
-def take(state, title=None):
+def take(state, title=None, capped=True):
     shooter = _current
-    return shooter.take(state, title) if shooter is not None else None
+    return shooter.take(state, title, capped) if shooter is not None else None
 
 
 def step_fields(state, result):
@@ -153,7 +165,7 @@ def tag_error(exc, state):
         import lib.pause as pause
         if isinstance(exc, pause.ForceStop):
             return
-        name = take(state, f"{time.strftime('%H:%M:%S')}  {state}: {type(exc).__name__}")
+        name = take(state, f"{time.strftime('%H:%M:%S')}  {state}: {type(exc).__name__}", capped=False)
         if name:
             setattr(exc, ERROR_ATTR, name)
     except Exception:

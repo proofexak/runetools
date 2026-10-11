@@ -30,6 +30,7 @@ def _model():
                          {"trigger": "not_found", "source": "a", "dest": "a"},
                          {"trigger": "full", "source": "a", "dest": "b"},
                          {"trigger": "ok", "source": "b", "dest": "end"},
+                         {"trigger": "fail", "source": "b", "dest": "end"},
                          {"trigger": "stop", "source": "a", "dest": "end"}])
     return m
 
@@ -101,6 +102,28 @@ def test_cap_per_session(env, monkeypatch):
     fails = [e for e in _events(env) if e["event"] == "step" and e["result"] == "fail"]
     assert ["screenshot" in e for e in fails] == [True, True, False]
     assert len(_pngs(env)) == 2
+
+
+def test_cap_per_state_keeps_room_for_other_failures(env, monkeypatch):
+    # a routine "not_found" loop (a vein, a rock) must not use up the session's screenshots
+    monkeypatch.setattr(screenshots, "MAX_PER_STATE", 2)
+    _run(env, {"a": _script(["not_found"] * 4 + ["ok"]), "b": _script(["fail"])})
+    shots = [(e["state"], "screenshot" in e) for e in _events(env) if e["event"] == "step" and e["result"] != "ok"]
+    assert shots == [("a", True), ("a", True), ("a", False), ("a", False), ("b", True)]
+
+
+def test_error_screenshot_ignores_the_caps(env, monkeypatch):
+    monkeypatch.setattr(screenshots, "MAX_PER_SESSION", 1)
+    results = ["fail"]
+
+    def a():
+        if results:
+            return results.pop()
+        raise RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        _run(env, {"a": a})
+    err = next(e for e in _events(env) if e["event"] == "error")
+    assert err["screenshot"].endswith("_2_a.png") and len(_pngs(env)) == 2
 
 
 def test_grab_failure_never_stops_the_bot(env, monkeypatch):
