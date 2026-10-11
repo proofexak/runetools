@@ -10,6 +10,8 @@ tanner/config.py
 choc/config.py
 lib/ge_config.py
 lib/energy_config.py
+# phone alerts: the Discord webhook URL is a credential (lib/notify_config.example.py)
+lib/notify_config.py
 lib/digit_templates/
 miner/config.py
 miner/varrock_exp/config.py

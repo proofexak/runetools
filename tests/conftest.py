@@ -47,3 +47,9 @@ def _launcher_log_in_tmp(monkeypatch, tmp_path):
     # ... nor push events to a web app running on this machine (ROOT has no
     # data/bot_token either; tests that push pass push= explicitly)
     monkeypatch.setenv(events.APP_URL_VAR, "")
+    # ... nor send a phone alert (lib/notify.py): unconfigured whatever lib/notify_config.py or
+    # NOTIFY_DISCORD_* say; tests that send patch settings / the opener themselves
+    import lib.notify as notify
+    monkeypatch.setattr(notify, "settings", lambda: notify.Settings())
+    monkeypatch.setattr(notify, "supervised", False)
+    monkeypatch.setattr(notify, "_limiter", None)
