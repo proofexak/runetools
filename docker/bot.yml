@@ -1,0 +1,102 @@
+# One account's bot (docker/README.md "Accounts"): its proxy + the bot container, as the
+# compose project rt-<account>. Run it through `docker/botctl <account> …`, which passes
+# docker/.env (shared settings) and docker/accounts/<account>.env (this account's IP and
+# identity) — the :? variables below refuse to start without them.
+# The web app stack (docker-compose.yml) owns the runetools-net network this joins.
+
+services:
+  # The bot container's network (docker/README.md "Fixed IP through a proxy"): tun2socks
+  # sends all its traffic through PROXY. If the proxy drops, connections fail — they never
+  # fall back to the host's IP. runetools-net (web app, push, VNC) stays direct:
+  # tun2socks keeps its routes.
+  proxy:
+    image: xjasonlyu/tun2socks:latest
+    # renames Docker's eth0 to a laptop NIC name first (docker/proxy-start)
+    entrypoint: ["sh", "/proxy-start"]
+    volumes:
+      - ./proxy-start:/proxy-start:ro
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    # runetools shares this network, so its MAC and hostname are set here (Docker forbids
+    # a hostname on a container that borrows another's network). Fixed across recreates.
+    hostname: ${BOT_HOSTNAME:?set in docker/accounts/<account>.env}
+    networks:
+      runetools:
+        mac_address: ${BOT_MAC:?set in docker/accounts/<account>.env}
+    environment:
+      - PROXY=${PROXY:?set in docker/accounts/<account>.env}
+      - LOGLEVEL=warning
+      - NIC_NAME=${NIC_NAME:-enp0s31f6}
+      - ADDR=10.8.0.2/24      # the tunnel: an OpenVPN-style address (tun2socks' default is 198.18.0.1/15)
+    ports:
+      # runetools' VNC: it shares this container's network, so the port is published here.
+      # Bound to localhost only — this is a bot control channel, not something
+      # to expose on the network
+      - "127.0.0.1:${VNC_PORT:-5900}:5900"
+    restart: unless-stopped
+
+  runetools:
+    image: runetools-bot     # one image for every account
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    # Run as your host user so files the bots write into the repo (logs, saved
+    # calibration) stay owned by you on Linux. 1000 is the first user on
+    # Ubuntu; set RUNETOOLS_UID/GID in docker/.env if `id -u` / `id -g` differ.
+    # (Ignored by Docker Desktop's Windows bind mounts — harmless there.)
+    user: "${RUNETOOLS_UID:-1000}:${RUNETOOLS_GID:-1000}"
+    volumes:
+      - ..:/app
+      - ./bolt:/opt/bolt
+      - ./accounts/${ACCOUNT}/home:/home/runetools:rw   # this account's RuneLite login + browser profile
+      # this account's own user (home /home/<user>, linked to the volume by the entrypoint)
+      # and machine ID, made by docker/botctl <account> up (docker/README.md "Looking like a laptop")
+      - ./accounts/${ACCOUNT:?run through docker/botctl <account>}/passwd:/etc/passwd:ro
+      - ./accounts/${ACCOUNT}/group:/etc/group:ro
+      - ./accounts/${ACCOUNT}/machine-id:/etc/machine-id:ro
+    network_mode: "service:proxy"   # all traffic through the proxy service; VNC is published there
+    depends_on:
+      - proxy
+    shm_size: "256mb"
+    environment:
+      # session logs are tagged with it (lib/accounts.py), whatever data/active_account says
+      - RUNETOOLS_ACCOUNT=${ACCOUNT:?run through docker/botctl <account>}
+      - HOME=/home/${BOT_USER:?run through docker/botctl <account>}
+      - OS_VERSION=${OS_VERSION:-6.8.0-85-generic}   # Java's os.version (docker/runelite)
+      - VNC=${VNC:-1}
+      - VNC_PASSWORD=${VNC_PASSWORD:-runetools}
+      - XVFB_RESOLUTION=${XVFB_RESOLUTION:-1280x800x24}
+      - RUNELITE_FPS=${RUNELITE_FPS:-30}
+      - RUNELITE_JAVA_OPTS=${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}
+      # the public IP the proxy must give this container: RuneLite and Firefox won't start
+      # (docker/check-ip) unless an IP check shows exactly this one
+      - EXPECT_IP=${EXPECT_IP:?set in docker/accounts/<account>.env}
+      # same zone as the web app's: session logs hold local wall time, and the browser's
+      # clock should match the proxy's country
+      - TZ=${TZ:-UTC}
+      # Unattended mode (docker/README.md): set BOT + LAUNCH (and VALUE for a
+      # launch that asks — a number, or Tanning's "Al Kharid" / "GE") and the container runs lib.headless,
+      # which logs in, runs the bot and restarts it. Unset = manual mode.
+      - BOT=${BOT:-}
+      - LAUNCH=${LAUNCH:-}
+      - VALUE=${VALUE:-}
+      # live status (PRO-99): each session-log line is also pushed to the web app (with
+      # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
+      - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
+    # Manual mode (BOT unset) runs lib.manual: it starts RuneLite + the bot menu when the web
+    # app's Start button asks (PRO-90, through data/manual_request.json) and idles otherwise.
+    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]
+    stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+networks:
+  runetools:
+    name: runetools-net
+    external: true     # created by the web app stack (docker-compose.yml)
+
+volumes:
+  userhome:            # → rt-<account>_userhome: one home per account

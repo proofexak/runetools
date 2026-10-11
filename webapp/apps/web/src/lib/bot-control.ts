@@ -8,7 +8,7 @@ export interface BotView {
   rows: { label: string; value: string; on: boolean }[];
   canStart: boolean;
   canStop: boolean;
-  /** RuneLite (manual) or the unattended bot is up: there's something to watch. */
+  /** The container is up: its screen is there to watch (RuneLite, the bot, or its browser). */
   watchable: boolean;
   error: string | null;
 }
@@ -42,7 +42,7 @@ export function botView(s: BotStatus): BotView {
     headline = PHASES[s.job!.phase] ?? `${s.job!.phase}…`;
     tone = "busy";
   } else if (s.container === "missing") {
-    headline = "The bot container doesn't exist yet — run docker compose -f docker/docker-compose.yml up -d once";
+    headline = "The bot container doesn't exist yet — run docker/botctl <account> up once";
     tone = "problem";
   } else if (s.container === "unknown") {
     headline = "Can't reach Docker";
@@ -66,7 +66,7 @@ export function botView(s: BotStatus): BotView {
     headline, tone, rows,
     canStart: !busy && (s.container === "stopped" || (running && manual && !!s.manual && !ready)),
     canStop: !busy && running,
-    watchable: running && (s.mode === "unattended" || runelite),
+    watchable: running,
     error: failed ?? s.manual?.error ?? null,
   };
 }

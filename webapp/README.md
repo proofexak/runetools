@@ -77,7 +77,7 @@ a session tagged with that account is running (or while someone holds control). 
 **Watch live**: nothing connects to VNC before that. **Watch live** on a dashboard session card opens that account's
 page with the screen already open (`?watch=1`). A session without an account has no screen to watch. Browsers can't speak VNC's TCP protocol,
 so the API bridges it: the page opens a WebSocket to `/api/live/vnc` on the app's own origin, and the API connects
-to x11vnc (`VNC_ADDR`, `runetools:5900` in Docker). The stream sits behind the app login, and no extra port is
+to x11vnc (`VNC_ADDR`, `rt-<BOT_ACCOUNT>-proxy-1:5900` in Docker — the bot container uses its account stack's `proxy` network, docker/README.md "Accounts"). The stream sits behind the app login, and no extra port is
 published. The VNC password comes from `/api/live/config` (logged-in page only), never from a URL.
 
 The view is read-only by default. The bot's pyautogui and the viewer share one X display, so a click in the viewer
@@ -117,7 +117,7 @@ How it's wired:
   every 2 s in `data/manual_status.json` `{ts, runelite, menu, phase, handled, error}`. A report older than 10 s
   means manual mode isn't running.
 - Settings: `DOCKER_PROXY_URL` (compose: `http://dockerproxy:2375`; unset = no panel) and `BOT_CONTAINER`
-  (`runetools-runetools-1`).
+  (`rt-<BOT_ACCOUNT>-runetools-1`: `BOT_ACCOUNT` in docker/.env picks the account's stack).
 
 ## Security
 

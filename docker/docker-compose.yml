@@ -1,49 +1,12 @@
+# The web app stack: postgres + webapp + dockerproxy. Each account's bot is its own
+# stack (docker/bot.yml, started with docker/botctl <account> up) that joins this one's
+# network, runetools-net.
+#
 # Fixed project name: the container, image and volume are runetools-… whatever
 # folder compose is started from (default would be the folder name, "docker").
 name: runetools
 
 services:
-  runetools:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    # Run as your host user so files the bots write into the repo (logs, saved
-    # calibration) stay owned by you on Linux. 1000 is the first user on
-    # Ubuntu; set RUNETOOLS_UID/GID in docker/.env if `id -u` / `id -g` differ.
-    # (Ignored by Docker Desktop's Windows bind mounts — harmless there.)
-    user: "${RUNETOOLS_UID:-1000}:${RUNETOOLS_GID:-1000}"
-    volumes:
-      - ..:/app
-      - ./bolt:/opt/bolt
-      - runetools-userhome:/home/runetools   # RuneLite + Bolt state, survives restarts
-    ports:
-      # bound to localhost only — this is a bot control channel, not something
-      # to expose on the network
-      - "127.0.0.1:5900:5900"
-    shm_size: "256mb"
-    environment:
-      - VNC=${VNC:-1}
-      - VNC_PASSWORD=${VNC_PASSWORD:-runetools}
-      - XVFB_RESOLUTION=${XVFB_RESOLUTION:-1280x800x24}
-      - RUNELITE_FPS=${RUNELITE_FPS:-30}
-      - RUNELITE_JAVA_OPTS=${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}
-      # Unattended mode (docker/README.md): set BOT + LAUNCH (and VALUE for a
-      # launch that asks — a number, or Tanning's "Al Kharid" / "GE") and the container runs lib.headless,
-      # which logs in, runs the bot and restarts it. Unset = manual mode.
-      - BOT=${BOT:-}
-      - LAUNCH=${LAUNCH:-}
-      - VALUE=${VALUE:-}
-      # live status (PRO-99): each session-log line is also pushed to the web app (with
-      # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
-      - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
-    # Manual mode (BOT unset) runs lib.manual: it starts RuneLite + the bot menu when the web
-    # app's Start button asks (PRO-90, through data/manual_request.json) and idles otherwise.
-    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]
-    stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
-    stdin_open: true
-    tty: true
-    restart: unless-stopped
-
   # ── web app (webapp/, PRO-88): account stats + login vault ─────────────────
   # `docker compose up -d postgres webapp`, then open http://127.0.0.1:8778/
   postgres:
@@ -88,18 +51,20 @@ services:
       - PUBLIC_HOST=${PUBLIC_HOST:-}
       # live view (PRO-89): the API bridges the page's VNC WebSocket to x11vnc over the
       # compose network, so no extra port is published for it
-      - VNC_ADDR=runetools:5900
+      # BOT_ACCOUNT (docker/.env): the account whose bot the page shows / starts / stops —
+      # its stack is rt-<account> (docker/bot.yml), VNC on its proxy container
+      - VNC_ADDR=rt-${BOT_ACCOUNT:-none}-proxy-1:5900
       - VNC_PASSWORD=${VNC_PASSWORD:-runetools}
       # session logs hold local wall time without a zone: set TZ to the zone the bots run
       # in (e.g. Europe/Warsaw in docker/.env) so "today" and day splits line up
       - TZ=${TZ:-UTC}
       # start / stop the bot container from the page (PRO-90), only through the allowlist proxy
       - DOCKER_PROXY_URL=http://dockerproxy:2375
-      - BOT_CONTAINER=runetools-runetools-1
+      - BOT_CONTAINER=rt-${BOT_ACCOUNT:-none}-runetools-1
     restart: unless-stopped
 
   # The only container with the Docker socket (root on the host): it lets the web app
-  # inspect / start / stop runetools-runetools-1 and nothing else (webapp/apps/api/src/
+  # inspect / start / stop BOT_ACCOUNT's bot container and nothing else (webapp/apps/api/src/
   # docker-proxy.ts). Same image as the web app; on the compose network only, no port.
   dockerproxy:
     image: runetools-webapp
@@ -109,13 +74,22 @@ services:
     user: "0:0"                # the socket belongs to root
     command: ["node", "dist/docker-proxy.js"]
     environment:
-      - BOT_CONTAINER=runetools-runetools-1
+      - BOT_CONTAINER=rt-${BOT_ACCOUNT:-none}-runetools-1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       disable: true
     restart: unless-stopped
 
+networks:
+  default:
+    name: runetools-net   # fixed: the account stacks (docker/bot.yml) join it by this name
+    # a home router's range (the bot containers' "LAN"), not Docker's 172.x — and not
+    # this PC's own (192.168.1.x)
+    ipam:
+      config:
+        - subnet: 192.168.88.0/24
+          gateway: 192.168.88.1
+
 volumes:
-  runetools-userhome:
   runetools-pgdata:

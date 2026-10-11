@@ -100,10 +100,18 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          two-stage build, Temurin JRE, no window manager, Mesa removed (RuneLite's
                          GPU plugin must stay off — software GL burns CPU), runs as host UID 1000;
                          `docker/runelite` starts the client with FPS cap + JVM flags;
-                         `docker/botctl` controls unattended mode (see docker/README.md) and
+                         `docker/botctl <account> …` runs and controls each account's bot (see docker/README.md) and
                          saves/restores RuneLite's profile (`profile-save`/`profile-load` →
                          docker/runelite-profile/, gitignored; a fresh container seeds from it);
-                         `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43%);
+                         `docker/measure.sh <image>` measures size/RAM/CPU (438 MB, ~395 MiB, ~43% — before
+                         Firefox, which `BROWSER=0` leaves out);
+                         docker-compose.yml = the web app stack (owns network runetools-net); each account's bot
+                         = docker/bot.yml as project rt-<account>, with its IP + identity in
+                         docker/accounts/<account>.env (gitignored; `botctl new` / `accounts`): `proxy` service
+                         (tun2socks → PROXY, fixed BOT_MAC/BOT_HOSTNAME, its VNC_PORT) + `runetools` on that
+                         network; EXPECT_IP → docker/check-ip refuses RuneLite / `botctl <account> browser`
+                         (Firefox) on any other IP; `botctl <account> up` refuses a shared IP/identity and a
+                         second running account (data/ hand-over files are still shared);
                          compose also runs the web app: `postgres` + `webapp` (127.0.0.1:8778)
 
 choc/                   chocolate dust grind bot — states.py (withdraw → grind ⇄ restock), run.py,
@@ -368,7 +376,7 @@ takes plain data; capture happens only in `lib/screen.grab`.
   `lib/live_control.py` (see webapp/README.md "Live view"). Checked view-only against the real
   container; take control against a real running bot not yet tried.
 - Bot container Start / Stop (PRO-90): web app panel → `dockerproxy` compose service (allowlist proxy, the only
-  holder of the Docker socket: inspect / start / stop of `runetools-runetools-1`, nothing else) + `lib/manual.py`
+  holder of the Docker socket: inspect / start / stop of `rt-<BOT_ACCOUNT>-runetools-1`, nothing else) + `lib/manual.py`
   through data/ files. Start = docker start if stopped, then RuneLite + menu; Stop = docker stop -t 30 (never
   removed). Unattended containers (BOT set) are only started. See webapp/README.md "Bot container".
 - Woodcutter: WIP, don't touch.

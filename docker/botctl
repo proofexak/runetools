@@ -1,34 +1,141 @@
 #!/usr/bin/env bash
-# Control an unattended bot running in the container (lib/headless.py).
+# Run and control each account's bot (docker/README.md "Accounts", "Unattended mode").
+# Every account is its own stack — docker/bot.yml as compose project rt-<account> — with
+# its IP and identity in docker/accounts/<account>.env.
 #
-#   docker/botctl pause      pause (no-op if already paused)
-#   docker/botctl resume     resume a paused bot (no-op if running)
-#   docker/botctl stop       finish the current trip, then idle
-#   docker/botctl kill       stop right now (same as P), then idle
-#   docker/botctl start      resume, or leave idle: log in if needed and start the bot
-#   docker/botctl status     recent sessions + supervisor events
-#   docker/botctl profile-save   copy RuneLite's + the game's settings to docker/runelite-profile/
-#   docker/botctl profile-load   put the saved profile back (close RuneLite first)
+#   docker/botctl accounts                 every account: IP, MAC, hostname, VNC port, running?
+#   docker/botctl new <account>            docker/accounts/<account>.env with a fresh MAC, hostname, VNC port
+#   docker/botctl <account> up             check its file (own proxy, IP, identity), then build + start it
+#   docker/botctl <account> down           stop and remove its containers (its home volume stays)
+#   docker/botctl <account> ip             the public IP its container goes out with
+#   docker/botctl <account> browser [url]  Firefox on its virtual display (not while a bot runs)
+#   docker/botctl <account> pause          pause (no-op if already paused)
+#   docker/botctl <account> resume         resume a paused bot (no-op if running)
+#   docker/botctl <account> stop           finish the current trip, then idle
+#   docker/botctl <account> kill           stop right now (same as P), then idle
+#   docker/botctl <account> start          resume, or leave idle: log in if needed and start the bot
+#   docker/botctl <account> status         recent sessions + supervisor events
+#   docker/botctl <account> profile-save   copy RuneLite's + the game's settings to docker/runelite-profile/
+#   docker/botctl <account> profile-load   put the saved profile back (close RuneLite first)
+#   docker/botctl <account> compose …      any docker compose command on its stack (exec, logs, ps, …)
 #
 # Not in the docker group yet? Prefix with:  sg docker -c "docker/botctl …"
 # On Windows run it from Git Bash (comes with Git for Windows).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-dc() { docker compose -f docker/docker-compose.yml "$@"; }
+ACCOUNTS=docker/accounts
+usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+die() { echo "$*" >&2; exit 1; }
+
+# KEY's value in an env file (the last one; CRLF from a Windows editor dropped), empty if missing
+get() { sed -n "s/^$2=//p" "$1" | tr -d '\r' | tail -n 1; }
+accounts() { for f in "$ACCOUNTS"/*.env; do [ -e "$f" ] && basename "$f" .env; done; }
+valid_name() { [[ $1 =~ ^[a-z0-9][a-z0-9_-]*$ ]] || die "account names: lowercase letters, digits, - and _ (\"$1\")"; }
+# used KEY VALUE [ACCOUNT]: another account's file (not ACCOUNT's) already has KEY=VALUE
+used() {
+    local a
+    for a in $(accounts); do
+        [ "$a" = "${3:-}" ] && continue
+        [ "$(get "$ACCOUNTS/$a.env" "$1")" = "$2" ] && return 0
+    done
+    return 1
+}
+running_projects() { docker ps --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null | grep '^rt-' | sort -u || true; }
+
+list_accounts() {
+    local a f up
+    up=$(running_projects)
+    printf '%-12s %-16s %-18s %-26s %-5s %s\n' ACCOUNT EXPECT_IP BOT_MAC BOT_HOSTNAME VNC RUNNING
+    for a in $(accounts); do
+        f="$ACCOUNTS/$a.env"
+        printf '%-12s %-16s %-18s %-26s %-5s %s\n' "$a" "$(get "$f" EXPECT_IP)" "$(get "$f" BOT_MAC)" \
+            "$(get "$f" BOT_HOSTNAME)" "$(get "$f" VNC_PORT)" "$(grep -qx "rt-$a" <<<"$up" && echo yes || echo no)"
+    done
+}
+
+new_account() {
+    local f="$ACCOUNTS/$1.env" mac host port
+    valid_name "$1"
+    [ -e "$f" ] && die "$f already exists"
+    local names=(kuba marek tomek piotr bartek michal pawel ola kasia ania ewa magda)
+    local models=(ThinkPad-T480 ThinkPad-T14 ThinkPad-E14 ThinkPad-X1-Carbon Latitude-5490 Latitude-7400
+                  HP-ProBook-450-G5 HP-EliteBook-840-G5 VivoBook-15 IdeaPad-5)
+    while :; do
+        mac=$(printf '10:F0:05:%02X:%02X:%02X' $((RANDOM % 256)) $((RANDOM % 256)) $((RANDOM % 256)))
+        used BOT_MAC "$mac" || break
+    done
+    while :; do
+        host="${names[RANDOM % ${#names[@]}]}-${models[RANDOM % ${#models[@]}]}"
+        used BOT_HOSTNAME "$host" || break
+    done
+    port=5900
+    while used VNC_PORT "$port"; do port=$((port + 1)); done
+    sed -e "s/^BOT_MAC=.*/BOT_MAC=$mac/" -e "s/^BOT_HOSTNAME=.*/BOT_HOSTNAME=$host/" \
+        -e "s/^VNC_PORT=.*/VNC_PORT=$port/" "$ACCOUNTS/account.env.example" > "$f"
+    echo "made $f — MAC $mac, hostname $host, VNC 127.0.0.1:$port"
+    echo "fill in PROXY and EXPECT_IP, then: docker/botctl $1 up"
+}
+
+# before `up`: its own proxy, IP and identity, filled in and shared with no other account
+check_account() {
+    local k v
+    for k in PROXY EXPECT_IP BOT_MAC BOT_HOSTNAME VNC_PORT; do
+        [ -n "$(get "$FILE" "$k")" ] || die "$k is empty in $FILE"
+    done
+    case "$(get "$FILE" PROXY)" in *USER:PASSWORD@HOST:PORT*) die "fill in PROXY in $FILE" ;; esac
+    case "$(get "$FILE" EXPECT_IP)" in fill-in*) die "fill in EXPECT_IP in $FILE" ;; esac
+    for k in PROXY EXPECT_IP BOT_MAC BOT_HOSTNAME VNC_PORT; do
+        v=$(get "$FILE" "$k")
+        # the value isn't printed: PROXY holds the password
+        used "$k" "$v" "$ACCT" && die "$k in $FILE is the same as another account's — every account needs its own"
+    done
+    return 0
+}
+
+# The account's Linux user: BOT_USER in its file, else its hostname's first part — an
+# Ubuntu install names the machine <user>-<model>.
+bot_user() {
+    local u
+    u=$(get "$FILE" BOT_USER)
+    [ -n "$u" ] || u=$(get "$FILE" BOT_HOSTNAME | cut -d- -f1)
+    echo "${u:-user}"
+}
+dc() {
+    local envs=()
+    [ -f docker/.env ] && envs+=(--env-file docker/.env)
+    ACCOUNT="$ACCT" BOT_USER="$(bot_user)" \
+        docker compose -p "rt-$ACCT" -f docker/bot.yml "${envs[@]}" --env-file "$FILE" "$@"
+}
+# docker/accounts/<account>/: the image's passwd + group with the UID the container runs as
+# renamed to the account's user (home /home/<user>), and a machine ID of its own —
+# made once, kept, so it never changes
+make_identity() {
+    local d="$ACCOUNTS/$ACCT" u uid gid name
+    u=$(bot_user)
+    uid=$( [ -f docker/.env ] && get docker/.env RUNETOOLS_UID || true); uid=${uid:-1000}
+    gid=$( [ -f docker/.env ] && get docker/.env RUNETOOLS_GID || true); gid=${gid:-1000}
+    name="$(tr '[:lower:]' '[:upper:]' <<<"${u:0:1}")${u:1}"
+    mkdir -p "$d"
+    MSYS_NO_PATHCONV=1 docker run --rm --entrypoint cat runetools-bot /etc/passwd \
+        | awk -F: -v OFS=: -v uid="$uid" -v gid="$gid" -v u="$u" -v n="$name" '
+            $3 == uid { next } { print } END { print u, "x", uid, gid, n, "/home/" u, "/bin/bash" }' \
+        > "$d/passwd"
+    MSYS_NO_PATHCONV=1 docker run --rm --entrypoint cat runetools-bot /etc/group \
+        | awk -F: -v OFS=: -v gid="$gid" -v u="$u" '$3 == gid { next } { print } END { print u, "x", gid, "" }' \
+        > "$d/group"
+    [ -s "$d/machine-id" ] || od -An -tx1 -N16 /dev/urandom | tr -d ' \n' > "$d/machine-id"
+}
+running() { [ -n "$(dc ps --status running -q runetools 2>/dev/null)" ]; }
+need_running() { running || die "$ACCT's bot isn't running (docker/botctl $ACCT up)"; }
 signal() {   # "docker compose kill" only sends the signal; its "Killed" wording is noise
-    if ! running; then
-        echo "the runetools container isn't running (docker compose -f docker/docker-compose.yml up -d)" >&2
-        exit 1
-    fi
+    need_running
     if dc kill -s "$1" runetools >/dev/null 2>&1; then
         echo "sent SIG$1"
     else
-        echo "could not signal the bot — is the container running? (docker compose -f docker/docker-compose.yml ps)" >&2
-        exit 1
+        die "could not signal the bot — is it running? (docker/botctl $ACCT compose ps)"
     fi
 }
-running() { [ -n "$(dc ps --status running -q runetools 2>/dev/null)" ]; }
 # The report runs inside the container when it's up (no Python needed on the
 # host, e.g. Windows + Git Bash); otherwise with whatever Python the host has.
 report() {
@@ -42,6 +149,38 @@ report() {
 }
 
 case "${1:-}" in
+    ""|-h|--help|help) usage ;;
+    accounts) list_accounts; exit 0 ;;
+    new)      [ $# -eq 2 ] || usage; new_account "$2"; exit 0 ;;
+esac
+
+ACCT=$1
+shift
+valid_name "$ACCT"
+FILE="$ACCOUNTS/$ACCT.env"
+[ -f "$FILE" ] || die "no account \"$ACCT\" — make one with: docker/botctl new $ACCT (docker/botctl accounts lists them)"
+
+case "${1:-}" in
+    up)
+        check_account
+        docker network inspect runetools-net >/dev/null 2>&1 \
+            || die "start the web app stack first: docker compose -f docker/docker-compose.yml up -d"
+        # The accounts share data/ (the web app's live-control / Start hand-over files),
+        # so only one runs at a time until those are split per account.
+        others=$(running_projects | grep -vx "rt-$ACCT" || true)
+        [ -z "$others" ] || die "another account's bot is running (${others//rt-/}) — one at a time for now: docker/botctl <account> down"
+        target=$( [ -f docker/.env ] && get docker/.env BOT_ACCOUNT || true)
+        [ "$target" = "$ACCT" ] || echo "note: the web app controls BOT_ACCOUNT=${target:-unset} (docker/.env), not $ACCT" >&2
+        mkdir -p "$ACCOUNTS/$ACCT"   # the compose file's bind mounts need the folder to exist
+        dc build
+        make_identity
+        dc up -d
+        ;;
+    down)         dc down ;;
+    ip)
+        need_running
+        dc exec -T runetools python3 -c "import urllib.request;print(urllib.request.urlopen('https://ipinfo.io/json', timeout=15).read().decode())"
+        ;;
     pause)        signal USR1 ;;
     resume)       signal HUP ;;
     stop)         signal USR2 ;;
@@ -53,7 +192,7 @@ case "${1:-}" in
         report supervisor --last 10
         ;;
     profile-save)
-        running || { echo "the runetools container isn't running" >&2; exit 1; }
+        need_running
         # RuneLite writes changed settings to disk with a delay: close it (or
         # wait ~30 s after the last change) so the copy has them.
         # game/ = the OSRS client's own settings (Fixed/Resizable, …), which live
@@ -66,16 +205,21 @@ case "${1:-}" in
         echo "saved to docker/runelite-profile/ — new containers start with it"
         ;;
     profile-load)
-        running || { echo "the runetools container isn't running" >&2; exit 1; }
+        need_running
         if dc exec -T runetools pgrep -f net.runelite >/dev/null; then
-            echo "close RuneLite first — it would overwrite the loaded profile on exit" >&2
-            exit 1
+            die "close RuneLite first — it would overwrite the loaded profile on exit"
         fi
         dc exec -T runetools runelite --load-profile
         echo "loaded — start RuneLite"
         ;;
-    *)
-        sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
-        exit 1
+    browser)
+        need_running
+        # the IP check in the foreground so a refusal shows here, then Firefox detached
+        dc exec -T runetools check-ip browser
+        shift
+        dc exec -d runetools browser "$@"
+        echo "Firefox is starting on $ACCT's virtual display — VNC 127.0.0.1:$(get "$FILE" VNC_PORT) or the web app's live view"
         ;;
+    compose)      shift; dc "$@" ;;
+    *)            usage ;;
 esac

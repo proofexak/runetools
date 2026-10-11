@@ -74,23 +74,32 @@ are Flatpak only), so it isn't run inside the container.
 - **Linux:** Bolt's Flatpak (`flatpak install flathub com.adamcake.Bolt`) with the
   same argument in its RuneLite launch options → `~/.runelite/credentials.properties`.
 
+⚠ Both log the account in from your desktop — its launcher and your home IP. For an
+account that should only ever be seen from its proxy ("Accounts" below), this login
+has to happen inside its container instead; that path isn't built yet.
+
 Then remove the argument again, so the desktop RuneLite stops writing it.
 
 ### 2. Build and start
 
+The web app stack (`postgres` + `webapp`, which owns the `runetools-net` network)
+runs once; every account's bot is its own stack ("Accounts" below):
+
 ```
-docker compose -f docker/docker-compose.yml build
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d --build
+docker/botctl new <account>      # → docker/accounts/<account>.env: fill in its PROXY + EXPECT_IP
+docker/botctl <account> up
 ```
 
-It boots Xvfb + x11vnc, then idles in manual mode (`lib/manual.py`) — it doesn't auto-launch anything.
+The bot container boots Xvfb + x11vnc, then idles in manual mode (`lib/manual.py`) — it doesn't auto-launch anything.
 The web app's **Bot container → Start** launches RuneLite and the bot menu in it (and starts the container
 if it's stopped); the commands below do the same by hand. See
 [webapp/README.md](../webapp/README.md#bot-container-start--stop).
 
 ### 3. Connect a VNC viewer
 
-Point your VNC client at `localhost:5900` (bound to localhost only). Password is
+Point your VNC client at `localhost:<VNC_PORT>` — the account file's, 5900 for the
+first account (bound to localhost only). Password is
 `runetools` by default — override it in `docker/.env` with `VNC_PASSWORD=…`
 before starting the container.
 
@@ -104,29 +113,29 @@ From the repo folder (PowerShell on Windows — Git Bash rewrites the container
 paths), then delete the desktop copy:
 
 ```
-docker compose -f docker/docker-compose.yml exec runetools mkdir -p /home/runetools/.runelite
-docker compose -f docker/docker-compose.yml cp <path to>/credentials.properties runetools:/home/runetools/.runelite/credentials.properties
-docker compose -f docker/docker-compose.yml exec -u 0 runetools chown -R 1000:1000 /home/runetools/.runelite
-docker compose -f docker/docker-compose.yml exec runetools chmod 600 /home/runetools/.runelite/credentials.properties
+docker/botctl <account> compose exec runetools mkdir -p /home/runetools/.runelite
+docker/botctl <account> compose cp <path to>/credentials.properties runetools:/home/runetools/.runelite/credentials.properties
+docker/botctl <account> compose exec -u 0 runetools chown -R 1000:1000 /home/runetools/.runelite
+docker/botctl <account> compose exec runetools chmod 600 /home/runetools/.runelite/credentials.properties
 ```
 
 ⚠ That file holds your session tokens **in plain text**. Inside the container it
-lives only in the local `runetools-userhome` Docker volume; don't keep other copies.
-Deleting it (or `docker compose down -v`) logs the container out.
+lives only in the account's home volume (`rt-<account>_userhome`); don't keep other
+copies. Deleting it (or `docker/botctl <account> compose down -v`) logs the container out.
 
 Start RuneLite (it appears in the VNC window; click **Play Now** — no Jagex login
 prompt):
 
 ```
-docker compose -f docker/docker-compose.yml exec -d runetools runelite
+docker/botctl <account> compose exec -d runetools runelite
 ```
 
 `runelite` applies the container defaults (FPS cap, JVM flags, GPU plugin off) —
 or, if `docker/runelite-profile/` exists, your saved RuneLite and game settings —
 on a fresh RuneLite home; see "Keeping RuneLite's settings" below.
 
-RuneLite's state lives in `/home/runetools`, a named Docker volume
-(`runetools-userhome`) — it survives `docker compose down` / restarts, so you
+RuneLite's state lives in `/home/runetools`, the account's named Docker volume
+(`rt-<account>_userhome`) — it survives `docker/botctl <account> down` / restarts, so you
 shouldn't need to log in again. (`down -v` would wipe it — don't use `-v` unless
 you mean to.)
 
@@ -140,7 +149,7 @@ position before calibrating ("Window position" below). Start the menu and use
 each bot's **⚙ Configure** (and GE / Energy Config):
 
 ```
-docker compose -f docker/docker-compose.yml exec -d runetools python3 run.py
+docker/botctl <account> compose exec -d runetools python3 run.py
 ```
 
 The repo is bind-mounted at `/app`, so configs land back in your working tree,
@@ -157,7 +166,7 @@ disconnect VNC and leave it running. Press **O** in the VNC window to pause,
 
 ## Unattended mode
 
-Set a bot in `docker/.env` and the container runs it with nobody watching:
+Set a bot in an account's file and its container runs it with nobody watching:
 `lib.headless` keeps RuneLite logged in, runs the bot, restarts it after crashes
 and logouts, and comes back by itself after a container or host restart. After
 every fresh login it zooms the camera all the way out and tilts it to look from
@@ -180,26 +189,31 @@ the top (`lib.camera.zoom_out_top_down`) — the view to calibrate the bots in.
 
    Crops land in `lib/client_templates/` (gitignored, per user). Select only the
    element, with nothing on top of it.
-3. **Pick the bot** in `docker/.env` — names as shown in the menu:
+3. **Pick the bot** in `docker/accounts/<account>.env` — names as shown in the menu:
    ```
    BOT=Tanning
    LAUNCH=Green Dragonhide
    VALUE=Al Kharid  # launches that ask: Tanning "Where are you?" (Al Kharid / GE), Choco Grind a number
    ```
-   then `docker compose -f docker/docker-compose.yml up -d`. Remove `BOT` to go
-   back to manual mode (the container just idles, as before).
+   then `docker/botctl <account> up`. Remove `BOT` to go back to manual mode (the
+   container just idles, as before).
 
 ### Control: `docker/botctl`
 
 | command | effect |
 |---|---|
-| `docker/botctl pause` / `resume` | pause / resume (each is a no-op if already in that state) |
-| `docker/botctl stop` | finish the current trip, then idle |
-| `docker/botctl kill` | stop right now (same as P), then idle |
-| `docker/botctl start` | resume, or leave idle: log in if needed and start the bot |
-| `docker/botctl status` | recent sessions + supervisor events |
-| `docker/botctl profile-save` / `profile-load` | save / restore RuneLite's plugins + settings (see "Keeping RuneLite's settings") |
-| `docker compose … stop` / `down` | stop now and exit cleanly |
+| `docker/botctl accounts` | every account: IP, MAC, hostname, VNC port, running? |
+| `docker/botctl new <account>` | a new account file with a fresh MAC, hostname and VNC port ("Accounts" below) |
+| `docker/botctl <account> up` / `down` | check the account file, then build + start its stack / stop and remove it (exits cleanly; the home volume stays) |
+| `docker/botctl <account> pause` / `resume` | pause / resume (each is a no-op if already in that state) |
+| `docker/botctl <account> stop` | finish the current trip, then idle |
+| `docker/botctl <account> kill` | stop right now (same as P), then idle |
+| `docker/botctl <account> start` | resume, or leave idle: log in if needed and start the bot |
+| `docker/botctl <account> status` | recent sessions + supervisor events |
+| `docker/botctl <account> ip` | the public IP (and ISP) its container goes out with |
+| `docker/botctl <account> browser [url]` | Firefox on its virtual display ("Web browser" below) |
+| `docker/botctl <account> profile-save` / `profile-load` | save / restore RuneLite's plugins + settings (see "Keeping RuneLite's settings") |
+| `docker/botctl <account> compose …` | any `docker compose` command on its stack (`exec`, `logs`, `ps`, …) |
 
 ### What it does when a session ends
 
@@ -231,27 +245,30 @@ with Git for Windows) for the commands below.
    git checkout -- docker/
    ```
 2. **Docker Desktop** (WSL2 backend) running; Settings → Resources: ≥ 1.5 GB RAM.
-3. **Build and start in manual mode** (no `BOT` in `docker/.env` yet):
-   `docker compose -f docker/docker-compose.yml up -d --build`, then connect a VNC
-   viewer to `localhost:5900` (password `runetools`). `RUNETOOLS_UID/GID` don't
+3. **Build and start in manual mode** (no `BOT` in the account file yet): step 2 of
+   "One-time setup", then connect a VNC viewer to `localhost:5900` (password `runetools`). `RUNETOOLS_UID/GID` don't
    matter on Windows.
 4. **One-time setup**: your login into the container ("One-time setup" steps 1
    and 4 — RuneLite (configure) + Jagex Launcher), capture the 4 client templates,
-   set `BOT` / `LAUNCH` in `docker/.env`, `docker compose … up -d`.
+   set `BOT` / `LAUNCH` in the account file, `docker/botctl <account> up`.
 5. **The test** (PRO-85's "done when"):
    - leave it running **1 h+** while you use the PC normally;
-   - `docker/botctl pause`, `resume`, `stop`, `start` — each should do what it says;
-   - `docker compose -f docker/docker-compose.yml restart` — it should relaunch
+   - `docker/botctl <account> pause`, `resume`, `stop`, `start` — each should do what it says;
+   - `docker/botctl <account> compose restart` — it should relaunch
      RuneLite, log back in and start the bot by itself, configs intact.
 6. **Bring back** (paste into the Claude chat on the Ubuntu machine):
    ```
-   docker/botctl status
-   docker compose -f docker/docker-compose.yml exec runetools python3 -m lib.logreport session latest
-   docker compose -f docker/docker-compose.yml logs --tail 50
+   docker/botctl <account> status
+   docker/botctl <account> compose exec runetools python3 -m lib.logreport session latest
+   docker/botctl <account> compose logs --tail 50
    ```
    The `.jsonl` session logs are also in your working tree (`<bot>/log/`).
 
 ## Settings (`docker/.env`)
+
+Shared by the web app stack and every account's bot. An account's file
+(`docker/accounts/<account>.env`) can set any of them for that account alone — it's
+read after `docker/.env` — and holds what must differ per account ("Accounts" below).
 
 | variable | default | |
 |---|---|---|
@@ -261,33 +278,134 @@ with Git for Windows) for the commands below.
 | `RUNELITE_FPS` | `30` | frame cap seeded on a fresh RuneLite profile; `0` = no cap |
 | `RUNELITE_JAVA_OPTS` | `-Xmx512m -XX:+UseSerialGC` | client JVM flags |
 | `RUNETOOLS_UID` / `RUNETOOLS_GID` | `1000` | your `id -u` / `id -g` on Linux |
-| `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above); unset = manual mode |
-| `TZ` | `UTC` | web app: the zone the bots' logs are in (decides when "today" starts) |
+| `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above), in the account file; unset = manual mode |
+| `BOT_ACCOUNT` | unset | the account whose bot the web app's live view and Start / Stop control |
+| `TZ` | `UTC` | bot container + web app: the zone the logs are written in (the app's "today") and the browser's clock — set it to the proxy's country |
 | `POSTGRES_PASSWORD` | `runetools` | web app database (only reachable on localhost) |
 
-The compose file also has the web app (`postgres` + `webapp`, [webapp/README.md](../webapp/README.md)):
-`docker compose up -d` starts it along with the bot container; `up -d postgres webapp` starts only it.
+`docker/docker-compose.yml` is the web app stack (`postgres` + `webapp` + `dockerproxy`,
+[webapp/README.md](../webapp/README.md)); the bots are `docker/bot.yml`, one stack per account.
 
 `RUNELITE_FPS` and "GPU plugin off" only apply to a **fresh** profile (RuneLite
 reads them once from `settings.properties`); on an existing one, set them in
 RuneLite's settings (FPS Control plugin, GPU plugin).
 
+## Accounts
+
+Each account has its own IP, identity and home — `docker/accounts/<account>.env`
+(gitignored: the proxy password is in it; template `account.env.example`), run as its
+own stack, compose project `rt-<account>` (`docker/bot.yml`):
+
+| in the account file | |
+|---|---|
+| `PROXY` | the proxy all its traffic goes through ("Fixed IP through a proxy") |
+| `EXPECT_IP` | the IP that proxy gives it; RuneLite and Firefox won't start from any other |
+| `BOT_MAC` / `BOT_HOSTNAME` | a fixed, ordinary-looking identity instead of Docker's `02:42:…` MAC and a hostname that changes with every recreate |
+| `VNC_PORT` | its VNC port on 127.0.0.1 |
+| `BOT` / `LAUNCH` / `VALUE` | unattended mode |
+
+```
+docker/botctl new alt2        # fresh MAC (Intel's 10:F0:05 + 3 random bytes), Ubuntu-style hostname, next VNC port
+docker/botctl accounts        # who has which IP / MAC / hostname / port, which are running
+docker/botctl alt2 up
+```
+
+`up` refuses an account whose `PROXY` / `EXPECT_IP` aren't filled in, or whose
+`PROXY`, `EXPECT_IP`, `BOT_MAC`, `BOT_HOSTNAME` or `VNC_PORT` is another account's.
+Its home volume `rt-<account>_userhome` holds its RuneLite login and browser profile;
+its session logs are tagged with the account name (`RUNETOOLS_ACCOUNT`). A fresh home is
+seeded from the saved RuneLite profile without its per-account file (`$rsprofile*`).
+The MAC never leaves the local network — it only matters to software reading it
+inside the container. Never use your own card's MAC or your PC's name.
+
+**One account runs at a time for now:** the bots share `data/` (the web app's
+Take control / Start hand-over files), so `up` refuses while another account's stack is
+running, and the web app controls only `BOT_ACCOUNT` (`docker/.env`; after changing it,
+`docker compose -f docker/docker-compose.yml up -d`).
+
+## Fixed IP through a proxy
+
+The bot container has no network of its own: it uses its `proxy` service's
+(tun2socks), which sends **all** its traffic — RuneLite, its launcher, Firefox,
+anything else — through `PROXY`. If the proxy goes down, connections fail; they never
+fall back to the host's IP. `runetools-net` stays direct (web app push, live view,
+VNC). DNS lookups go through Docker's resolver, i.e. the host's — the game servers
+never see those.
+
+In the account file:
+
+```
+PROXY=socks5://USER:PASSWORD@HOST:PORT
+EXPECT_IP=203.0.113.7
+```
+
+`PROXY` from the provider's dashboard (URL-encode `@ : / #` in the password: `%40 %3A
+%2F %23`), `EXPECT_IP` the IP it gives you; no comments after a value. Then
+`docker/botctl <account> up`, and check — this must show `EXPECT_IP` and the proxy's
+ISP, not your own:
+
+```
+docker/botctl <account> ip
+```
+
+`runelite` and `browser` check the public IP first (`docker/check-ip`) and refuse to
+start on any other answer (unattended mode then retries with its backoff).
+
+## Looking like a laptop
+
+What the bot container shows the programs in it, made to look like an ordinary Ubuntu
+laptop rather than a Docker container:
+
+| | instead of Docker's | done by |
+|---|---|---|
+| a Linux user of its own (`BOT_USER`, default the hostname's first part), home `/home/<user>` | `ubuntu` (a cloud server's default), home `/home/runetools`, `JAVA_TOOL_OPTIONS` | `botctl <account> up` → `docker/accounts/<account>/passwd` + `group`; the entrypoint links the home to the volume |
+| its own `/etc/machine-id`, made once | the image's, the same in every container | `docker/accounts/<account>/machine-id` |
+| network `enp0s31f6` on a home-router range (`192.168.88.x`), tunnel `tun0` on `10.8.0.2` | `eth0` on `172.x`, tunnel on `198.18.0.1` | `docker/proxy-start`, `NIC_NAME`; the subnet in `docker-compose.yml` |
+| RuneLite and Firefox start with a clean, desktop-like environment | every container setting (`BOT`, `VNC_PASSWORD`, `EXPECT_IP`, …) | `docker/runelite`, `docker/browser` |
+| Java's `os.version` = an Ubuntu 24.04 kernel (`OS_VERSION`, default `6.8.0-85-generic`) | Docker Desktop's `…-microsoft-standard-WSL2` | `docker/runelite` |
+| Firefox: Polish, the Ubuntu + Noto + emoji fonts, WebGL (CPU renderer), DNS over HTTPS through the proxy | English, 6 fonts, no WebGL, DNS through the host's resolver | `docker/Dockerfile`, `docker/firefox-prefs.js` |
+
+Left as Docker's: `/.dockerenv`, `docker` paths in `/proc/self/mountinfo`, the CPU's
+`hypervisor` flag and no DMI hardware info (Docker Desktop's VM), no window manager
+(a page's `screen.availHeight` = the full screen), and the process list (Xvfb,
+x11vnc, the bot's Python). None of that reaches a website.
+
+## Web browser
+
+The image has Firefox (from Mozilla's repository; build with `--build-arg
+BROWSER=0` to leave it out) for things that should come from the container's IP,
+not your desktop's — signing up an account, the Jagex login:
+
+```
+docker/botctl <account> browser [url]
+```
+
+It appears on the virtual display (VNC / the web app's live view). Like RuneLite,
+it goes through `PROXY` and won't start unless the IP is `EXPECT_IP`. Its profile
+(cookies, logins) lives in the home volume. Set `TZ` in `docker/.env` to the proxy's
+country (e.g. `Europe/Warsaw`): the browser reports its clock's zone, and the web app
+uses the same `TZ`.
+
+**Not while a bot runs**: it covers the game, and **O** / **P** typed into it pause /
+stop the bot. Use manual mode (`BOT` unset in the account file) with the menu closed, and close
+Firefox before starting a bot.
+
 ## Keeping RuneLite's settings across containers
 
 RuneLite's profile — which plugins are on, every plugin's settings, the Plugin
 Hub list (RuneLite re-downloads those plugins itself), window/game size — lives
-in the `runetools-userhome` volume, so a new volume (new machine, `down -v`)
+in the account's home volume, so a new volume (new account, new machine, `down -v`)
 starts from scratch. Save it into the repo once it's how you want it:
 
 ```
-docker/botctl profile-save    # → docker/runelite-profile/ (gitignored, per user)
+docker/botctl <account> profile-save    # → docker/runelite-profile/ (gitignored, per user)
 ```
 
 RuneLite writes changed settings to disk with a delay — close it, or wait ~30 s
 after the last change, before saving. A container whose RuneLite home is fresh
 starts with the saved profile automatically (`RUNELITE_FPS` is then not applied —
 the saved FPS Control settings are). To put it back into an existing container:
-close RuneLite, `docker/botctl profile-load`, start RuneLite. Either way the GPU
+close RuneLite, `docker/botctl <account> profile-load`, start RuneLite. Either way the GPU
 plugin is forced off.
 
 **Window position.** Calibrated points are absolute screen coordinates, so the
@@ -298,7 +416,7 @@ happened to be when you calibrated is lost on the next restart. Pin it in the
 saved profile, `x\:y\:width\:height` as `xwininfo` reports the window:
 
 ```
-docker compose -f docker/docker-compose.yml exec runetools sh -c 'xwininfo -root -tree | grep "RuneLite -"'
+docker/botctl <account> compose exec runetools sh -c 'xwininfo -root -tree | grep "RuneLite -"'
 # … 1231x668+369+199 …  →  in docker/runelite-profile/default-*.properties:
 runelite.clientBounds=369\:199\:1231\:668
 ```
@@ -325,5 +443,6 @@ whole folder (`profiles.json` + all `.properties`), never `credentials.propertie
 ## Stopping
 
 ```
-docker compose -f docker/docker-compose.yml down
+docker/botctl <account> down                       # one account's bot
+docker compose -f docker/docker-compose.yml down   # the web app stack
 ```

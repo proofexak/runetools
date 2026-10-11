@@ -11,8 +11,9 @@ describe("botView", () => {
     expect(botView(base)).toMatchObject({ tone: "off", canStart: true, canStop: false, watchable: false });
   });
 
-  it("manual mode with something missing: Start launches it; RuneLite up is already watchable", () => {
-    expect(botView(up(false, false))).toMatchObject({ canStart: true, canStop: true, watchable: false });
+  it("manual mode with something missing: Start launches it; its screen is watchable all along", () => {
+    // nothing launched yet, but the screen may hold the account's browser (docker/botctl … browser)
+    expect(botView(up(false, false))).toMatchObject({ canStart: true, canStop: true, watchable: true });
     expect(botView(up(true, false))).toMatchObject({ canStart: true, watchable: true,
       headline: "RuneLite or the bot menu isn't running" });
   });

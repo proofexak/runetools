@@ -1,0 +1,10 @@
+#!/bin/sh
+# `check-ip <who>`: exit 0 when EXPECT_IP (docker/.env) is unset or the container's
+# public IP is exactly EXPECT_IP; otherwise say so and exit 1. runelite and browser
+# run it first, so a missing or broken PROXY can't put an account on the host's own IP.
+[ -z "${EXPECT_IP:-}" ] && exit 0
+IP=$(python3 -c "import urllib.request; print(urllib.request.urlopen('https://api.ipify.org', timeout=15).read().decode().strip())" 2>/dev/null || true)
+if [ "$IP" != "$EXPECT_IP" ]; then
+    echo "${1:-check-ip}: public IP is ${IP:-unknown}, expected $EXPECT_IP — not starting (docker/README.md \"Fixed IP through a proxy\")" >&2
+    exit 1
+fi

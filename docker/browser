@@ -1,0 +1,17 @@
+#!/bin/sh
+# Firefox on the virtual display (docker/README.md "Web browser"): signing up, the
+# Jagex login. Goes through the proxy like everything in this container; with
+# EXPECT_IP set it won't start from any other IP. Its profile lives in the home
+# volume, so cookies and logins stay. Extra args go to Firefox (e.g. a URL).
+#
+# Don't run it while a bot runs: it covers the game, and O / P typed into it
+# pause / stop the bot.
+#
+# Started with a clean, desktop-like environment: none of the container's settings.
+set -e
+check-ip browser
+U=$(id -un)
+# shellcheck disable=SC2086  # TZ only when set
+exec env -i HOME="$HOME" USER="$U" LOGNAME="$U" SHELL=/bin/bash DISPLAY="$DISPLAY" \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=pl_PL.UTF-8 ${TZ:+TZ=$TZ} \
+    firefox "$@"

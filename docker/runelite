@@ -20,10 +20,15 @@ GAME="$RL/jagexcache/oldschool/LIVE" # the game's own settings (Fixed/Resizable,
 # The saved profile (plugins on/off, their settings, Plugin Hub list) replaces
 # this container's, and game/ holds the OSRS client's preferences*.dat.
 # GPU plugin forced off: no GPU here, see docker/README.md.
+# $rsprofile*.properties is skipped: it is one account's (account hash, display name),
+# and a fresh home may be for another account — RuneLite makes its own at login.
 seed_profile() {
     mkdir -p "$RL/profiles2"
     rm -f "$RL/profiles2/"*
-    cp "$SAVED/profiles.json" "$SAVED/"*.properties "$RL/profiles2/"
+    cp "$SAVED/profiles.json" "$RL/profiles2/"
+    for f in "$SAVED/"*.properties; do
+        case "${f##*/}" in \$rsprofile*) ;; *) cp "$f" "$RL/profiles2/" ;; esac
+    done
     sed -i 's/^runelite\.gpuplugin=true$/runelite.gpuplugin=false/' "$RL/profiles2/"*.properties
     if ls "$SAVED/game/"preferences*.dat >/dev/null 2>&1; then
         mkdir -p "$GAME"
@@ -36,6 +41,9 @@ if [ "${1:-}" = "--load-profile" ]; then
     seed_profile
     exit 0
 fi
+
+# EXPECT_IP (docker/.env) set: start only from exactly that public IP (docker/check-ip).
+check-ip runelite
 
 if [ ! -d "$RL/profiles2" ] && [ -f "$SAVED/profiles.json" ]; then
     seed_profile
@@ -58,5 +66,13 @@ for opt in ${RUNELITE_JAVA_OPTS:--Xmx512m -XX:+UseSerialGC}; do
     JVM="$JVM -J$opt"
 done
 
-# shellcheck disable=SC2086  # JVM is a deliberately split list of -J flags
-exec java -jar /opt/RuneLite.jar $JVM "$@"
+# RuneLite (and the game inside it) sees an ordinary desktop (docker/README.md "Looking
+# like a laptop"): a clean environment — none of the container's settings (bot, VNC,
+# proxy check, …) — and an Ubuntu 24.04 kernel version instead of Docker Desktop's WSL2
+# one, for the launcher and the client it starts.
+OSV="-Dos.version=${OS_VERSION:-6.8.0-85-generic}"
+U=$(id -un)
+# shellcheck disable=SC2086  # JVM is a deliberately split list of -J flags; TZ only when set
+exec env -i HOME="$HOME" USER="$U" LOGNAME="$U" SHELL=/bin/bash DISPLAY="$DISPLAY" \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=en_US.UTF-8 ${TZ:+TZ=$TZ} \
+    /opt/jre/bin/java "$OSV" -jar /opt/RuneLite.jar -J"$OSV" $JVM "$@"

@@ -4,3 +4,6 @@
 docker/runelite text eol=lf
 docker/botctl   text eol=lf
 docker/Dockerfile text eol=lf
+docker/browser  text eol=lf
+docker/check-ip text eol=lf
+docker/proxy-start text eol=lf

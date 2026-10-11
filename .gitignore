@@ -18,13 +18,17 @@ miner/golden_nuggets/config.py
 miner/golden_nuggets/log/
 crafting/config.py
 crafting/log/
-docker/bolt/*.zip
-docker/bolt/Bolt-Linux/
+docker/bolt/*
+!docker/bolt/.gitkeep
 /log/
 lib/client_templates/
 
 # per-machine container settings (docker/README.md), may hold VNC_PASSWORD
 docker/.env
+# per-account proxy (with its password) + identity (docker/README.md "Accounts")
+docker/accounts/*.env
+# per-account user + machine ID (docker/botctl <account> up makes them)
+docker/accounts/*/
 
 # saved RuneLite profile for containers (docker/botctl profile-save), per user
 docker/runelite-profile/
