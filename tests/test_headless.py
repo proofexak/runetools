@@ -23,11 +23,13 @@ class FakeClient:
         self._logged_in = logged_in             # bool or list consumed per call
         self.creds = creds
         self.kills = 0
+        self.login_calls = 0
 
     def credentials_saved(self):
         return self.creds() if callable(self.creds) else self.creds
 
     def ensure_logged_in(self):
+        self.login_calls += 1
         return self.logins.pop(0) if self.logins else (True, None)
 
     def logged_in(self):
@@ -55,12 +57,12 @@ def bot_script(*steps):
     return start, calls
 
 
-def make(start, client, end_after=None):
+def make(start, client, end_after=None, **schedule_mode):
     """Supervisor with a fake clock; sleeping advances it. The test ends when the
     supervisor goes idle (or after `end_after` sleeps) by sending SIGTERM."""
     clock = {"t": 0.0, "sleeps": []}
     sup = headless.Supervisor(bot=Bot("Tanning", []), start=start, client=client,
-                              clock=lambda: clock["t"], sleeper=None, idle_waiter=None)
+                              clock=lambda: clock["t"], sleeper=None, idle_waiter=None, **schedule_mode)
 
     def sleeper(seconds):
         clock["sleeps"].append(seconds)
@@ -410,3 +412,203 @@ def test_start_while_running_only_resumes():
     sup.on_pause()
     sup.on_start()                               # active: just resume, keep budget/backoff
     assert not pause.is_paused() and len(sup.budget._times) == 1 and not sup._wake.is_set()
+
+
+# ── schedule mode (PRO-102) ───────────────────────────────────────────────────
+
+from lib.schedule import Block
+
+
+def blk(id, start, end, launch="Green Dragonhide"):
+    return Block(id, start, end, "Tanning", launch, "Al Kharid")
+
+
+class FakeWatcher:
+    """watcher(end, soft, force) → stop: records each block's end; the test fires soft / force."""
+    def __init__(self):
+        self.ends, self.soft, self.force, self.stops = [], None, None, 0
+
+    def __call__(self, end, soft, force):
+        self.ends.append(end)
+        self.soft, self.force = soft, force
+
+        def stop():
+            self.stops += 1
+        return stop
+
+
+def scheduled(start, client, blocks, end_after=None, enabled=True, resolver=None, t0=0.0):
+    """A schedule-mode Supervisor; `blocks` is a list, or a function returning one per read."""
+    watcher = FakeWatcher()
+    read = blocks if callable(blocks) else (lambda: blocks)
+    sup, clock = make(start, client, end_after=end_after, schedule=lambda: (enabled, read()),
+                      resolver=resolver or (lambda b: (Bot(b.bot, []), start)), watcher=watcher)
+    clock["t"] = t0
+    return sup, clock, watcher
+
+
+def kinds(tmp_path, *names):
+    return [e["event"] for e in supervisor_events(tmp_path) if e["event"] in names]
+
+
+def test_waits_logged_out_until_the_block(tmp_path):
+    holder = {}
+
+    def session(stats):
+        holder["at"] = holder["clock"]["t"]
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(session)
+    client = FakeClient()
+    sup, clock, watcher = scheduled(start, client, [blk(1, 1000, 2000)])
+    holder.update(sup=sup, clock=clock)
+    sup.run_forever()
+    assert client.kills == 1                                 # whatever was up is closed first
+    assert clock["sleeps"] == [60] * 16 + [40]               # rechecks, landing on the start
+    assert holder["at"] == 1000 and watcher.ends == [2000] and len(calls) == 1
+    assert kinds(tmp_path, "schedule_logout", "schedule_wait", "schedule_block") == \
+        ["schedule_logout", "schedule_wait", "schedule_block"]
+
+
+def test_starts_mid_block():
+    holder = {}
+
+    def session(stats):
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(session)
+    client = FakeClient()
+    sup, clock, watcher = scheduled(start, client, [blk(1, 1000, 3000)], t0=1500)
+    holder["sup"] = sup
+    sup.run_forever()
+    assert clock["sleeps"] == [] and len(calls) == 1 and client.kills == 0 and watcher.ends == [3000]
+
+
+def test_soft_stop_at_block_end_moves_on(tmp_path):
+    holder = {}
+
+    def session(stats):
+        holder["watcher"].soft()                 # the block's end arrives mid-trip
+        assert stats["stop"] is True
+        holder["clock"]["t"] = 2001
+        stats["step"], stats["reason"] = ("stopped", "stopped via overlay")
+    start, calls = bot_script(session)
+    client = FakeClient()
+    sup, clock, watcher = scheduled(start, client, [blk(1, 1000, 2000)], end_after=1, t0=1500)
+    holder.update(watcher=watcher, clock=clock)
+    sup.run_forever()
+    assert len(calls) == 1 and client.kills == 1 and watcher.stops == 1
+    assert kinds(tmp_path, "schedule_block", "schedule_logout", "idle") == ["schedule_block", "schedule_logout"]
+
+
+def test_forced_after_grace_is_not_operator(tmp_path):
+    holder = {}
+
+    def session(stats):
+        holder["watcher"].force()                # ignored the soft stop for 20 min
+        assert pause._force_stop is True
+        holder["clock"]["t"] = 2000 + 1201
+        stats["step"], stats["reason"] = ("stopped", None)   # what run_session reports on ForceStop
+    start, calls = bot_script(session)
+    sup, clock, watcher = scheduled(start, FakeClient(), [blk(1, 1000, 2000)], t0=1500)
+    holder.update(watcher=watcher, clock=clock)
+    flags = []
+
+    def sleeper(seconds):                        # the wait after the block
+        flags.append(pause._force_stop)
+        sup.on_term()
+    sup._sleep = sleeper
+    sup.run_forever()
+    assert kinds(tmp_path, "idle") == [] and "schedule_logout" in kinds(tmp_path, "schedule_logout")
+    assert flags == [False]                      # cleared: the next block can log in
+
+
+def test_unknown_launch_skips_block(tmp_path):
+    def resolver(b):
+        raise ValueError("unknown LAUNCH 'Purple' for Tanning")
+    start, calls = bot_script()
+    client = FakeClient()
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 500)], end_after=3, resolver=resolver)
+    sup.run_forever()
+    assert calls == [] and client.login_calls == 0
+    assert kinds(tmp_path, "schedule_skip", "idle") == ["schedule_skip"]
+    assert clock["sleeps"] == [60, 60, 60]
+
+
+def test_done_skips_rest_of_block(tmp_path):
+    holder = {}
+
+    def second(stats):
+        holder["at"] = holder["clock"]["t"]
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(("done", "nothing left to tan"), second)
+    sup, clock, _ = scheduled(start, FakeClient(), [blk(1, 0, 1000), blk(2, 2000, 3000)])
+    holder.update(sup=sup, clock=clock)
+    sup.run_forever()
+    assert len(calls) == 2 and holder["at"] == 2000
+    assert kinds(tmp_path, "schedule_skip", "idle") == ["schedule_skip"]
+
+
+def test_disabled_schedule_never_logs_in():
+    start, calls = bot_script()
+    client = FakeClient()
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 5000)], end_after=3, enabled=False)
+    sup.run_forever()
+    assert client.login_calls == 0 and client.kills == 1 and clock["sleeps"] == [60, 60, 60]
+
+
+def test_file_change_picked_up():
+    reads = {"n": 0}
+
+    def blocks():
+        reads["n"] += 1
+        return [] if reads["n"] == 1 else [blk(1, 0, 5000)]
+    holder = {}
+
+    def session(stats):
+        holder["sup"].on_term()
+        stats["step"], stats["reason"] = ("stopped", None)
+    start, calls = bot_script(session)
+    sup, clock, _ = scheduled(start, FakeClient(), blocks)
+    holder["sup"] = sup
+    sup.run_forever()
+    assert clock["sleeps"] == [60] and len(calls) == 1
+
+
+def test_default_watcher_soft_then_force():
+    now = {"t": 0.0}
+    sup = headless.Supervisor(bot=Bot("x", []), start=None, client=FakeClient(), clock=lambda: now["t"])
+    sup.WATCH_POLL = 0.01
+    fired = []
+    stop = sup._watch(100, lambda: fired.append("soft"), lambda: fired.append("force"))
+    import time
+    for t, want in ((50, []), (100, ["soft"]), (1299, ["soft"]), (1300, ["soft", "force"])):
+        now["t"] = t
+        time.sleep(0.1)
+        assert fired == want
+    stop()
+
+
+def test_setup_from_env_schedule_mode(tmp_path):
+    (tmp_path / "data" / "schedules").mkdir(parents=True)
+    (tmp_path / "data" / "schedules" / "alt1.json").write_text(json.dumps(
+        {"enabled": True, "blocks": [{"id": 7, "start": 0, "end": 10, "bot": "Tanning",
+                                      "launch": "Black Dragonhide", "value": "GE"}]}))
+    bot, start, extra = headless.setup({"SCHEDULE": "1", "RUNETOOLS_ACCOUNT": "alt1"}, _bots(), str(tmp_path))
+    enabled, blocks = extra["schedule"]()
+    assert enabled and blocks[0].id == 7
+    rbot, rstart = extra["resolver"](blocks[0])
+    assert rbot.name == "Tanning" and rstart({}) == "GE"
+
+
+def test_setup_from_env_needs_an_account_in_schedule_mode(monkeypatch):
+    monkeypatch.delenv("RUNETOOLS_ACCOUNT", raising=False)
+    monkeypatch.setattr(headless.accounts, "active", lambda: None)
+    with pytest.raises(ValueError, match="RUNETOOLS_ACCOUNT"):
+        headless.setup({"SCHEDULE": "1"}, _bots())
+
+
+def test_setup_from_env_plain_mode():
+    bot, start, extra = headless.setup({"BOT": "Tanning", "LAUNCH": "Green Dragonhide"}, _bots())
+    assert bot.name == "Tanning" and start({}) == "green" and extra == {}

@@ -12,6 +12,8 @@ BUDGET              = 5      # automatic restarts allowed ...
 BUDGET_WINDOW       = 3600   # ... per rolling hour
 MAX_LOGIN_FAILURES  = 3      # consecutive failed logins before going idle
 CREDENTIALS_RECHECK = 60     # s between checks for RuneLite's saved credentials
+SCHEDULE_RECHECK    = 60     # schedule mode: s between reads of the schedule file while waiting
+BLOCK_FORCE_GRACE   = 1200   # s after a block's end before a session that ignored the soft stop is killed
 
 
 class Outcome(NamedTuple):
@@ -33,6 +35,18 @@ def decide(outcome, logged_in):
         return "idle_finished"
     # stopped by the bot itself: a logout explains it, otherwise a human is needed
     return "idle_giving_up" if logged_in else "restart"
+
+
+def schedule_decide(outcome, logged_in, block_over):
+    """decide() in schedule mode (lib/schedule.py): a session that ended with its block, or
+    after it, goes on to the next block ("next_block"); one that finished early sits out the
+    rest of its block ("skip_block"). An operator stop still wins."""
+    if outcome.operator or outcome.final == "interrupted":
+        return "idle_operator"
+    if block_over:
+        return "next_block"
+    action = decide(outcome, logged_in)
+    return "skip_block" if action == "idle_finished" else action
 
 
 class Backoff:

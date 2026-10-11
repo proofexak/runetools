@@ -10,14 +10,21 @@ Control it from the host with docker/botctl (signals):
     SIGUSR1  pause               SIGUSR2  soft stop → idle    SIGINT  kill → idle
     SIGHUP   resume / start      SIGTERM  force stop and exit
 
+Schedule mode (SCHEDULE=1, PRO-102) plays only inside the blocks of the account's schedule
+(data/schedules/<account>.json, written by the web app — lib/schedule.py): each block names its
+own BOT / LAUNCH / VALUE; between blocks RuneLite is closed; at a block's end the bot gets the
+soft stop (it finishes its trip), and a kill BLOCK_FORCE_GRACE later if it's still running.
+
 Idle never exits — the container and its VNC stay up for a human to look.
 Supervisor events go to log/launcher.jsonl (`python -m lib.logreport supervisor`).
 """
 import os, signal, sys, threading, time
 
+import lib.accounts as accounts
 import lib.events as events
 import lib.live_control as live_control
 import lib.pause as pause
+import lib.schedule as schedule
 from lib import supervisor as policy
 from lib.supervisor import Outcome, Backoff, Budget, decide
 
@@ -72,8 +79,20 @@ class RealClient:
 
 
 class Supervisor:
-    def __init__(self, bot, start, client, clock=time.time, sleeper=None, idle_waiter=None):
+    WATCH_POLL = 5.0     # s between the block-end watcher's clock checks
+
+    def __init__(self, bot, start, client, clock=time.time, sleeper=None, idle_waiter=None,
+                 schedule=None, resolver=None, watcher=None):
+        """schedule: () -> (enabled, blocks) turns on schedule mode; resolver: Block ->
+        (Bot, start), ValueError for names it doesn't know; watcher(end, soft, force) -> stop
+        (default: _watch, a thread)."""
         self.bot, self.start, self.client, self.clock = bot, start, client, clock
+        self.schedule, self.resolver = schedule, resolver
+        self.watcher = watcher or self._watch
+        self._skipped = set()             # block ids not to play (finished early, unknown launch)
+        self._client_up = True            # unknown at start: closing it is harmless
+        self._playing = self._waiting_for = None
+        self._deadline_forced = False
         self.stats = {"run": 0, "step": "starting", "start": None, "stop": False}
         self._wake = threading.Event()
         self._sleep = sleeper or self._interruptible_sleep
@@ -133,19 +152,89 @@ class Supervisor:
         self._event("restart", delay=seconds, **fields)
         self._sleep(seconds)
 
-    def _run_session(self):
+    def _run_session(self, block=None):
         self.operator = False
         began = self.clock()
+        stop_watch = self.watcher(block.end, self._block_over, self._block_overrun) if block else None
         try:
             with pause.session():
                 self.start(self.stats)
             final, reason, crashed = self.stats.get("step"), self.stats.get("reason"), False
         except Exception as e:
             final, reason, crashed = "crashed", f"{type(e).__name__}: {e}", True
+        finally:
+            if stop_watch:
+                stop_watch()
         # P over VNC force-stops too: still set after the session -> operator stop
-        operator = self.operator or (pause._force_stop and not crashed)
+        operator = self.operator or (pause._force_stop and not crashed and not self._deadline_forced)
+        if self._deadline_forced:          # the block's own kill: the next block must log in again
+            self._deadline_forced = False
+            pause.reset()
         return Outcome(final=final, reason=reason, crashed=crashed,
                        operator=operator, seconds=self.clock() - began)
+
+    # ── schedule mode ──────────────────────────────────────────────────────────
+    def _block_over(self):
+        """The block ended: the soft stop — the bot finishes its trip, like the overlay's Stop."""
+        self.stats["stop"] = True
+
+    def _block_overrun(self):
+        """BLOCK_FORCE_GRACE past the block's end and still running: stop it now."""
+        self._deadline_forced = True
+        pause.force_stop()
+
+    def _watch(self, end, soft, force):
+        """Calls soft() once at `end`, force() once BLOCK_FORCE_GRACE later; returns stop()."""
+        done = threading.Event()
+
+        def run():
+            softened = False
+            while not done.wait(self.WATCH_POLL):
+                now = self.clock()
+                if not softened and now >= end:
+                    softened = True
+                    soft()
+                if now >= end + policy.BLOCK_FORCE_GRACE:
+                    force()
+                    return
+        threading.Thread(target=run, name="block-watch", daemon=True).start()
+        return done.set
+
+    def _schedule_block(self):
+        """The block to play now, with self.bot / self.start set from it — or None after
+        waiting a while logged out (until the next block, at most SCHEDULE_RECHECK)."""
+        enabled, blocks = self.schedule()
+        now = self.clock()
+        block = schedule.current(blocks, now) if enabled else None
+        if block is not None and block.id not in self._skipped:
+            try:
+                self.bot, self.start = self.resolver(block)
+            except ValueError as e:
+                self._skipped.add(block.id)
+                self._event("schedule_skip", id=block.id, reason=str(e))
+            else:
+                if self._playing != block.id:
+                    self._playing = block.id
+                    self._event("schedule_block", id=block.id, launch=block.launch,
+                                value=block.value, end=block.end)
+                return block
+        self._playing = None
+        if self._client_up:               # nothing to play: logged out, like closing the client
+            self.client.kill()
+            self._client_up = False
+            self._event("schedule_logout")
+        if not enabled:
+            until, why = None, "schedule disabled or unreadable"
+        elif block is not None:
+            until, why = block.end, "sitting out this block"
+        else:
+            until = schedule.next_start(blocks, now)
+            why = "between blocks" if until else "no blocks ahead"
+        if until != self._waiting_for:
+            self._waiting_for = until
+            self._event("schedule_wait", next=until, reason=why)
+        self._sleep(min(policy.SCHEDULE_RECHECK, max(1, until - now)) if until else policy.SCHEDULE_RECHECK)
+        return None
 
     def _logged_in(self):
         try:
@@ -159,6 +248,11 @@ class Supervisor:
             if not self.active:
                 self._idle_wait()
                 continue
+            block = None
+            if self.schedule is not None:
+                block = self._schedule_block()
+                if block is None:
+                    continue
             if not self.client.credentials_saved():
                 self._event("waiting", reason="no saved credentials (~/.runelite/credentials.properties)")
                 self._sleep(policy.CREDENTIALS_RECHECK)
@@ -168,6 +262,7 @@ class Supervisor:
             if missing:                      # config problem: don't touch the client
                 self._idle("giving_up", f"missing client templates: {', '.join(missing)}")
                 continue
+            self._client_up = True
             try:
                 with pause.session():        # logging in clicks too (live_control's "safe")
                     ok, reason = self.client.ensure_logged_in()
@@ -193,13 +288,22 @@ class Supervisor:
                 self._idle("operator", "stopped during login")
                 continue
 
-            outcome = self._run_session()
+            outcome = self._run_session(block)
             if self.exiting:
                 break
             self.backoff.session_ran(outcome.seconds)
-            action = decide(outcome, self._logged_in())
+            if block is None:
+                action = decide(outcome, self._logged_in())
+            else:
+                action = policy.schedule_decide(outcome, self._logged_in(), self.clock() >= block.end)
             self._event("session_end", final=outcome.final, reason=outcome.reason,
                         seconds=round(outcome.seconds, 1), action=action)
+            if action == "next_block":
+                continue
+            if action == "skip_block":
+                self._skipped.add(block.id)
+                self._event("schedule_skip", id=block.id, reason=outcome.reason or "finished")
+                continue
             if action == "restart":
                 if not self.budget.allow():
                     self._idle("giving_up", "restart budget")
@@ -218,23 +322,40 @@ def install_signals(sup):
         signal.signal(sig, lambda signum, frame, _name=name: getattr(sup, _name)())
 
 
+def setup(env, bots, root=None):
+    """(bot, start, extra Supervisor kwargs) from the environment. SCHEDULE=1: the account's
+    schedule file names each block's bot (the account: RUNETOOLS_ACCOUNT / data/active_account);
+    otherwise BOT / LAUNCH / VALUE. ValueError says what's missing."""
+    if env.get("SCHEDULE") == "1":
+        account = env.get(accounts.ENV_VAR) or accounts.active()
+        if not account:
+            raise ValueError("SCHEDULE=1 needs the account (RUNETOOLS_ACCOUNT) to find its schedule")
+        path = schedule.path_for(account, root)
+        from lib.bots import Bot
+        return Bot("schedule", []), None, {
+            "schedule": lambda: schedule.load(path),
+            "resolver": lambda b: resolve(b.bot, b.launch, b.value, bots)}
+    bot, start = resolve(env.get("BOT"), env.get("LAUNCH"), env.get("VALUE"), bots)
+    return bot, start, {}
+
+
 def main():
     events.install_excepthooks()
     from lib.bots import discover
 
     bots = discover(events.ROOT)
     try:
-        bot, start = resolve(os.environ.get("BOT"), os.environ.get("LAUNCH"), os.environ.get("VALUE"), bots)
+        bot, start, extra = setup(os.environ, bots)
     except ValueError as e:
         events.launcher_error(os.environ.get("BOT"), e, "headless")
-        print(f"[headless] {e} — idling (fix docker/.env and restart the container).", file=sys.stderr)
+        print(f"[headless] {e} — idling (fix the account file and restart the container).", file=sys.stderr)
         signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))
         while True:
             signal.pause()
 
     pause.setup(pause_hotkey="o", stop_hotkey="p")     # O/P still work over VNC
     live_control.start()                               # web app "Take control" (PRO-89)
-    sup = Supervisor(bot, start, RealClient())
+    sup = Supervisor(bot, start, RealClient(), **extra)
     install_signals(sup)
     sup.run_forever()
     return 0

@@ -82,12 +82,15 @@ services:
       - BOT=${BOT:-}
       - LAUNCH=${LAUNCH:-}
       - VALUE=${VALUE:-}
+      # Schedule mode (PRO-102): SCHEDULE=1 runs lib.headless on the account's play schedule
+      # (data/schedules/<account>.json from the web app) instead of BOT / LAUNCH / VALUE.
+      - SCHEDULE=${SCHEDULE:-}
       # live status (PRO-99): each session-log line is also pushed to the web app (with
       # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
       - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
-    # Manual mode (BOT unset) runs lib.manual: it starts RuneLite + the bot menu when the web
+    # Manual mode (BOT unset, no SCHEDULE) runs lib.manual: it starts RuneLite + the bot menu when the web
     # app's Start button asks (PRO-90, through data/manual_request.json) and idles otherwise.
-    command: ["sh", "-c", "if [ -n \"$$BOT\" ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]
+    command: ["sh", "-c", "if [ -n \"$$BOT\" ] || [ \"$$SCHEDULE\" = 1 ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]
     stop_grace_period: 30s   # SIGTERM = force stop + teardown; give it time
     stdin_open: true
     tty: true

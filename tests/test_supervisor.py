@@ -61,3 +61,21 @@ def test_budget_allows_five_per_rolling_hour():
     assert budget.allow() is True
     budget.reset()
     assert all(budget.allow() for _ in range(5))
+
+
+@pytest.mark.parametrize("outcome,logged_in,block_over,action", [
+    (out(final="stopped"), True, True, "next_block"),              # soft stop at the block's end
+    (out(final="crashed", crashed=True), True, True, "next_block"), # no restart after the block
+    (out(operator=True), True, True, "idle_operator"),             # botctl stop / kill still win
+    (out(final="interrupted"), True, True, "idle_operator"),
+    (out(final="done"), True, False, "skip_block"),                # finished: sit out the rest
+    (out(final="crashed", crashed=True), True, False, "restart"),
+    (out(reason="recovery failed"), False, False, "restart"),
+    (out(reason="recovery failed"), True, False, "idle_giving_up"),
+])
+def test_schedule_decide(outcome, logged_in, block_over, action):
+    assert sv.schedule_decide(outcome, logged_in, block_over) == action
+
+
+def test_schedule_constants():
+    assert (sv.SCHEDULE_RECHECK, sv.BLOCK_FORCE_GRACE) == (60, 1200)
