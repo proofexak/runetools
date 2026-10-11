@@ -5,7 +5,6 @@ from PIL import Image
 
 from lib.movement import Stillness
 from lib.digit_templates import parse_number, preprocess, segment_glyphs
-from choc.logic import restock_due
 from tests.fakescreen import canvas, paint
 
 
@@ -63,7 +62,3 @@ def needs_stamina(with_example_config):
 def test_needs_stamina(needs_stamina, energy, force, if_unreadable, expected):
     assert needs_stamina(energy, 30, force=force, if_unreadable=if_unreadable) is expected
 
-
-@pytest.mark.parametrize("remaining,grind,expected", [(40, 20, False), (39, 20, True), (20, 20, True)])
-def test_restock_due(remaining, grind, expected):
-    assert restock_due(remaining, grind) is expected

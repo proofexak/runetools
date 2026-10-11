@@ -24,7 +24,7 @@ BOT = Bot(
     order      = 30,
     colors     = ("#3a2a1a", "#6a4a2d"),
     launches   = [Launch("Run", _start, ("#4a2a00", "#7a5010"),
-                         ask_int="How many chocolate bars do you have?")],
+                         ask_int="Chocolate bars to buy per restock?")],
     configure  = _configure,
     stats_line = _stats_line,
 )

@@ -49,10 +49,11 @@ class Restock:
     reprice_step:    int = 5      # gp: buy up / sell down when the fresh price is this close
     sell_inv_slot: tuple = None   # inventory slot the item to sell is in, clicked to sell it
     # The bot's own bank layout, for a trip that banks at the GE (lib.ge.run_ge_flow):
-    bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB)
+    bank_tab:    tuple = None   # tab holding the item to sell (tanner: HIDE_TAB, choc: CHOCOLATE_TAB)
     sell_slot:   tuple = None   # its slot there, withdrawn as notes (tanner: BANK_SLOT_2)
     sell_count_region: tuple = None   # where that stack's count is drawn: none shown → nothing to sell
     deposit_btn: tuple = None
+    withdraw_slot: tuple = None   # clicked after the deposit (choc: CHOC_BANK_SLOT, the next batch)
 
     @classmethod
     def from_config(cls, bot_cfg, buy_item, quantity=None, sell_item=None, **bank):

@@ -300,6 +300,7 @@ def flow(ge, monkeypatch):
     monkeypatch.setattr(ge, "close_bank", lambda: None)
     monkeypatch.setattr(ge, "close_ge", lambda: None)
     monkeypatch.setattr(ge, "open_ge", lambda: True)
+    monkeypatch.setattr(ge, "human_move", lambda x, y: None)    # resting on Deposit moved the real cursor
     monkeypatch.setattr(ge, "trade", lambda r, sell_first=True: calls.append(("trade", sell_first)) or (True, None))
     return ge, calls, log
 
@@ -315,6 +316,15 @@ def test_run_ge_flow_uses_the_bots_bank_and_just_deposits_all(flow, monkeypatch)
     clicks = [c[1:] for c in log if c[0] == "click"]
     assert clicks == [(720, 253), (1043, 675)]                 # hide tab, then deposit all at the end
     assert ("withdraw", (736, 294)) in calls
+
+
+def test_run_ge_flow_withdraws_after_the_deposit_when_asked(flow, monkeypatch):
+    # choc: the batch before a restock skips its withdraw, so the bank visit after the GE takes it
+    ge, calls, log = flow
+    monkeypatch.setattr(ge, "open_bank", lambda region: True)
+    assert ge.run_ge_flow(_trip(withdraw_slot=(664, 143)), teleport=False) == (True, None)
+    clicks = [c[1:] for c in log if c[0] == "click"]
+    assert clicks == [(720, 253), (1043, 675), (664, 143)]     # tab, deposit all, then the next batch
 
 
 @pytest.mark.parametrize("leather", [True, None])     # a count on the leather stack / no region to read

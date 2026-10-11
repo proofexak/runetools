@@ -1,6 +1,6 @@
 """
-Grand Exchange — the building blocks every bot's restock uses, plus tanner's full
-restock trip (run_ge_flow).
+Grand Exchange — the building blocks every bot's restock uses, plus the restock trip
+tanner and choc both make (run_ge_flow).
 
 Building blocks (positions from lib/ge_config.py, the GE interface is the same for
 every bot): open_bank / open_ge, withdraw_noted, sell / buy / wait_offer / collect,
@@ -255,7 +255,7 @@ def trade(restock, sell_first=True):
     return follow_offer(restock, "buy", price)
 
 
-# ── Tanner's restock trip ─────────────────────────────────────────────────────
+# ── The restock trip (tanner, choc) ───────────────────────────────────────────
 
 def _teleport():
     """Ring of wealth → GE (left-click when swapped in RuneLite's Menu Entry Swapper)."""
@@ -274,16 +274,17 @@ def _teleport():
 
 
 def run_ge_flow(restock, teleport=True, bank_open=False):
-    """Tanner's restock: teleport → bank (leather out, noted) → sell the leather, buy
-    `restock` → deposit all. (True, None) or (False, reason). The bank positions are
-    the bot's (restock.bank_tab / sell_slot / deposit_btn): the bank interface is the
-    same at every bank, and deposit-all puts the hides back on their own slot (the bot
-    withdraws all-but-1, so the stack never leaves the bank). The price is checked
-    first, so one over the cap costs no ring teleport. teleport=False: already at the GE
-    (tanner started there) — the banker is looked for around the GE centre (GE_REGION)
-    instead of where the teleport lands (GE_APPROACH_REGION), and the camera isn't turned
-    (nothing moved it) unless the banker needs a second look. bank_open: the GE bank is
-    already open (tanner's GE start read the hide count there) — one bank visit, not two."""
+    """A bot's restock: teleport → bank (the item to sell out, noted) → sell it, buy
+    `restock` → deposit all (→ withdraw restock.withdraw_slot, if set). (True, None) or
+    (False, reason). The bank positions are the bot's (restock.bank_tab / sell_slot /
+    deposit_btn / withdraw_slot): the bank interface is the same at every bank, and
+    deposit-all puts the hides back on their own slot (tanner withdraws all-but-1, so the
+    stack never leaves the bank). The price is checked first, so one over the cap costs no
+    ring teleport. teleport=False: already at the GE (tanner started there; choc grinds
+    there) — the banker is looked for around the GE centre (GE_REGION) instead of where
+    the teleport lands (GE_APPROACH_REGION), and the camera isn't turned (nothing moved it)
+    unless the banker needs a second look. bank_open: the GE bank is already open
+    (tanner's GE start read the hide count there) — one bank visit, not two."""
     price, why = offer_price(restock)
     if price is None:
         return False, why
@@ -324,6 +325,8 @@ def run_ge_flow(restock, teleport=True, bank_open=False):
     if not open_bank(cfg.GE_REGION):
         return False, "could not open the bank after the GE"
     _click(restock.deposit_btn, 0.6, 0.9)
+    if restock.withdraw_slot:            # the bank reopens on bank_tab, the tab it was left on
+        _click(restock.withdraw_slot, 0.4, 0.6)
     close_bank()
     say("[GE] Restock complete.")
     return True, None

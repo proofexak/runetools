@@ -38,7 +38,7 @@ lib/                    universal helpers used by all bots
   session.py            run_session() — standard session lifecycle every bot's run() uses
   bots.py               Bot/Launch descriptors, discover(), build_menu() — see "Bot contract"
   ge.py                 GE building blocks (open_bank/open_ge, withdraw_noted, sell/buy/wait_offer/
-                         collect, trade) + tanner's restock trip run_ge_flow — see "GE flow" below
+                         collect, trade) + the restock trip run_ge_flow (tanner + choc) — see "GE flow" below
   restock.py            Restock (what a bot buys, how many, price settings) + buy_offer_price — pure
   prices.py             live GE prices from prices.runescape.wiki (quote(): latest trade + last hour's
                          average; buy_price / sell_price: ± 1 gp) — never raises
@@ -119,7 +119,7 @@ docker/                 Ubuntu 24.04 + Xvfb/VNC sandbox for running the suite he
                          compose also runs the web app: `postgres` + `webapp` (127.0.0.1:8778)
 
 choc/                   chocolate dust grind bot — states.py (withdraw → grind ⇄ restock), run.py,
-                         choc.py (actions), logic.py (restock_due), config trio
+                         choc.py (actions: bank visits read the bar count, restock_ge), config trio
 
 tests/                  pytest suite (stub handlers, fake screen — no game needed):
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
@@ -211,8 +211,9 @@ keeps moving every round and never bounces back toward a price it already didn't
 `GE_MAX_PRICE` or a sell at 1 gp stays as it is. Gives up after
 `GE_REPRICE_ROUNDS`. `EDIT_BTN` uncalibrated (or `GE_REPRICE_MINUTES = 0`) → a plain `GE_OFFER_TIMEOUT` wait.
 Live check: `lib.checks.follow_offer`.
-Tanner's trip, `run_ge_flow(restock)` — bank positions are the bot's (`Restock.bank_tab` / `sell_slot` /
-`deposit_btn`; tanner: `HIDE_TAB`, `BANK_SLOT_2`, `DEPOSIT_BTN`), not lib/ge_config.py's. Selling clicks the
+The restock trip, `run_ge_flow(restock)` — tanner's and choc's (one flow for both) — bank positions are the
+bot's (`Restock.bank_tab` / `sell_slot` / `deposit_btn` / `withdraw_slot`; tanner: `HIDE_TAB`, `BANK_SLOT_2`,
+`DEPOSIT_BTN`), not lib/ge_config.py's. Selling clicks the
 item in the inventory (`Restock.sell_inv_slot` = the bot's `SELL_INV_SLOT`; tanner: slot 2, after the coins), not
 the GE's Sell button — that opens its offer with the quantity at all, so only the price is typed:
 1. Price check (over the cap → stop before spending a ring teleport)
@@ -222,10 +223,15 @@ the GE's Sell button — that opens its offer with the quantity at all, so only 
    from slot 1 to slot 2): a count → `withdraw_noted(sell_slot)` (notes toggled only when `NOTES_CHECK` says so, then
    checked); none (1 or 0 left) → nothing to sell, `trade(sell_first=False)` only buys with the coins carried → close bank
 5. `open_ge()` (MAGENTA in `GE_REGION`, `GE_CHECK`) → `trade(restock)` → close GE
-6. Find banker (BLUE) in `GE_REGION` → deposit all → close. The hides go back on their own slot (tanner withdraws
-   all-but-1, so the stack never leaves the bank) — no tab click, no moving them
+6. Find banker (BLUE) in `GE_REGION` → deposit all → (`withdraw_slot` set: click it — the bank reopens on the
+   bot's tab) → close. The hides go back on their own slot (tanner withdraws all-but-1, so the stack never leaves
+   the bank) — no tab click, no moving them
 7. Tanner's state machine goes to `recover` next (glory back to Al Kharid)
-Choc's `restock_ge` uses the same blocks without the teleport.
+Choc's `restock_ge` is the same trip: `run_ge_flow(restock, teleport=False, bank_open=True)` (it grinds at the
+GE, and the bank visit that saw no bar count left the bank open) with `CHOCOLATE_TAB` / `DUST_BANK_SLOT` /
+`DEPOSIT_BTN`, the dust count box = `CHOC_COUNT_REGION` moved to the dust slot (`choc.dust_count_region()`, like
+tanner's leather box: no count on the dust → buy only) and `withdraw_slot = CHOC_BANK_SLOT` (the next batch). Its
+grind-loop bank visits use its own `BANK_BOOTH_REGION` / `BANK_CHECK`.
 
 **When to restock (PRO-100).** Tanner withdraws all-but-1, so the hide stack (`BANK_SLOT_1`) never empties; OSRS
 draws no count on a stack of 1, so "out of hides" = no count number in `HIDE_COUNT_REGION` (`vision.stack_number_shown`:
@@ -233,6 +239,12 @@ pixels in the count colours — yellow < 100K, white K, green M). `do_bank` then
 Tanner won't start without the region (`actions.hide_count_calibrated`, checked in `run()`): it couldn't see it's out
 of hides and would walk to Ellis empty-handed, then burn glory charges. Live check: `tanner.checks.hide_count`.
 `do_bank(skip_restock_check=True)` skips that check (first bank of a session, after a GE restock).
+Choc decides the same way (no head-count of bars): every bank visit (`choc.withdraw_or_restock`: the first one, and
+the one after each batch's deposit) clicks `CHOCOLATE_TAB`, rests the mouse on Deposit and reads `CHOC_COUNT_REGION`
+— a count → withdraw the next batch, none → `"restock"` with the bank left open. The restock's own bank visit
+withdraws the next batch, so nothing reads right after a restock. It buys the count asked at launch ("Chocolate bars to
+buy per restock?"); `RESTOCK_GE = False` → out of bars stops the session instead. It won't start without the region
+(`choc.bar_count_calibrated`, checked in `run()`).
 
 **Look around before recovering.** A bot that's lost first looks at the whole screen once and goes by what it
 sees: `lib.screen.look_for({name: (rgb, tol, near)})` → `{name: point | None}` (one grab, overlay excluded,
@@ -319,7 +331,7 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
 takes plain data; capture happens only in `lib/screen.grab`.
 - Frames are `uint8 (h, w, 3)` **BGR** (what `np.array(mss_shot)[:, :, :3]` gives); vision works
   in frame-local coords, callers add the offset back. Colours in/out are `(r, g, b)`.
-- New screen logic goes in `lib/vision.py` (or a bot's pure helper, e.g. `choc/logic.py`,
+- New screen logic goes in `lib/vision.py` (or a bot's pure helper, e.g.
   `energy.needs_stamina`, `movement.Stillness`, `digit_templates.parse_number`) with a unit test
   on a synthetic frame. Anything random takes `rng=random` so tests pass a stub.
 - `grab(region)` is relative to monitor 1 like `find_color` always was; `grab(..., absolute=True)`
@@ -378,7 +390,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
 - Choco Grind: on the state machine and scaffold (PRO-95): `start → withdraw → grind ⇄ restock`, soft
   Stop before a batch, failures stop with a reason; O/P work inside its waits (bank open, the grind
   clicks, the minutes-long GE offer wait). `run` = batches ground (the old loop counted the batch in
-  progress). Same actions as the old loop — live-check with `choc.checks.sequence` before a long run.
+  progress). When to restock and the restock trip are tanner's (bank count read, `run_ge_flow`) — see "When to
+  restock" and "GE flow". Live-check with `choc.checks.sequence` before a long run (it needs `CHOC_COUNT_REGION`).
 - Crafting (PoE): on the state machine and scaffold, own launcher; shift is released on any exit.
 - GE flow: `BANK_CHECK` and `GE_CHECK` both use `(70,61,50)` — if those pixels are always that colour on your screen before the interfaces open, the checks are effectively no-ops. Recalibrate to a pixel that only exists inside the open interface window.
 - Same class of bug bit the tanner's own restock check: it used to reuse `BANK_CHECK`'s background colour paired with `BANK_SLOT_2`'s position as an "is this slot empty" proxy, which produced false positives (bot thought it was out of hides when it wasn't). `EMPTY_SLOT_CHECK` then sampled slot 2 directly — but slot 2 is the leather, and all-but-1 never empties the hide stack. Replaced by reading whether the hide stack shows a count (PRO-100) — don't reintroduce a background-pixel "is it empty" check.

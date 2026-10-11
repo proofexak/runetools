@@ -16,13 +16,16 @@ FIELDS = [
     ("Bank", "Chocolate Tab",     "CHOCOLATE_TAB",      "point"),
     ("Bank", "Chocolate Bank Slot", "CHOC_BANK_SLOT",   "point"),
     ("Bank", "Dust Bank Slot",    "DUST_BANK_SLOT",     "point"),
+    ("Bank", "Chocolate Count Region", "CHOC_COUNT_REGION", "region"),
     ("Bank", "Deposit Button",    "DEPOSIT_BTN",        "point"),
     ("Bank", "Bank Open Retries", "BANK_OPEN_RETRIES",  "number"),
     ("Bank", "Bank Open Timeout (s)", "BANK_OPEN_TIMEOUT", "number"),
-    ("Inventory", "Inventory Check",    "INVENTORY_CHECK", "point_color"),
+    ("Inventory", "Inventory Tab (red, selected)", "INVENTORY_CHECK", "point_color"),
     ("Inventory", "Knife Slot",         "KNIFE_SLOT",    "point"),
     ("Inventory", "Chocolate Inv Slot", "CHOC_INV_SLOT", "point"),
+    ("Inventory", "Empty Slot Color",   "EMPTY_SLOT_BG", "point_color"),
     ("Behaviour", "Grind Count", "GRIND_COUNT", "number"),
+    ("GE", "Restock at the GE", "RESTOCK_GE", "bool"),
     ("GE", "Sell Item (inv slot)", "SELL_INV_SLOT", "point"),
     ("GE", "Buy Price (fallback)", "GE_BUY_PRICE", "number"),
     ("GE", "Max Price (0 = none)", "GE_MAX_PRICE", "number"),
@@ -35,6 +38,7 @@ FIELDS = [
 
 REGION_COLORS = {
     "BANK_BOOTH_REGION": "#0000ff",
+    "CHOC_COUNT_REGION": "#ffff00",
 }
 
 

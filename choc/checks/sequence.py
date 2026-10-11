@@ -5,10 +5,11 @@ restock flow (restock_ge()) — that needs its own separately calibrated
 fields (GE Region, Sell Slot, Buy Button, etc.) in the config editor.
 
 Calibrate first via choc/config_editor.py's fields (Bank Booth Region, Bank
-Check, Chocolate Bank Slot, Deposit Button, Inventory Check, Knife Slot,
-Chocolate Inv Slot), then run this standing near a bank booth — already
-switched to the chocolate tab — with a knife already in your inventory's
-last slot:
+Check, Chocolate Tab, Chocolate Bank Slot, Chocolate Count Region, Deposit
+Button, Inventory Check, Knife Slot, Chocolate Inv Slot), then run this
+standing near the banker with a knife already in your inventory's last slot.
+Every bank visit reads the bar count like a session does; with no count it
+stops and says a session would restock:
 
     .venv/bin/python -m choc.checks.sequence
 """
@@ -36,7 +37,9 @@ if __name__ == "__main__":
     unset = [name for name, val in [
         ("BANK_BOOTH_REGION", cfg.BANK_BOOTH_REGION),
         ("BANK_CHECK", cfg.BANK_CHECK),
+        ("CHOCOLATE_TAB", cfg.CHOCOLATE_TAB),
         ("CHOC_BANK_SLOT", cfg.CHOC_BANK_SLOT),
+        ("CHOC_COUNT_REGION", getattr(cfg, "CHOC_COUNT_REGION", (0, 0, 0, 0))),
         ("DEPOSIT_BTN", cfg.DEPOSIT_BTN),
         ("INVENTORY_CHECK", cfg.INVENTORY_CHECK),
         ("KNIFE_SLOT", cfg.KNIFE_SLOT),
@@ -50,5 +53,10 @@ if __name__ == "__main__":
     print("Starting in 3s — switch to OSRS...")
     time.sleep(3)
 
-    if bootstrap_withdraw():
-        run_sequence()
+    # each bank visit reads the bar count: "restock" = no count (out of bars) — reported, not run
+    result = bootstrap_withdraw()
+    if result is True:
+        result = run_sequence()
+    print({True: "Sequence done: bars withdrawn for the next batch.",
+           "restock": "The bank shows no count on the bars — a session would restock now (bank left open).",
+           False: "The bank didn't open."}[result])
