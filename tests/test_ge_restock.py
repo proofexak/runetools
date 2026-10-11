@@ -171,7 +171,7 @@ def ge(with_example_config, monkeypatch):
     monkeypatch.setattr(ge, "human_click", lambda x, y: log.append(("click", x, y)))
     monkeypatch.setattr(ge, "jitter", lambda x, y, n=8: (x, y))
     monkeypatch.setattr(ge, "human_typewrite", lambda t: log.append(("type", t)))
-    monkeypatch.setattr(ge.pyautogui, "press", lambda k: log.append(("press", k)))
+    monkeypatch.setattr(ge, "human_press", lambda k: log.append(("press", k)))
     return ge, log
 
 

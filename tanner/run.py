@@ -16,6 +16,7 @@ from lib.state_machine import ok_or_fail
 from lib.session import run_session
 from lib.ge import run_ge_flow
 from lib.restock import Restock
+import lib.human as human
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -28,7 +29,7 @@ def _handlers(session):
     def banking():
         event = bank_event(do_bank(skip_restock_check=session.skip_restock))
         if event == "ok":
-            time.sleep(random.uniform(0.5, 1.2))
+            human.sleep(0.5, 1.2)
         return event
 
     def restock():

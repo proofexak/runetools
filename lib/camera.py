@@ -12,6 +12,7 @@ import time, random
 import pyautogui
 
 from lib.mouse import human_click, human_right_click, human_move, menu_click, jitter, hesitate
+import lib.human as human
 
 ZOOM_NOTCHES = (40, 48)    # wheel notches down — more than the full zoom range
 TILT_DRAG    = (220, 280)  # px dragged down with the middle button per pass
@@ -33,9 +34,9 @@ def face(direction, cfg):
         human_click(cx, cy)
     else:
         ax, ay = human_right_click(cx, cy)
-        time.sleep(random.uniform(0.25, 0.45))
+        human.sleep(0.25, 0.45)
         menu_click(ax + 5, ay + cfg.MENU_HEADER + row * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
-    time.sleep(random.uniform(0.4, 0.7))
+    human.sleep(0.4, 0.7)
 
 
 def zoom_out_top_down(x, y, rng=random):
@@ -46,9 +47,9 @@ def zoom_out_top_down(x, y, rng=random):
     human_move(x, y)
     for _ in range(rng.randint(*ZOOM_NOTCHES)):
         pyautogui.scroll(-1)
-        time.sleep(rng.uniform(0.03, 0.08))
+        human.sleep(0.03, 0.08, rng=rng)
     for _ in range(TILT_PASSES):
-        time.sleep(rng.uniform(0.2, 0.4))
+        human.sleep(0.2, 0.4, rng=rng)
         sx = x + rng.randint(-15, 15)
         human_move(sx, y + rng.randint(-10, 10))
         pyautogui.mouseDown(button="middle")
@@ -56,4 +57,4 @@ def zoom_out_top_down(x, y, rng=random):
             human_move(sx + rng.randint(-3, 3), y + rng.randint(*TILT_DRAG))
         finally:
             pyautogui.mouseUp(button="middle")
-    time.sleep(rng.uniform(0.3, 0.6))
+    human.sleep(0.3, 0.6, rng=rng)

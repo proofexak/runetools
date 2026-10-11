@@ -9,6 +9,7 @@ from lib.screen import find_color, pixel_matches
 from lib.mouse import human_click, human_move, jitter, hesitate
 from lib.camera import face
 import lib.pause as pause
+import lib.human as human
 import miner.varrock_exp.config as config
 
 ORE_POLL    = 1.0
@@ -26,7 +27,7 @@ def _click_rock(color, tol, label):
         print(f"  No {label} rock found")
         return False
     human_click(*pos)
-    time.sleep(random.uniform(0.2, 0.5))
+    human.sleep(0.2, 0.5)
     sx, sy = config.ORE_SLOT
     human_move(sx + random.randint(-6, 6), sy + 22 + random.randint(-5, 5))
     return True
@@ -50,11 +51,11 @@ def wait_and_drop():
             deadline = time.time() + ORE_TIMEOUT   # time spent paused doesn't count
         if not pixel_matches(sx, sy, bg):
             print("  Item in slot — dropping")
-            time.sleep(random.uniform(0.1, 0.35))
+            human.sleep(0.1, 0.35)
             pyautogui.keyDown("shift")
-            time.sleep(random.uniform(0.08, 0.18))
+            human.sleep(0.08, 0.18)
             human_click(*jitter(sx, sy, n=6))
-            time.sleep(random.uniform(0.05, 0.12))
+            human.sleep(0.05, 0.12)
             pyautogui.keyUp("shift")
             return True
         time.sleep(ORE_POLL)

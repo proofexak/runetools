@@ -12,7 +12,7 @@ def energy(with_example_config, monkeypatch):
     monkeypatch.setattr(energy, "human_click", lambda x, y: clicks.append((x, y)))
     monkeypatch.setattr(energy, "drink_stamina", lambda: clicks.append("drink"))
     monkeypatch.setattr(energy, "pixel_matches", lambda *a, **k: True)
-    monkeypatch.setattr(energy.pyautogui, "press", lambda key: None)
+    monkeypatch.setattr(energy, "human_press", lambda key: None)
     monkeypatch.setattr(energy.time, "sleep", lambda s: None)
     monkeypatch.setattr(energy, "find_color", lambda *a, **k: ((900, 500), 50))
     return energy, clicks
@@ -61,7 +61,7 @@ def tanner(with_example_config, monkeypatch):
     monkeypatch.setattr(actions, "energy", energy)
     monkeypatch.setattr(actions, "human_click", lambda x, y: calls.append(("click", x, y)))
     monkeypatch.setattr(actions, "human_move", lambda x, y: None)
-    monkeypatch.setattr(actions.pyautogui, "press", lambda key: calls.append(("press", key)))
+    monkeypatch.setattr(actions, "human_press", lambda key: calls.append(("press", key)))
     monkeypatch.setattr(actions.time, "sleep", lambda s: None)
     monkeypatch.setattr(actions, "pixel_matches", lambda *a, **k: False)   # interfaces read as not open
     # the example config is all zeros: tell the buttons apart

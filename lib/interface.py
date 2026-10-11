@@ -11,7 +11,8 @@ import pyautogui
 
 import lib.pause as pause
 from lib.log import say
-from lib.mouse import human_click
+from lib.mouse import human_click, human_press
+import lib.human as human
 from lib.screen import find_color, pixel_matches
 
 
@@ -54,9 +55,9 @@ def open_interface(rgb, tol, region, check, tries, timeout=5.0, what="interface"
 
 def close_interface(still_open=None):
     """Escape; if `still_open()` says it didn't take, Escape once more."""
-    pyautogui.press("escape")
-    time.sleep(0.5)
+    human_press("escape")
+    human.sleep(0.5, 0.75)
     if still_open is not None and still_open():
         say("  Interface still open — pressing Escape again.")
-        pyautogui.press("escape")
-        time.sleep(0.4)
+        human_press("escape")
+        human.sleep(0.4, 0.65)

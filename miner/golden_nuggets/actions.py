@@ -12,6 +12,7 @@ from lib.mouse import human_click, jitter, hesitate
 from lib.camera import face
 from lib.log import say
 import lib.pause as pause
+import lib.human as human
 import miner.golden_nuggets.config as config
 
 
@@ -186,7 +187,7 @@ def deposit_all():
     dpx, dpy = jitter(*config.DEPOSIT_ALL_BTN, n=3)
     say(f"Clicking Deposit-All at ({dpx}, {dpy})")
     human_click(dpx, dpy)
-    time.sleep(random.uniform(0.5, 0.8))
+    human.sleep(0.5, 0.8)
     after = count_filled_slots()
     if before > 0 and after >= before:
         say(f"WARNING: Deposit-All didn't seem to work (inv {before} -> {after}) — check DEPOSIT_ALL_BTN calibration")
@@ -276,7 +277,7 @@ def wait_for_vein_depletion(clicked_pos, stats, idle_timeout=10):
     while time.time() - last_gain_t < idle_timeout:
         if pause.wait():
             last_gain_t = time.time()   # a long pause isn't "idle — switch vein"
-        time.sleep(random.uniform(0.8, 1.2))
+        time.sleep(random.uniform(0.8, 1.2))   # poll: screen check, not input
 
         current = count_filled_slots()
         if current > last_count:

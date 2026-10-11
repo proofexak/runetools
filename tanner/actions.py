@@ -6,13 +6,14 @@ import time, random, sys, os
 import pyautogui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from lib.mouse    import human_click, human_move, human_right_click, menu_click, jitter, random_area_click
+from lib.mouse    import human_click, human_move, human_right_click, menu_click, jitter, random_area_click, human_press
 from lib.screen   import find_color, look_for, pixel_matches, grab
 import lib.vision as vision
 from lib.movement import wait_until_stopped
 from lib.camera import face
 import lib.pause as pause
 import lib.energy as energy
+import lib.human as human
 
 import tanner.config as _cfg
 from tanner.config import (
@@ -104,8 +105,8 @@ def close_side_panel():
         if not inventory_open():
             return True
         print(f"  Side panel open — Escape ({press}/{MAX_PANEL_CLOSES})...")
-        pyautogui.press("escape")
-        time.sleep(random.uniform(0.35, 0.5))
+        human_press("escape")
+        human.sleep(0.35, 0.5)
     if inventory_open():
         print("  Side panel won't close.")
         return False
@@ -117,7 +118,7 @@ def walk_to_tanner():
     if not close_side_panel():
         return False                     # don't click into the panel: look around / recover
     random_area_click(TANNER_AREA)
-    time.sleep(random.uniform(2.0, 4.0))
+    human.sleep(2.0, 4.0)
     human_move(
         CHARACTER[0] + random.randint(-52, 52),
         CHARACTER[1] + random.randint(-52, 52),
@@ -218,12 +219,12 @@ def recover(skip_restock_check=True):
         return False
 
     print("\n[RECOVERY] Escape...")
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.3, 0.5))
+    human_press("escape")
+    human.sleep(0.3, 0.5)
 
     print("[RECOVERY] Opening worn equipment (F4)...")
-    pyautogui.press("f4")
-    time.sleep(random.uniform(0.6, 1.0))
+    human_press("f4")
+    human.sleep(0.6, 1.0)
 
     ax, ay = jitter(*AMULET_SLOT, n=3)
     if getattr(_cfg, "AMULET_LEFT_CLICK_TP", False):
@@ -232,11 +233,11 @@ def recover(skip_restock_check=True):
     else:
         print("[RECOVERY] Right-clicking amulet slot...")
         ax, ay = human_right_click(ax, ay)
-        time.sleep(random.uniform(0.35, 0.55))
+        human.sleep(0.35, 0.55)
         menu_click(ax + 5, ay + MENU_HEADER + AMULET_MENU_ROW * MENU_ROW_H + MENU_ROW_H // 2)
 
     print("[RECOVERY] Waiting for teleport...")
-    time.sleep(random.uniform(2.5, 3.5))
+    human.sleep(2.5, 3.5)
     _wait_stopped()
 
     print("[RECOVERY] Orienting camera west...")
@@ -244,12 +245,12 @@ def recover(skip_restock_check=True):
 
     print("[RECOVERY] Clicking double doors...")
     random_area_click(DOUBLE_DOORS_REGION)
-    time.sleep(random.uniform(0.5, 1.0))
+    human.sleep(0.5, 1.0)
     _wait_stopped()
 
     print("[RECOVERY] Walking into the bank...")
     random_area_click(TP_BANK_REGION)
-    time.sleep(random.uniform(0.5, 1.0))
+    human.sleep(0.5, 1.0)
     _wait_stopped()
 
     print("[RECOVERY] Looking for bank booth...")
@@ -292,7 +293,7 @@ def check_ge_bank():
         print("[GE BANK] Banker not found.")
         return False
     human_click(*jitter(*HIDE_TAB))
-    time.sleep(random.uniform(0.6, 0.9))
+    human.sleep(0.6, 0.9)
     shown = hide_count_shown()
     if shown is False:
         print("[GE BANK] Hide stack down to its last 1.")
@@ -357,13 +358,13 @@ def do_bank(skip_restock_check=False):
             print("  HIDE_COUNT_REGION isn't calibrated — can't tell when to restock.")
         elif not shown:
             print("  Hide stack down to its last 1 — restocking from GE...")
-            pyautogui.press("escape")
+            human_press("escape")
             return "restock"
 
     print("  Withdrawing hides...")
     human_click(*jitter(*BANK_SLOT_1))
-    time.sleep(0.4)
+    human.sleep(0.4, 0.65)
 
-    pyautogui.press("escape")
+    human_press("escape")
     print("  Bank done.")
     return True

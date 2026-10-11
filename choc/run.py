@@ -12,6 +12,7 @@ from choc.choc import run_sequence, bootstrap_withdraw, restock_ge
 from choc.states import build_machine, FINAL_STATES, CYCLE_START
 from lib.session import run_session
 from lib.state_machine import ok_or_fail
+import lib.human as human
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
 
@@ -25,7 +26,7 @@ def _handlers(session):
         if not run_sequence(withdraw_next=not session.restock_after):
             print("Sequence failed — stopping.")
             return "fail"
-        time.sleep(random.uniform(0.5, 1.2))
+        human.sleep(0.5, 1.2)
         return "ok"
 
     def restock():
@@ -34,7 +35,7 @@ def _handlers(session):
         if not ok:
             print(f"Restock failed ({session.restock_error}) — stopping.")
             return "fail"
-        time.sleep(random.uniform(0.5, 1.2))
+        human.sleep(0.5, 1.2)
         return "ok"
 
     return {"withdraw": withdraw, "grind": grind, "restock": restock}

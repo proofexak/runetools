@@ -8,7 +8,7 @@ def tanner(with_example_config, monkeypatch):
     with_example_config("lib", "energy", config="energy_config")   # tanner imports it
     actions = with_example_config("tanner", "actions")
     calls = []
-    monkeypatch.setattr(actions.pyautogui, "press", lambda key: calls.append(("press", key)))
+    monkeypatch.setattr(actions, "human_press", lambda key: calls.append(("press", key)))
     monkeypatch.setattr(actions.time, "sleep", lambda s: None)
     monkeypatch.setattr(actions, "random_area_click", lambda area: calls.append(("walk",)))
     monkeypatch.setattr(actions, "human_move", lambda x, y: None)

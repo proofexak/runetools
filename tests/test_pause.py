@@ -35,8 +35,8 @@ def test_suppressed_hotkeys_are_ignored():
 
 def test_bot_typing_does_not_trigger_hotkeys(monkeypatch):
     # The key listener sees the bot's own synthetic keystrokes; simulate that.
-    monkeypatch.setattr(mouse.pyautogui, "typewrite", lambda ch, interval=0: pause._handle_char(ch))
-    monkeypatch.setattr(mouse.pyautogui, "press", lambda key: None)
+    monkeypatch.setattr(mouse.pyautogui, "keyDown", lambda key: pause._handle_char(key))
+    monkeypatch.setattr(mouse.pyautogui, "keyUp", lambda key: None)
     monkeypatch.setattr(mouse.time, "sleep", lambda s: None)
     mouse.human_typewrite("blue dragonhide")   # contains an 'o'
     assert not pause.is_paused()

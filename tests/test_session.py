@@ -1,6 +1,7 @@
 import pytest
 from transitions import Machine
 
+import lib.human as human
 import lib.pause as pause
 import lib.session as session
 from lib.session import run_session, format_elapsed
@@ -53,6 +54,12 @@ def test_lifecycle_order(calls):
     assert calls == ["log", "reset", "session", "sleep3", "setup", "work"]
     assert stats["step"] == "end"
     assert stats["start"] is not None
+
+
+def test_session_start_resets_profile(calls, monkeypatch):
+    monkeypatch.setenv("RUNETOOLS_ACCOUNT", "alt1")
+    _run({}, calls)
+    assert human.active() == human.profile_for("alt1") and human.tempo() == 1.0
 
 
 def test_force_stop_during_countdown_skips_setup(calls, monkeypatch):

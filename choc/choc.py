@@ -8,9 +8,11 @@ import pyautogui
 import lib.pause as pause
 import lib.ge as ge
 from lib.interface import open_interface
-from lib.mouse import human_click, jitter, quick_click
+from lib.mouse import human_click, human_move, human_press, jitter, quick_click
 from lib.restock import Restock
-from lib.screen import pixel_matches
+from lib.screen import pixel_matches, grab
+import lib.vision as vision
+import lib.human as human
 import choc.config as cfg
 
 
@@ -39,15 +41,15 @@ def close_bank():
     """Escape to close the bank, then verify the inventory panel is
     actually showing — if escape didn't register, the grind loop's clicks
     would land on the still-open bank UI instead of the knife/chocolate."""
-    pyautogui.press("escape")
-    time.sleep(0.5)
+    human_press("escape")
+    human.sleep(0.5, 0.75)
 
     ix, iy, icolor = cfg.INVENTORY_CHECK
     if pixel_matches(ix, iy, icolor):
         return
     print("   Inventory not open — pressing Escape again.")
-    pyautogui.press("escape")
-    time.sleep(0.4)
+    human_press("escape")
+    human.sleep(0.4, 0.65)
 
 
 def bootstrap_withdraw():
@@ -73,9 +75,9 @@ def run_sequence(withdraw_next=True):
     for i in range(cfg.GRIND_COUNT):
         pause.wait()                               # O pauses between bars, P stops
         quick_click(*cfg.KNIFE_SLOT)
-        time.sleep(random.uniform(0.07, 0.1125))
+        human.sleep(0.07, 0.1125)
         quick_click(*cfg.CHOC_INV_SLOT)
-        time.sleep(random.uniform(0.127, 0.183))
+        human.sleep(0.127, 0.183)
         print(f"   {i + 1}/{cfg.GRIND_COUNT}")
 
     print("Opening bank...")
@@ -111,7 +113,7 @@ def restock_ge(quantity):
 
     print("   Switching to chocolate tab...")
     human_click(*jitter(*cfg.CHOCOLATE_TAB))
-    time.sleep(random.uniform(0.3, 0.5))
+    human.sleep(0.3, 0.5)
 
     print("   Withdrawing dust (noted)...")
     if not ge.withdraw_noted(cfg.DUST_BANK_SLOT):

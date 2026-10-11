@@ -34,7 +34,7 @@ def test_glory_config_without_the_line_keeps_the_right_click_menu(recover_env, m
 def ge(with_example_config, monkeypatch):
     ge = with_example_config("lib", "ge", config="ge_config")
     calls = []
-    monkeypatch.setattr(ge.pyautogui, "press", lambda key: None)
+    monkeypatch.setattr(ge, "human_press", lambda key: None)
     monkeypatch.setattr(ge.time, "sleep", lambda s: None)
     monkeypatch.setattr(ge, "human_click", lambda x, y: calls.append(("click", x, y)))
     monkeypatch.setattr(ge, "smart_right_click", lambda *a, **k: calls.append(("right",)) or (0, 0, 10, 10))

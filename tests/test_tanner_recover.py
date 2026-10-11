@@ -16,7 +16,7 @@ def recover_env(with_example_config, monkeypatch):
     monkeypatch.setattr(actions, "TP_BANK_REGION", WALK)
     monkeypatch.setattr(actions._cfg, "TP_BOOTH_REGION", BOOTH)
     monkeypatch.setattr(actions.time, "sleep", lambda s: None)
-    monkeypatch.setattr(actions.pyautogui, "press", lambda key: calls.append(("press", key)))
+    monkeypatch.setattr(actions, "human_press", lambda key: calls.append(("press", key)))
     monkeypatch.setattr(actions, "human_right_click", lambda x, y: (x, y))
     monkeypatch.setattr(actions, "menu_click", lambda x, y: calls.append(("menu",)))
     monkeypatch.setattr(actions, "orient_west", lambda: calls.append(("west",)))

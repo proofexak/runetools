@@ -12,7 +12,7 @@ import time, random
 
 import pyautogui
 
-from lib.mouse     import smart_right_click, human_click, human_move, menu_click, jitter, human_typewrite
+from lib.mouse     import smart_right_click, human_click, human_move, menu_click, jitter, human_typewrite, human_press
 from lib.screen    import pixel_matches, grab
 import lib.vision    as vision
 from lib.interface import open_interface, close_interface, wait_for, shows
@@ -21,6 +21,7 @@ from lib.log       import say
 from lib.restock   import buy_offer_price, sell_offer_price, reprice
 import lib.prices    as prices
 import lib.ge_config as cfg
+import lib.human as human
 
 # The price / quantity box is a popup that needs a moment to open and take focus —
 # typed too early, the digits and the Enter go to public chat instead.
@@ -38,7 +39,7 @@ SMALL = 3
 
 
 def _pause(lo=0.3, hi=0.5):
-    time.sleep(random.uniform(lo, hi))
+    human.sleep(lo, hi)
 
 
 def _click(point, lo=0.3, hi=0.5, spread=8):
@@ -98,9 +99,9 @@ def open_ge():
 
 def _type_into(box, text, spread=8):
     human_click(*jitter(*box, n=spread))
-    time.sleep(random.uniform(*BOX_FOCUS))
+    human.sleep(*BOX_FOCUS)
     human_typewrite(text)
-    pyautogui.press("enter")
+    human_press("enter")
     _pause()
 
 
@@ -251,9 +252,9 @@ def trade(restock, sell_first=True):
 def _teleport():
     """Ring of wealth → GE (left-click when swapped in RuneLite's Menu Entry Swapper)."""
     say("[GE] Teleporting to the GE")
-    pyautogui.press("escape")
+    human_press("escape")
     _pause()
-    pyautogui.press("f4")
+    human_press("f4")
     _pause(0.6, 1.0)
     if getattr(cfg, "RING_LEFT_CLICK_TP", False):
         human_click(*jitter(*cfg.RING_SLOT, n=3))
@@ -261,7 +262,7 @@ def _teleport():
         _, _, mx, my = smart_right_click(*cfg.RING_SLOT, menu_scan_region=cfg.RING_MENU_REGION)
         _pause(0.35, 0.55)
         menu_click(mx + 5, my + cfg.MENU_HEADER + cfg.RING_MENU_ROW * cfg.MENU_ROW_H + cfg.MENU_ROW_H // 2)
-    time.sleep(random.uniform(4.5, 5.5))   # the character lands in place: no walk to wait out
+    human.sleep(4.5, 5.5)   # the character lands in place: no walk to wait out
 
 
 def run_ge_flow(restock, teleport=True, bank_open=False):

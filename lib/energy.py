@@ -6,10 +6,11 @@ before relying on this (see those tools' docstrings).
 import time, random
 import pyautogui
 
-from lib.mouse import human_click, jitter
+from lib.mouse import human_click, human_press, jitter
 from lib.screen import find_color, pixel_matches
 import lib.energy_config as cfg
 from lib.digit_templates import read_number, load_templates
+import lib.human as human
 
 MAGENTA     = (255, 0, 255)
 MAGENTA_TOL = 10
@@ -94,15 +95,15 @@ def restock_stamina_at_bank(force=False, bank_open=None):
     time.sleep(0.6)
 
     human_click(*jitter(*cfg.BANK_SLOT_1))
-    time.sleep(0.6)
+    human.sleep(0.6, 0.85)
 
-    pyautogui.press("escape")
-    time.sleep(random.uniform(0.4, 0.6))
+    human_press("escape")
+    human.sleep(0.4, 0.6)
 
     ix, iy, icolor = cfg.INVENTORY_CHECK
     if not pixel_matches(ix, iy, icolor):
-        pyautogui.press("escape")
-        time.sleep(0.4)
+        human_press("escape")
+        human.sleep(0.4, 0.65)
 
     drink_stamina()
     time.sleep(0.6)

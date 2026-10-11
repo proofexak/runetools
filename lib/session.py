@@ -13,6 +13,7 @@ import os, time
 import lib.accounts as accounts
 import lib.events as events
 import lib.heartbeat as heartbeat
+import lib.human as human
 import lib.log as log
 import lib.pause as pause
 from lib.state_machine import run_machine, gate_pause
@@ -55,7 +56,9 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
     stamp = time.strftime("%Y%m%d_%H%M%S")
     log.setup(log_prefix, stamp=stamp)
     ev = events.start(f"{log_prefix}_{stamp}.jsonl", bot, stamp)
-    ev.emit("session_start", params=params or {}, pid=os.getpid(), account=accounts.active())
+    account = accounts.active()
+    ev.emit("session_start", params=params or {}, pid=os.getpid(), account=account)
+    human.reset(account)
     began = start = time.time()
     stats.update({"run": 0, "step": "starting", "start": None, "stop": False})
     model, final, error, beat = None, None, None, None

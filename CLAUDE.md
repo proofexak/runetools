@@ -9,7 +9,11 @@ lib/                    universal helpers used by all bots
   screen.py             capture only: grab() + find_color(), find_nearest_color(), pixel_matches()
   vision.py             pure screen-decision logic on numpy frames (masks, clusters, click points,
                          filled slots, frame/slot/menu diffs) — see "Vision / pure logic" below
-  mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite, hesitate
+  mouse.py              human_click, smart_right_click, drag_and_drop, human_typewrite, hesitate —
+                         plays motion.py's plans on a clock (see "Human-like input" below)
+  human.py              per-account Profile (sha256 of the account name), skewed delay() / sleep(),
+                         tempo drift — pure apart from sleep()
+  motion.py             plan_move() → [(t, x, y)], click_offset(), dwell() — pure
   movement.py           wait_until_stopped() — polls MOVEMENT_REGION for screen diff; O/P-pausable
   camera.py             face(direction, cfg) — compass camera orientation for every bot;
                          zoom_out_top_down(x, y) — wheel out + middle-drag down, run after login
@@ -154,6 +158,19 @@ GE Config, Energy Config, Exit.
   where older configs kept them → `DEFAULTS`). `lib/ge_config.py` holds only the shared GE interface positions.
 
 ## Key design decisions
+
+**Human-like input (PRO-8).** The server sees the cursor every 50 ms, each click's x/y with ms since the last
+click, each key with ms since the last key — never hold times, and it can't tell injected input from a real
+mouse. So timing and shape at that resolution are what must look human (research + sources: the PRO-8 Linear
+comment). `lib/human.py`: each account gets a stable `Profile` (speed, dwell, curve side, overshoot tendency,
+delay scale, lapses), reset by `run_session` at session start; `human.sleep(lo, hi)` never waits less than
+`lo`, is right-skewed above it with rare long lapses, and drifts with a slow session tempo. `lib/motion.py`:
+Fitts-timed moves, speed peaking ~30% in, a first movement that lands short (or a little long) plus one
+correction, a sideways bow of a few %, points every 6-10 ms; `quick_click` uses its faster "reciprocal" mode.
+`jitter(x, y, n)` is Gaussian around the centre within ±n. Rules for new code: wait with `human.sleep`, move
+and click with `human_click` / `human_move` / `quick_click` / `jitter` — never `time.sleep(random.uniform(...))`
+before input (tests/test_human_sleep_sites.py fails on it; a screen-poll interval is marked `# poll`) and never
+`pyautogui.moveTo(..., duration=...)`.
 
 **find_color** returns the centroid of all matched pixels (not the first hit), with a small triangular-distributed jitter. This means it clicks the centre of RuneLite NPC hull/tile outlines, not their edges.
 
