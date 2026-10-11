@@ -1,6 +1,6 @@
 """GE restock: live prices (lib/prices.py), per-bot settings and the offer price
 (lib/restock.py), and the GE building blocks (lib/ge.py) — no network, no game."""
-import io, json, types
+import io, json, math, random, types
 
 import pytest
 
@@ -175,20 +175,38 @@ def ge(with_example_config, monkeypatch):
     return ge, log
 
 
-def test_a_long_offer_wait_taps_a_key_before_the_idle_logout(ge, monkeypatch):
+def test_a_long_offer_wait_nudges_the_cursor_before_the_idle_logout(ge, monkeypatch):
     ge, log = ge
     now = [0.0]
     monkeypatch.setattr(ge.time, "time", lambda: now[0])
     monkeypatch.setattr(ge.time, "sleep", lambda s: now.__setitem__(0, now[0] + s))
-    monkeypatch.setattr(ge.random, "uniform", lambda a, b: a)        # taps every 150 s, polls every 1.5 s
-    taps = []
-    monkeypatch.setattr(ge.pyautogui, "keyDown", lambda k: taps.append((now[0], k)))
-    monkeypatch.setattr(ge.pyautogui, "keyUp", lambda k: None)
+    monkeypatch.setattr(ge.random, "uniform", lambda a, b: a)        # polls every 1.5 s
+    nudges, keys = [], []
+    monkeypatch.setattr(ge, "human_move", lambda x, y: nudges.append(now[0]))
+    monkeypatch.setattr(ge.pyautogui, "position", lambda: (300, 200))
+    monkeypatch.setattr(ge.pyautogui, "keyDown", lambda k: keys.append(k))
     monkeypatch.setattr(ge, "pixel_matches", lambda *a, **k: False)   # never completes
-    assert ge.wait_offer(600) is False
-    starts = [t for t, k in taps if k == "left"]
-    assert len(starts) == 4 and all(b - a < 300 for a, b in zip([0.0] + starts, starts))   # never 5 min idle
-    assert [k for t, k in taps] == ["left", "right"] * 4                # turned and back each time
+    assert ge.wait_offer(1200) is False
+    assert keys == [] and len(nudges) >= 4
+    assert all(b - a < 300 for a, b in zip([0.0] + nudges, nudges + [1200.0]))   # never 5 min idle
+
+
+def test_next_nudge_bounds(ge):
+    ge, log = ge
+    rng = random.Random(6)
+    xs = [ge.next_nudge(rng) for _ in range(20000)]
+    assert min(xs) >= 45 and max(xs) <= 270 and len(set(xs)) > 1000
+
+
+def test_keep_awake_moves_without_keys(ge, monkeypatch):
+    ge, log = ge
+    moved, keys = [], []
+    monkeypatch.setattr(ge, "human_move", lambda x, y: moved.append((x, y)))
+    monkeypatch.setattr(ge.pyautogui, "position", lambda: (300, 200))
+    monkeypatch.setattr(ge.pyautogui, "keyDown", lambda k: keys.append(k))
+    ge.keep_awake(random.Random(7))
+    (x, y), = moved
+    assert keys == [] and 8 <= math.hypot(x - 300, y - 200) <= math.hypot(40, 25)
 
 
 def test_typed_numbers_wait_for_the_box_to_take_focus(ge):

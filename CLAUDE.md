@@ -195,8 +195,10 @@ instant-buy + 1 gp (the average, not the latest trade: an item that trades in bu
 minutes old and far off). Normal prices raise no low-price warning, so there's no Yes click. No live price: the sell keeps the
 price the GE fills in (guide price), the buy uses `GE_BUY_PRICE`; a buy is never above `GE_MAX_PRICE` (then it
 stops instead). Typed numbers wait `BOX_FOCUS` for the popup box to take focus (typed too early they go to
-public chat). O/P work in every wait. The game logs out after 5 min with no click / key press, so every offer
-wait taps ← then → (`keep_awake`, camera turns and back) every `KEEP_AWAKE` 150-240 s.
+public chat). O/P work in every wait. The game logs out after 5 min without input; cursor movement in the game
+window resets that (OSRS Wiki "Idle"), so every offer wait nudges the cursor (`keep_awake`, 8-47 px, no click, no
+keys) at skewed `KEEP_AWAKE` 45-150 s intervals, never more than `KEEP_AWAKE_MAX` 270 s apart. Live check:
+`lib.checks.keep_awake` (8 min of nudges only — still logged in?).
 An offer that sits unfilled is followed (`follow_offer`, sell and buy): every `GE_REPRICE_MINUTES` it opens
 slot 1's offer, collects what it did so far (that sends the GE back to the overview, so the offer is opened again),
 and edits its price (`EDIT_BTN` → `PRICE_BTN` → `CONFIRM_BTN`;
