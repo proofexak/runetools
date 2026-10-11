@@ -6,6 +6,7 @@ import { AccountDialog, DeleteDialog } from "@/components/account-dialogs";
 import { BotControlCard } from "@/components/bot-control";
 import { ErrorNote } from "@/components/common";
 import { PageHeader } from "@/components/layout";
+import { ScheduleCard } from "@/components/schedule";
 import { LiveView } from "@/components/live-view";
 import { LiveSessions, OverviewSkeleton, OverviewView } from "@/components/overview";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,8 @@ export function AccountDetailPage() {
               <CardContent><LoginCell account={account} /></CardContent>
             </Card>
             {vault.data?.exists && !vault.data.unlocked && <VaultCard />}
+            {/* when this account plays (PRO-102): the plan next to what ran */}
+            <ScheduleCard key={account.id} account={account} />
 
             {/* never show another account's numbers (keepPreviousData) while this one's load */}
             {overview.data && !overview.isPlaceholderData

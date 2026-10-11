@@ -1,6 +1,6 @@
 import type {
-  AccountsResponse, BotStatsResponse, BotStatus, FeedEvent, LiveConfig, LiveControl, Overview, SessionDetail, SessionsQuery,
-  SessionsResponse, SettingsResponse, VaultStatus,
+  AccountsResponse, BotStatsResponse, BotStatus, FeedEvent, LiveConfig, LiveControl, Overview, ScheduleResponse, SessionDetail,
+  SessionsQuery, SessionsResponse, SettingsResponse, VaultStatus,
 } from "@runetools/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -18,6 +18,7 @@ export const keys = {
   liveConfig: ["live-config"] as const,
   liveControl: ["live-control"] as const,
   bot: ["bot"] as const,
+  schedule: (accountId: number, from: number, to: number) => ["schedule", accountId, from, to] as const,
 };
 
 export const useOverview = (account?: string, opts: { enabled?: boolean } = {}) => useQuery({
@@ -82,6 +83,14 @@ export const useBotStatus = () => useQuery({
   refetchInterval: (q) => (q.state.data?.job && !q.state.data.job.done ? 1500 : 10_000),
 });
 
+/** An account's play schedule + the sessions that ran, for [from, to) (epoch s). PRO-102. */
+export const useSchedule = (accountId: number, from: number, to: number) => useQuery({
+  queryKey: keys.schedule(accountId, from, to),
+  queryFn: () => api.get<ScheduleResponse>(`/api/accounts/${accountId}/schedule${qs({ from, to })}`),
+  placeholderData: keepPreviousData,
+  refetchInterval: 60_000,          // the "now" line and the running session move on
+});
+
 /** Every bot that ever logged — the stable domain for bot colours. */
 export const useAllBots = () => useQuery({
   queryKey: ["all-bots"],
@@ -100,7 +109,7 @@ export function useLiveFeed(): boolean {
     es.onmessage = (msg) => {
       const e = JSON.parse(msg.data) as FeedEvent;
       if (e.type === "sessions") {
-        for (const k of ["overview", "sessions", "bots", "all-bots"]) qc.invalidateQueries({ queryKey: [k] });
+        for (const k of ["overview", "sessions", "bots", "all-bots", "schedule"]) qc.invalidateQueries({ queryKey: [k] });
         for (const id of e.ids) qc.invalidateQueries({ queryKey: keys.session(id) });
       } else if (e.type === "accounts") {
         qc.invalidateQueries({ queryKey: keys.accounts });
@@ -111,6 +120,8 @@ export function useLiveFeed(): boolean {
         qc.invalidateQueries({ queryKey: keys.liveControl });
       } else if (e.type === "bot") {
         qc.invalidateQueries({ queryKey: keys.bot });
+      } else if (e.type === "schedule") {
+        qc.invalidateQueries({ queryKey: ["schedule"] });
       }
     };
     return () => es.close();
