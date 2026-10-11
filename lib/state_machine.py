@@ -44,6 +44,7 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
         stats["step"] = state = model.state
         if log:
             log.emit("state_enter", state=state, run=stats.get("run"))
+        screenshots.enter(state)
         started = time.time()
         event = handlers[state]()
         if log:

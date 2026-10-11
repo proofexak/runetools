@@ -17,6 +17,7 @@ from miner.golden_nuggets.states import (
     build_machine, mining_event, FINAL_STATES, CYCLE_START, DEPOSITS_PER_SACK, STATE_MARKS,
 )
 from lib.screenshots import config_marks
+import lib.screenshots as screenshots
 import miner.golden_nuggets.config as config
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -30,6 +31,7 @@ def _handlers(session, stats):
         pos = click_nearest_vein()
         if pos is None:
             say("Retrying in 3s...")
+            screenshots.failed_now("not_found")   # now, not after the wait: a vein may respawn meanwhile
             time.sleep(3)
             return "not_found"
         wait_stopped()

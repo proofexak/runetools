@@ -8,6 +8,10 @@ failing state uses are drawn on it (vision.draw_marks) and it is saved next to
 the session log as <log name>_<stamp>_<n>_<state>.png; the `step` / `error`
 event gets `screenshot: "<file name>"`.
 
+A handler that waits before it reports a failure (a miner's retry wait after
+"no rock") calls failed_now(result) at the miss: the shot is taken then, and the
+step event uses it instead of a late one that might show the target back.
+
 Which config regions belong to which state is the bot's declaration: STATE_MARKS
 in its states.py ({state: [config names]}), turned into `marks` for run_session
 by config_marks(). A name "ge.X" / "energy.X" is lib/ge_config.py's /
@@ -88,6 +92,8 @@ class Shooter:
         self.taken = 0
         self.per_state = {}
         self._capped = set()
+        self.state = None      # the state whose handler is running (run_machine → enter)
+        self.pending = None    # its shot taken early by failed_now
 
     def _over_cap(self, state):
         for key, n, cap in (("session", self.taken, MAX_PER_SESSION),
@@ -126,8 +132,9 @@ class Shooter:
 
 def start(log_path, marks=None):
     """The running session's shooter (run_session), saving next to `log_path`."""
-    global _current
+    global _current, _warned
     _current = Shooter(log_path, marks)
+    _warned = False        # each session warns once of its own failures
     return _current
 
 
@@ -145,12 +152,44 @@ def take(state, title=None, capped=True):
     return shooter.take(state, title, capped) if shooter is not None else None
 
 
-def step_fields(state, result):
-    """{"screenshot": name} for a failing step result (taken now), else {}."""
+def _failing(result):
+    return isinstance(result, str) and result in FAILURE_RESULTS
+
+
+def _step_title(state, result):
+    return f"{time.strftime('%H:%M:%S')}  {state} -> {result}"
+
+
+def enter(state):
+    """run_machine: `state`'s handler is about to run."""
+    shooter = _current
+    if shooter is not None:
+        shooter.state, shooter.pending = state, None
+
+
+def failed_now(result):
+    """For a handler that waits (a retry delay) before returning a failing `result`: take
+    the step's screenshot now, at the miss. The step event then names this one."""
     try:
-        if _current is None or not isinstance(result, str) or result not in FAILURE_RESULTS:
+        shooter = _current
+        if shooter is None or shooter.state is None or shooter.pending or not _failing(result):
+            return
+        shooter.pending = shooter.take(shooter.state, _step_title(shooter.state, result))
+    except Exception:
+        pass
+
+
+def step_fields(state, result):
+    """{"screenshot": name} for a failing step result — the one failed_now took, else
+    taken now — or {}."""
+    try:
+        shooter = _current
+        if shooter is None:
             return {}
-        name = take(state, f"{time.strftime('%H:%M:%S')}  {state} -> {result}")
+        pending, shooter.pending = shooter.pending, None
+        if not _failing(result):
+            return {}
+        name = pending or take(state, _step_title(state, result))
         return {"screenshot": name} if name else {}
     except Exception:
         return {}
@@ -165,6 +204,7 @@ def tag_error(exc, state):
         import lib.pause as pause
         if isinstance(exc, pause.ForceStop):
             return
+        state = _current.state or state   # the machine's state: a bot may relabel stats["step"]
         name = take(state, f"{time.strftime('%H:%M:%S')}  {state}: {type(exc).__name__}", capped=False)
         if name:
             setattr(exc, ERROR_ATTR, name)

@@ -232,3 +232,66 @@ def test_error_fields_carry_a_tagged_screenshot():
     exc._runetools_screenshot = "bot_1_1_a.png"
     assert events.error_fields(exc)["screenshot"] == "bot_1_1_a.png"
     assert "screenshot" not in events.error_fields(RuntimeError("y"))
+
+
+# ── a handler that waits before reporting its failure (review: miners) ────────
+
+def test_failed_now_takes_the_shot_at_the_miss_not_after_the_wait(env, fake_screen):
+    miss, later = canvas(400, 400, (200, 0, 0)), canvas(400, 400, (0, 200, 0))
+    fake_screen.show(miss)
+
+    def a():
+        screenshots.failed_now("not_found")      # at the miss
+        fake_screen.show(later)                  # the rock respawns during the retry wait
+        return "not_found"
+    calls = iter([a, lambda: "ok"])
+    _run(env, {"a": lambda: next(calls)(), "b": lambda: "ok"})
+    steps = [e for e in _events(env) if e["event"] == "step"]
+    assert steps[0]["screenshot"].endswith("_1_a.png")
+    assert _pngs(env) == [steps[0]["screenshot"]]                        # no second, late shot
+    rgb = np.array(Image.open(env / steps[0]["screenshot"]).convert("RGB"))
+    assert tuple(rgb[200, 200]) == (200, 0, 0)
+
+
+def test_failed_now_then_ok_leaves_no_field(env):
+    def a():
+        screenshots.failed_now("fail")
+        return "ok"
+    _run(env, {"a": a, "b": lambda: "ok"})
+    assert not any("screenshot" in e for e in _events(env) if e["event"] == "step")
+
+
+def test_failed_now_outside_a_session_does_nothing():
+    screenshots.finish()
+    screenshots.failed_now("not_found")          # no shooter: no error
+
+
+def test_error_screenshot_named_after_the_machine_state_not_stats_step(env):
+    # varrock overwrites stats["step"] with a label ("magenta rock"); marks are keyed by state
+    stats_holder = {}
+
+    def a():
+        stats_holder["stats"]["step"] = "magenta rock"
+        raise RuntimeError("boom")
+    marks = screenshots.config_marks({"a": ["R"]}, types.SimpleNamespace(R=(10, 60, 50, 30)))
+    stats = {}
+    stats_holder["stats"] = stats
+    with pytest.raises(RuntimeError):
+        run_session(stats, bot="demo", log_prefix=str(env / "bot"), intro=[], setup=lambda: None, session=_model,
+                    handlers=lambda m: {"a": a}, final_states={"end"}, cycle_start=None,
+                    summary=lambda m, f, l: "", marks=marks)
+    err = next(e for e in _events(env) if e["event"] == "error")
+    assert err["screenshot"].endswith("_1_a.png")
+    rgb = np.array(Image.open(env / err["screenshot"]).convert("RGB"))
+    assert tuple(rgb[60, 30]) == vision.MARK_COLORS[0]
+
+
+def test_warning_comes_back_for_each_session(capsys, tmp_path, monkeypatch):
+    def broken():
+        raise OSError("no display")
+    monkeypatch.setattr(screenshots, "grab_screen", broken)
+    for _ in range(2):
+        screenshots.start(str(tmp_path / "bot_1.jsonl"))
+        screenshots.take("a")
+    screenshots.finish()
+    assert capsys.readouterr().err.count("screenshot not saved") == 2

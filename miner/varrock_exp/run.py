@@ -11,6 +11,7 @@ from lib.mouse import release_key
 from miner.varrock_exp.actions import orient_south, click_magenta_rock, click_blue_rock, wait_and_drop
 from miner.varrock_exp.states import build_machine, FINAL_STATES, CYCLE_START, STATE_MARKS
 from lib.screenshots import config_marks
+import lib.screenshots as screenshots
 import miner.varrock_exp.config as config
 
 os.makedirs(os.path.join(os.path.dirname(__file__), "log"), exist_ok=True)
@@ -26,6 +27,7 @@ def _mine(stats, first, second, first_label, second_label):
     if second():
         return "ok"
     print("  No rocks found — waiting 10s")
+    screenshots.failed_now("not_found")   # now, not after the wait: a rock may respawn meanwhile
     time.sleep(10)
     return "not_found"
 
