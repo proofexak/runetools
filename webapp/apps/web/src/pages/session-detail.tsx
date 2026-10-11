@@ -75,7 +75,9 @@ function ErrorsCard({ session }: { session: SessionDetail }) {
             {e.traceback && (
               <pre className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs leading-relaxed">{e.traceback.trimEnd()}</pre>
             )}
-            {e.screenshot && <Shot sessionId={session.id} file={e.screenshot} caption="The screen when it happened" />}
+            {e.screenshot && (
+              <div className="max-w-xl"><Shot sessionId={session.id} file={e.screenshot} caption="The screen when it happened" /></div>
+            )}
           </div>
         ))}
       </CardContent>
@@ -111,9 +113,9 @@ function Shot({ sessionId, file, caption }: { sessionId: number; file: string; c
         className="bg-muted block overflow-hidden rounded-md border hover:opacity-90">
         <img src={url} alt={caption} loading="lazy" className="block h-auto w-full" />
       </a>
-      <figcaption className="text-muted-foreground flex min-w-0 justify-between gap-2 text-xs">
+      <figcaption className="grid min-w-0 gap-0.5 text-xs">
         <span className="tabular-nums">{caption}</span>
-        <span className="truncate font-mono">{file}</span>
+        <span className="text-muted-foreground truncate font-mono">{file}</span>
       </figcaption>
     </figure>
   );
