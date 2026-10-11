@@ -145,6 +145,7 @@ class EventLog:
         False = never push."""
         self.path, self.bot, self.session = path, bot, session
         self.paused_seconds = 0.0   # accumulated by the runner's pause gate
+        self.operator_stop = False  # P / overlay Stop seen (force_stop / soft_stop): no phone alert
         self._lock = threading.Lock()   # the heartbeat thread emits too
         self._push = None
         try:
@@ -165,6 +166,8 @@ class EventLog:
     def emit(self, event, **fields):
         record = {"ts": datetime.now().isoformat(timespec="milliseconds"),
                   "session": self.session, "bot": self.bot, "event": event, **fields}
+        if event in ("force_stop", "soft_stop"):
+            self.operator_stop = True
         if self._f is None:
             return
         try:

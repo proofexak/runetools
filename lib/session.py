@@ -15,6 +15,7 @@ import lib.events as events
 import lib.heartbeat as heartbeat
 import lib.human as human
 import lib.log as log
+import lib.notify as notify
 import lib.pause as pause
 from lib.state_machine import run_machine, gate_pause
 
@@ -102,6 +103,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
                 error, final = e, "crashed"
         last_step = stats["step"]
         stats["step"] = final
+        stats["last_step"] = last_step                          # read by lib/headless.py (alerts)
         stats["reason"] = getattr(model, "stop_reason", None)   # read by lib/headless.py
         ended = time.time()
         ev.emit("session_end", final=final, reason=getattr(model, "stop_reason", None),
@@ -111,6 +113,9 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
         events.finish()
         if error is not None:
             events.mark_logged(error)
+        # phone alert if the bot stopped by itself or crashed (PRO-93); never raises
+        notify.session_ended(bot, account, params, final, getattr(model, "stop_reason", None), last_step,
+                             stats, ended - start, operator=ev.operator_stop, error=error)
     if error is not None:
         raise error
     if final == "stopped":

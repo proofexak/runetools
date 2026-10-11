@@ -17,12 +17,18 @@ soft stop (it finishes its trip), and a kill BLOCK_FORCE_GRACE later if it's sti
 
 Idle never exits — the container and its VNC stay up for a human to look.
 Supervisor events go to log/launcher.jsonl (`python -m lib.logreport supervisor`).
+
+Phone alerts (lib/notify.py, PRO-93): going idle "giving_up" (stopped while logged in, 3 failed
+logins, the restart budget, missing templates, MAX_BLOCK_GIVE_UPS lost blocks in a row), each wait for
+saved credentials, and a bad BOT / LAUNCH / account. Not: a single lost block (schedule_skip), finished,
+operator stops, restarts. The screenshot is taken before RuneLite is closed.
 """
 import os, signal, sys, threading, time
 
 import lib.accounts as accounts
 import lib.events as events
 import lib.live_control as live_control
+import lib.notify as notify
 import lib.pause as pause
 import lib.schedule as schedule
 from lib import supervisor as policy
@@ -51,6 +57,11 @@ def resolve(bot_name, launch_label, value, bots):
             raise ValueError(f"{bot.name} / {launch.label} needs VALUE ({launch.ask_int})")
         return bot, (lambda stats: launch.start(stats, n))
     return bot, launch.start
+
+
+def launch_label(launch, value):
+    """How an alert names the launch: "Green Dragonhide · Al Kharid", "Run · 500", or None."""
+    return " · ".join(str(x) for x in (launch, value) if x) or None
 
 
 class RealClient:
@@ -82,11 +93,15 @@ class Supervisor:
     WATCH_POLL = 5.0     # s between the block-end watcher's clock checks
 
     def __init__(self, bot, start, client, clock=time.time, sleeper=None, idle_waiter=None,
-                 schedule=None, resolver=None, watcher=None):
+                 schedule=None, resolver=None, watcher=None, launch=None):
         """schedule: () -> (enabled, blocks) turns on schedule mode; resolver: Block ->
         (Bot, start), ValueError for names it doesn't know; watcher(end, soft, force) -> stop,
-        end() the block's end as the file says now (default: _watch, a thread)."""
+        end() the block's end as the file says now (default: _watch, a thread);
+        launch: the launch's name in alerts (schedule mode: each block's)."""
         self.bot, self.start, self.client, self.clock = bot, start, client, clock
+        self.launch = launch
+        self._outcome = None              # the last session's, for alerts (None: no session this try)
+        self._creds_alerted = False       # alerted for the current wait for saved credentials
         self.schedule, self.resolver = schedule, resolver
         self.watcher = watcher or self._watch
         self._skipped = set()             # block ids not to play (finished early, unknown launch)
@@ -145,9 +160,21 @@ class Supervisor:
         self._wake.wait()
         self._wake.clear()
 
-    def _idle(self, why, reason=None):
+    def _idle(self, why, reason=None, shot=None, detail=None):
+        """shot: a screenshot taken before RuneLite was closed; detail: more for the alert than the
+        idle event's reason says."""
         self.active = False
         self._event("idle", why=why, reason=reason)
+        if notify.should_alert("unattended", why=why):
+            self._alert(f"{reason}: {detail}" if detail else (reason or "gave up"), shot)
+
+    def _alert(self, reason, shot=None):
+        """Phone alert (lib/notify.py) — never raises."""
+        o = self._outcome
+        notify.send(notify.Alert(account=accounts.active(), bot=self.bot.name, launch=self.launch,
+                                 reason=reason, last_step=self.stats.get("last_step") if o else None,
+                                 seconds=o.seconds if o else None, runs=self.stats.get("run") if o else None,
+                                 source="unattended"), image=shot)
 
     def _pause_before_retry(self, seconds, **fields):
         self._event("restart", delay=seconds, **fields)
@@ -192,19 +219,22 @@ class Supervisor:
         same = next((b for b in blocks if b.id == block.id), None) if enabled else None
         return same.end if same else self.clock()
 
-    def _lose_block(self, block, reason):
+    def _lose_block(self, block, reason, shot=None):
         """The bot gave up (or couldn't log in) in this block: sit it out, logged out — and after
-        MAX_BLOCK_GIVE_UPS in a row, idle: something needs a human, not the next block."""
+        MAX_BLOCK_GIVE_UPS in a row, idle: something needs a human, not the next block (and only
+        then a phone alert: one lost block isn't worth one)."""
         self._give_ups += 1
         if self._give_ups < policy.MAX_BLOCK_GIVE_UPS:
             self._skipped.add(block.id)
             self._event("schedule_skip", id=block.id, reason=reason)
             return
+        if shot is None:
+            shot = notify.screenshot()    # the game as it gave up, before RuneLite is closed
         if self._client_up and not pause.is_held():
             self.client.kill()
             self._client_up = False
         self._give_ups = 0
-        self._idle("giving_up", f"{reason} ({policy.MAX_BLOCK_GIVE_UPS} blocks in a row)")
+        self._idle("giving_up", f"{reason} ({policy.MAX_BLOCK_GIVE_UPS} blocks in a row)", shot=shot)
 
     def _watch(self, end, soft, force):
         """Calls soft() once when end() has passed, force() once BLOCK_FORCE_GRACE later — but
@@ -244,6 +274,7 @@ class Supervisor:
                 self._skipped.add(block.id)
                 self._event("schedule_skip", id=block.id, reason=str(e))
             else:
+                self.launch = launch_label(block.launch, block.value)
                 if self._playing != block.id:
                     self._playing = block.id
                     self._event("schedule_block", id=block.id, launch=block.launch,
@@ -285,9 +316,16 @@ class Supervisor:
                 if block is None:
                     continue
             if not self.client.credentials_saved():
-                self._event("waiting", reason="no saved credentials (~/.runelite/credentials.properties)")
+                waiting = "no saved credentials (~/.runelite/credentials.properties)"
+                self._event("waiting", reason=waiting)
+                if not self._creds_alerted and notify.should_alert("unattended", why="waiting"):
+                    self._creds_alerted = True        # once per wait, not every recheck
+                    self._outcome = None
+                    self._alert(waiting)
                 self._sleep(policy.CREDENTIALS_RECHECK)
                 continue
+            self._creds_alerted = False
+            self._outcome = None
 
             missing = getattr(self.client, "missing_templates", lambda: [])()
             if missing:                      # config problem: don't touch the client
@@ -306,12 +344,14 @@ class Supervisor:
             self._event("login", ok=ok, reason=reason)
             if not ok:
                 self.login_failures += 1
+                gave_up = self.login_failures >= policy.MAX_LOGIN_FAILURES
+                shot = notify.screenshot() if gave_up else None   # the failed login, before the kill
                 self.client.kill()
-                if self.login_failures >= policy.MAX_LOGIN_FAILURES and block is not None:
+                if gave_up and block is not None:
                     self.login_failures = 0
-                    self._lose_block(block, f"login: {reason}")
-                elif self.login_failures >= policy.MAX_LOGIN_FAILURES:
-                    self._idle("giving_up", "login")
+                    self._lose_block(block, f"login: {reason}", shot=shot)
+                elif gave_up:
+                    self._idle("giving_up", "login", shot=shot, detail=reason)
                 else:
                     self._pause_before_retry(self.backoff.next(), after="login failure")
                 continue
@@ -322,7 +362,7 @@ class Supervisor:
                 self._idle("operator", "stopped during login")
                 continue
 
-            outcome = self._run_session(block)
+            outcome = self._outcome = self._run_session(block)
             if self.exiting:
                 break
             self.backoff.session_ran(outcome.seconds)
@@ -345,7 +385,7 @@ class Supervisor:
                 continue
             if action == "restart":
                 if not self.budget.allow():
-                    self._idle("giving_up", "restart budget")
+                    self._idle("giving_up", "restart budget", detail=outcome.reason)
                 else:
                     self._pause_before_retry(self.backoff.next(), after=outcome.final)
             else:
@@ -378,15 +418,25 @@ def setup(env, bots, root=None):
     return bot, start, {}
 
 
+def alert_setup_error(err, env):
+    """The phone alert for a container that can't start its bot (setup's ValueError)."""
+    notify.send(notify.Alert(account=env.get(accounts.ENV_VAR) or accounts.active(),
+                             bot=env.get("BOT") or "unattended",
+                             launch=launch_label(env.get("LAUNCH"), env.get("VALUE")),
+                             reason=str(err), source="unattended"), screenshot=False)
+
+
 def main():
     events.install_excepthooks()
     from lib.bots import discover
 
+    notify.supervised = True      # sessions don't alert themselves: the supervisor decides
     bots = discover(events.ROOT)
     try:
         bot, start, extra = setup(os.environ, bots)
     except ValueError as e:
         events.launcher_error(os.environ.get("BOT"), e, "headless")
+        alert_setup_error(e, os.environ)
         print(f"[headless] {e} — idling (fix the account file and restart the container).", file=sys.stderr)
         signal.signal(signal.SIGTERM, lambda *a: sys.exit(0))
         while True:
@@ -394,7 +444,8 @@ def main():
 
     pause.setup(pause_hotkey="o", stop_hotkey="p")     # O/P still work over VNC
     live_control.start()                               # web app "Take control" (PRO-89)
-    sup = Supervisor(bot, start, RealClient(), **extra)
+    sup = Supervisor(bot, start, RealClient(),
+                     launch=launch_label(os.environ.get("LAUNCH"), os.environ.get("VALUE")), **extra)
     install_signals(sup)
     sup.run_forever()
     return 0
