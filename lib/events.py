@@ -219,7 +219,11 @@ def error_fields(exc):
         tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     except Exception:
         tb = f"{name}: {message}"
-    return {"type": name, "message": message, "traceback": tb}
+    fields = {"type": name, "message": message, "traceback": tb}
+    shot = getattr(exc, "_runetools_screenshot", None)   # lib/screenshots.tag_error
+    if isinstance(shot, str):
+        fields["screenshot"] = shot
+    return fields
 
 
 def record_error(exc, where):
