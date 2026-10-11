@@ -225,6 +225,13 @@ the top (`lib.camera.zoom_out_top_down`) — the view to calibrate the bots in.
 | done (job finished) | idles |
 | stopped via `botctl stop` / `kill` | idles |
 
+Every idle that needs a human — the bot stopped while logged in, 3 failed logins, the restart budget,
+missing client templates, 3 lost schedule blocks in a row — and a wait for saved credentials (once per
+wait) or a bad `BOT` / `LAUNCH` sends a **phone alert** with a screenshot, if a Discord webhook is set
+(`NOTIFY_DISCORD_WEBHOOK` / `NOTIFY_DISCORD_USER_ID` below, README "Phone alerts"). Finished jobs,
+operator stops and automatic restarts don't. Test it with
+`docker/botctl <account> compose exec runetools python3 -m lib.checks.notify_test`.
+
 Waits before automatic restarts grow 30 s → 1 min → 2 min … up to 10 min (reset
 after a session of 10+ minutes); at most **5 automatic restarts per hour** and
 **3 failed logins in a row** before it idles. Idle never exits — the container
@@ -247,6 +254,7 @@ of `BOT` / `LAUNCH` / `VALUE`, then `docker/botctl <account> up`.
 - A crash inside a block restarts as above; one after the block's end doesn't. A bot that ends `done` sits out
   the rest of its block; one that gives up (or 3 failed logins) loses that block, and after 3 lost blocks in a row
   it idles, logged out. A block naming a bot or launch the menu doesn't have is skipped (`schedule_skip`).
+  Only that idle sends a phone alert — one lost block doesn't.
 - While someone has the game (web app Take control, or paused with O / `botctl pause`) the block's end never
   force-stops it and nothing logs it out.
 - `botctl stop` / `kill` still idle it until `botctl start`; the schedule's Off switch keeps it logged out.
@@ -303,6 +311,7 @@ read after `docker/.env` — and holds what must differ per account ("Accounts" 
 | `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above), in the account file; unset = manual mode |
 | `SCHEDULE` | unset | `1` = schedule mode (the web app's plan for the account, "Schedule mode" above), in the account file |
 | `BOT_ACCOUNT` | unset | the account whose bot the web app's live view and Start / Stop control |
+| `NOTIFY_DISCORD_WEBHOOK` / `NOTIFY_DISCORD_USER_ID` | unset | phone alerts (README "Phone alerts"): the webhook URL is a password — keep it here, never in git; an account file can set its own |
 | `TZ` | `UTC` | bot container + web app: the zone the logs are written in (the app's "today") and the browser's clock — set it to the proxy's country |
 | `POSTGRES_PASSWORD` | `runetools` | web app database (only reachable on localhost) |
 

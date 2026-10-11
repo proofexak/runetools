@@ -64,6 +64,9 @@ lib/                    universal helpers used by all bots
   energy_config.py      calibrated energy/stamina positions — GITIGNORED, copy from
                          energy_config.example.py
   energy_config_editor.py  config editor wired to energy_config.py
+  notify.py             phone alerts (PRO-93): Discord webhook post + screenshot when a bot needs a human —
+                         see "Phone alerts" below. Settings: notify_config.py (GITIGNORED, copy
+                         notify_config.example.py) or NOTIFY_DISCORD_WEBHOOK / NOTIFY_DISCORD_USER_ID
   accounts.py           active() = RUNETOOLS_ACCOUNT, else data/active_account (written by the web
                          app); run_session tags session_start with it as `account`
   live_control.py       web app "Take control" (PRO-89): watcher thread (run.py, headless) reads
@@ -129,7 +132,8 @@ tests/                  pytest suite (stub handlers, fake screen — no game nee
                          `.venv/bin/python -m pytest`. Only tests/ is collected (pytest.ini).
 <bot>/checks/, lib/checks/  live in-game check scripts, run by hand (see "Live checks" below):
                          tanner (inventory_check, hide_count, recovery_drill — one trip, then a forced glory recovery), golden_nuggets (struts),
-                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, follow_offer)
+                         choc (sequence), lib (read_energy, drink_stamina, drink_sequence, follow_offer,
+                         notify_test — sends a test alert)
 
 woodcutter/             WIP — not functional yet; standalone script, not a package (so its
                          bot.py is never picked up by discovery)
@@ -392,6 +396,19 @@ account page's Schedule card shows the week planned (outlined, per bot · launch
 adherence, the profile (hours a month, timezone = the proxy's country, activities with weights, ramp start) and
 lets a future block be moved or deleted. Activities must start where the others end (no travel between them yet).
 
+**Phone alerts (PRO-93).** `lib/notify.py` posts to a Discord webhook (multipart: an embed that @mentions
+`DISCORD_USER_ID` in `content` — mentions in embeds never notify — plus `screen.jpg`, the whole screen as JPEG)
+when a bot needs a human. `should_alert` decides: menu sessions (`run_session`, after `session_end`) that
+crashed or stopped by themselves — not an operator stop (`EventLog.operator_stop`: a `force_stop` /
+`soft_stop` was emitted), not `done` / `interrupted`, and not when `notify.supervised` (set by
+`lib.headless`, which alerts instead: idle `giving_up`, each wait for saved credentials, a bad
+BOT / LAUNCH; one lost schedule block (`schedule_skip`) is not an alert, 3 in a row are). The screenshot is taken
+at once (before the supervisor closes RuneLite: `notify.screenshot()` first), the post runs on a daemon thread.
+**Alerts never raise into a bot** and never block it: no URL = nothing; failures are `notify_error` events
+in log/launcher.jsonl with the HTTP status only — the webhook URL is a credential, never logged or committed.
+429 → one retry after `retry_after` (≤ 30 s); nothing else is retried. `Limiter`: same (account, reason) once
+per `MIN_INTERVAL`, `MAX_PER_HOUR` in all. Tests never send: conftest makes `notify.settings()` unconfigured.
+
 **wait_until_stopped** polls a screen region for pixel diff. Returns when stable for N consecutive frames. Used after walking, not after teleports (teleports are instant).
 
 ## What's working / WIP
@@ -441,4 +458,6 @@ lets a future block be moved or deleted. Activities must start where the others 
   holder of the Docker socket: inspect / start / stop of `rt-<BOT_ACCOUNT>-runetools-1`, nothing else) + `lib/manual.py`
   through data/ files. Start = docker start if stopped, then RuneLite + menu; Stop = docker stop -t 30 (never
   removed). Unattended containers (BOT set) are only started. See webapp/README.md "Bot container".
+- Phone alerts (PRO-93): unit-tested with a fake opener and run end to end against a local fake webhook
+  (429 → retry → 200, real screenshot); not yet against real Discord — `python -m lib.checks.notify_test`.
 - Woodcutter: WIP, don't touch.

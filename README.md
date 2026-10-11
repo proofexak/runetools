@@ -35,6 +35,31 @@ The tanner bot can automatically withdraw and drink a stamina potion when run en
 
 Digit templates and the energy/stamina config are gitignored (per-user calibration data, tied to your specific screen/RuneLite rendering) — recalibrate on any new machine.
 
+## Phone alerts
+
+When a bot stops and can't go on without you — out of hides, no glory charges, recovery or GE
+restock failed, a crash, or an unattended container giving up (3 failed logins, restart budget,
+missing client templates, no saved credentials) — it posts to a Discord channel: what stopped, why,
+the last step, runtime and runs, and a screenshot of the screen at that moment. It @mentions you, so
+your phone buzzes. Stopping it yourself (P, overlay Stop, `botctl stop` / `kill`), a finished job and an
+automatic restart send nothing. The same account + reason is sent at most once per 10 minutes, at most
+10 alerts an hour. A missing or broken webhook never stops a bot.
+
+Setup (once):
+
+1. Discord: a private channel → Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL.
+2. Settings → Advanced → Developer Mode on; right-click yourself → Copy User ID.
+3. Menu runs: copy `lib/notify_config.example.py` to `lib/notify_config.py` (gitignored) and fill in
+   `DISCORD_WEBHOOK_URL` and `DISCORD_USER_ID`. Containers: `NOTIFY_DISCORD_WEBHOOK=…` and
+   `NOTIFY_DISCORD_USER_ID=…` in `docker/.env` (they win over the file), then `docker/botctl <account> up`.
+   The URL is a password — anyone with it can post to the channel; never commit it.
+4. Phone: Discord notifications on, the channel not muted.
+5. Test: `.venv/bin/python -m lib.checks.notify_test` (in a container:
+   `docker/botctl <account> compose exec runetools python3 -m lib.checks.notify_test`).
+
+Each try is logged to `log/launcher.jsonl` (`notify`, `notify_error` with the HTTP status,
+`notify_suppressed`): `python -m lib.logreport supervisor`.
+
 ## Web app (stats per account + login vault)
 
 ```

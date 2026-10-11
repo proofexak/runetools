@@ -88,6 +88,11 @@ services:
       # live status (PRO-99): each session-log line is also pushed to the web app (with
       # data/bot_token, which the app writes). Empty = don't push; the app still tails the files.
       - RUNETOOLS_APP_URL=${RUNETOOLS_APP_URL-http://webapp:8778}
+      # phone alerts (lib/notify.py, PRO-93): the Discord webhook URL — a credential, keep it in
+      # docker/.env — and the user id to @mention. Empty = lib/notify_config.py's, else no alerts.
+      # The post goes out through this account's proxy like all its traffic.
+      - NOTIFY_DISCORD_WEBHOOK=${NOTIFY_DISCORD_WEBHOOK:-}
+      - NOTIFY_DISCORD_USER_ID=${NOTIFY_DISCORD_USER_ID:-}
     # Manual mode (BOT unset, no SCHEDULE) runs lib.manual: it starts RuneLite + the bot menu when the web
     # app's Start button asks (PRO-90, through data/manual_request.json) and idles otherwise.
     command: ["sh", "-c", "if [ -n \"$$BOT\" ] || [ \"$$SCHEDULE\" = 1 ]; then exec python3 -m lib.headless; else exec python3 -m lib.manual; fi"]

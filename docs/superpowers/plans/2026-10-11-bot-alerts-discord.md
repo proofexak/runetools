@@ -67,3 +67,26 @@ Tests: `tests/test_headless.py` (giving up while logged in → one alert with la
 `lib/checks/notify_test.py` (sends a test alert, waits for the thread, prints the status from
 launcher.jsonl). `docker/bot.yml`: `NOTIFY_DISCORD_WEBHOOK` / `NOTIFY_DISCORD_USER_ID`. README "Phone alerts",
 docker/README (settings table, "What it does when a session ends"), CLAUDE.md layout + design note.
+
+## Decisions made while building
+
+- **Schedule mode (PRO-102):** one lost block (`schedule_skip`) sends nothing — the next block may play fine;
+  the idle after `MAX_BLOCK_GIVE_UPS` lost blocks in a row is `giving_up` and alerts. `schedule_wait` /
+  `schedule_logout` / a schedule switched off never alert; a block naming an unknown launch is a skip, not an alert.
+- **Screenshot taken synchronously** in `send()` (the spec had it in the thread): it must show the moment, and the
+  supervisor closes RuneLite right after giving up — so the login give-up and a lost block's idle grab first
+  (`notify.screenshot()`), then kill. Only when configured; costs ~0.1–0.3 s.
+- **All notify events go to `log/launcher.jsonl`**, menu sessions too: the post finishes after the session's
+  log is closed. `logreport supervisor` shows them; the web app's ingest is untouched.
+- **Alert reason vs idle reason:** the restart-budget and 3-failed-logins alerts add the last crash / login
+  failure (`restart budget: RuntimeError: …`, `login: …`); the `idle` events keep their old reasons.
+- **Setup errors alert too** (bad BOT / LAUNCH, schedule mode without an account): the container idles until a
+  human fixes the file. Without a screenshot (RuneLite isn't up).
+- **Menu start failures before `run_session`** (`run_guarded`, e.g. an uncalibrated bot) don't alert: the human
+  just clicked.
+- **Names:** menu alerts use the session's log name (`tanner`) and its params as the launch
+  (`hide_type=…, start_at=…`); unattended alerts use the menu name and `LAUNCH · VALUE` (schedule: the block's).
+- **Limits:** field values and the footer are cut at 256 (Discord allows 1024 / 2048), so the 6000-character
+  embed total holds with a full 4096 description and no dynamic trimming. A user id that isn't all digits
+  means no mention; without one `allowed_mentions` is `{"parse": []}` (an `@everyone` in a reason pings nobody).
+- **Container traffic:** the post goes out through the account's proxy like everything else in that container.
