@@ -10,7 +10,7 @@ Screen capture lives in lib/screen.py.
 import random
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 
 # ── Colour ────────────────────────────────────────────────────────────────────
@@ -243,6 +243,21 @@ def find_template(frame, template, max_diff=8.0):
 # outline colours (r, g, b), one per mark in turn — bright, unlike RuneLite's pure blue / magenta highlights
 MARK_COLORS = [(255, 255, 0), (0, 255, 0), (255, 128, 0), (0, 255, 255), (255, 64, 64), (255, 255, 255)]
 CROSSHAIR = 10   # px each side of a point
+LABEL_SIZE = 14  # px
+
+
+def _label_font():
+    try:
+        return ImageFont.load_default(size=LABEL_SIZE)   # needs FreeType; the bitmap default otherwise
+    except Exception:
+        return ImageFont.load_default()
+
+
+def _label(draw, xy, text, color, font):
+    """Text on a dark box, readable over any game background."""
+    box = draw.textbbox(xy, text, font=font)
+    draw.rectangle([box[0] - 2, box[1] - 1, box[2] + 2, box[3] + 1], fill=(0, 0, 0))
+    draw.text(xy, text, fill=color, font=font)
 
 
 def _num(v):
@@ -279,6 +294,7 @@ def draw_marks(frame, marks, title=None):
     skipped. Coordinates are the frame's own (a monitor-1 screenshot: the configs' own)."""
     img = Image.fromarray(np.ascontiguousarray(frame[:, :, ::-1]))
     draw = ImageDraw.Draw(img)
+    font = _label_font()
     n = 0
     for label, value in marks:
         shape = mark_shape(value)
@@ -290,18 +306,18 @@ def draw_marks(frame, marks, title=None):
         if kind == "rect":
             l, t, w, h = geo
             draw.rectangle([l, t, l + w - 1, t + h - 1], outline=color, width=2)
-            anchor = (l, t + h + 2)
+            anchor = (l, t + h + 3)
         elif kind == "point":
             x, y = geo
             draw.line([x - CROSSHAIR, y, x + CROSSHAIR, y], fill=color, width=2)
             draw.line([x, y - CROSSHAIR, x, y + CROSSHAIR], fill=color, width=2)
-            anchor = (x + CROSSHAIR + 2, y + 2)
+            anchor = (x + CROSSHAIR + 4, y + 2)
         else:
             draw.line(geo + [geo[0]], fill=color, width=2)
-            anchor = (min(p[0] for p in geo), max(p[1] for p in geo) + 2)
-        draw.text(anchor, str(label), fill=color)
-    if title:
-        box = draw.textbbox((4, 2), title)
+            anchor = (min(p[0] for p in geo), max(p[1] for p in geo) + 3)
+        _label(draw, anchor, str(label), color, font)
+    if title:   # a banner from the corner
+        box = draw.textbbox((4, 3), title, font=font)
         draw.rectangle([0, 0, box[2] + 4, box[3] + 4], fill=(0, 0, 0))
-        draw.text((4, 2), title, fill=(255, 255, 255))
+        draw.text((4, 3), title, fill=(255, 255, 255), font=font)
     return np.array(img)[:, :, ::-1].copy()

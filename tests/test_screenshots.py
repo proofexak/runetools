@@ -138,11 +138,11 @@ def test_grab_failure_never_stops_the_bot(env, monkeypatch):
 
 def test_marks_of_the_failing_state_are_drawn(env):
     marks = screenshots.config_marks({"a": ["ELLIS_REGION"], "b": ["BANK_REGION"]},
-                                     types.SimpleNamespace(ELLIS_REGION=(10, 20, 50, 30), BANK_REGION=(200, 200, 40, 40)))
+                                     types.SimpleNamespace(ELLIS_REGION=(10, 60, 50, 30), BANK_REGION=(200, 200, 40, 40)))
     _run(env, {"a": _script(["fail", "ok"]), "b": lambda: "ok"}, marks=marks)
     (name,) = _pngs(env)
     rgb = np.array(Image.open(env / name).convert("RGB"))
-    assert tuple(rgb[20, 30]) == vision.MARK_COLORS[0]        # ELLIS_REGION's top edge
+    assert tuple(rgb[60, 30]) == vision.MARK_COLORS[0]        # ELLIS_REGION's top edge
     assert tuple(rgb[200, 220]) == (20, 20, 20)               # state b's region isn't drawn
 
 
