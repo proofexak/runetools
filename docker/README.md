@@ -231,6 +231,23 @@ after a session of 10+ minutes); at most **5 automatic restarts per hour** and
 and VNC stay up; `botctl start` resumes. Everything is logged to
 `log/launcher.jsonl`: `python -m lib.logreport supervisor` (or `botctl status`).
 
+### Schedule mode (PRO-102)
+
+Instead of one bot until it stops, the container can play the account's **schedule** from the web app (account
+page → Schedule: hours a month, timezone, activities): put `SCHEDULE=1` in `docker/accounts/<account>.env` instead
+of `BOT` / `LAUNCH` / `VALUE`, then `docker/botctl <account> up`.
+
+- The web app writes the plan to `data/schedules/<account>.json`; the container re-reads it at least every minute,
+  so an edit or Regenerate needs no restart.
+- Between blocks RuneLite is closed (logged out). When a block starts it logs in and runs that block's bot and
+  launch; at the block's end the bot gets the soft stop (it finishes its trip), and 20 min later a hard stop if
+  it's still going.
+- A crash inside a block restarts as above; one after the block's end doesn't. A bot that ends `done` sits out
+  the rest of its block. A block naming a bot or launch the menu doesn't have is skipped (`schedule_skip`).
+- `botctl stop` / `kill` still idle it until `botctl start`; the schedule's Off switch keeps it logged out.
+- `botctl status` / `python -m lib.logreport supervisor` show `schedule_wait`, `schedule_block`,
+  `schedule_logout`, `schedule_skip`.
+
 ## Testing on Windows
 
 Same container, Docker Desktop instead of Ubuntu's Docker. Use **Git Bash** (comes
@@ -279,6 +296,7 @@ read after `docker/.env` — and holds what must differ per account ("Accounts" 
 | `RUNELITE_JAVA_OPTS` | `-Xmx512m -XX:+UseSerialGC` | client JVM flags |
 | `RUNETOOLS_UID` / `RUNETOOLS_GID` | `1000` | your `id -u` / `id -g` on Linux |
 | `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above), in the account file; unset = manual mode |
+| `SCHEDULE` | unset | `1` = schedule mode (the web app's plan for the account, "Schedule mode" above), in the account file |
 | `BOT_ACCOUNT` | unset | the account whose bot the web app's live view and Start / Stop control |
 | `TZ` | `UTC` | bot container + web app: the zone the logs are written in (the app's "today") and the browser's clock — set it to the proxy's country |
 | `POSTGRES_PASSWORD` | `runetools` | web app database (only reachable on localhost) |
@@ -303,6 +321,7 @@ own stack, compose project `rt-<account>` (`docker/bot.yml`):
 | `BOT_MAC` / `BOT_HOSTNAME` | a fixed, ordinary-looking identity instead of Docker's `02:42:…` MAC and a hostname that changes with every recreate |
 | `VNC_PORT` | its VNC port on 127.0.0.1 |
 | `BOT` / `LAUNCH` / `VALUE` | unattended mode |
+| `SCHEDULE=1` | schedule mode instead of `BOT` |
 
 ```
 docker/botctl new alt2        # fresh MAC (Intel's 10:F0:05 + 3 random bytes), Ubuntu-style hostname, next VNC port

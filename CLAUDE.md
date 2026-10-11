@@ -26,10 +26,13 @@ lib/                    universal helpers used by all bots
   heartbeat.py          per-session daemon thread: heartbeat every 30 s, pause_start / pause_end
   logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats / supervisor
   headless.py           unattended mode (`python -m lib.headless`, container main command when BOT
-                         is set): keeps RuneLite logged in, runs one bot, restarts per policy;
+                         is set, or SCHEDULE=1): keeps RuneLite logged in, runs one bot, restarts per policy;
+                         schedule mode plays each block of the account's schedule (see "Play schedules");
                          signals from docker/botctl (USR1 pause, HUP resume/start, USR2 stop, INT kill,
                          TERM exit)
-  supervisor.py         pure restart policy: decide(), Backoff (30 s→600 s), Budget (5/hour)
+  supervisor.py         pure restart policy: decide(), schedule_decide(), Backoff (30 s→600 s), Budget (5/hour)
+  schedule.py           reads data/schedules/<account>.json (written by the web app): load(), current(),
+                         next_start() — pure apart from load()'s read, which never raises
   client.py, client_states.py  RuneLite lifecycle (launch → terms → Play → welcome → in game → camera) by image
                          templates (lib/client_templates/*.png, gitignored; vision.find_template)
   client_templates_editor.py  "⚙ Client Templates" capture tool in the menu
@@ -77,7 +80,8 @@ webapp/                 web app (PRO-88): per-account stats + encrypted login va
                          lines to it (POST /api/ingest, best effort — the files stay the truth)
   packages/shared       zod schemas + API types shared by api and web
   apps/api              Fastify + Drizzle/Postgres: src/ingest (tail logs + pushed lines →
-                         sessions/steps/errors, logreport's rules, cursor per file), src/stats.ts, src/vault (argon2id →
+                         sessions/steps/errors, logreport's rules, cursor per file), src/schedule (play-schedule
+                         generator + store, PRO-102), src/stats.ts, src/vault (argon2id →
                          AES-256-GCM, key only in memory), src/accounts.ts; drizzle/ = migrations
   apps/web              React + Vite + TanStack Query + Tailwind (shadcn-style ui/), Recharts
   e2e/                  Playwright specs (pnpm e2e)
@@ -364,6 +368,24 @@ takes plain data; capture happens only in `lib/screen.grab`.
   the handler) — always give guarded rows an unconditional fallback.
 - Test the table with stub handlers through the real `run_machine` (tests/test_tanner_states.py).
 
+**Play schedules (PRO-102).** Each account plays to a generated schedule, ~200 h a month by default (research:
+https://claude.ai/code/artifact/5b50a90e-0d50-476d-9911-e547fd91a75b — playtime only flags bots at bot-level volume,
+what detectors catch is sameness, so the plan avoids identical days and round durations). The web app owns it:
+`apps/api/src/schedule/generate.ts` (pure, seeded by account name + seed + month: traits per account — bedtime,
+weekday/weekend anchors, Weibull session shape, weekend multiplier; 1–2 days off a week; month total = target ± 5 %;
+sessions 10 min–4.5 h, never a whole number of minutes; ≤ 11 h a day; gaps 20 min–3 h; ramp from `rampStart`) →
+`schedule_blocks` (Postgres, kept 14 days ahead by an hourly refill that only appends; a profile save / Regenerate
+replaces the future blocks not edited by hand) → `data/schedules/<account>.json` (`{account, enabled, timezone,
+written, blocks: [{id, start, end, bot, launch, value}]}`, epoch seconds, atomic, moved on an account rename). The bot
+container follows it with `SCHEDULE=1` in its account file: `lib/headless.py` re-reads the file at least every 60 s,
+closes RuneLite between blocks (`schedule_logout`), logs in for a block and runs its launch (`resolve(bot, launch,
+value)`; an unknown one → `schedule_skip`, sits the block out), soft-stops it at the block's end (`stats["stop"]`,
+the overlay's Stop: it finishes its trip) and force-stops it 20 min later if it's still running — not counted as an
+operator stop. A session that ends `done` mid-block sits out the rest of it; botctl stop / kill still idle it. The
+account page's Schedule card shows the week planned (outlined, per bot · launch) over what ran (sessions, grey),
+adherence, the profile (hours a month, timezone = the proxy's country, activities with weights, ramp start) and
+lets a future block be moved or deleted. Activities must start where the others end (no travel between them yet).
+
 **wait_until_stopped** polls a screen region for pixel diff. Returns when stable for N consecutive frames. Used after walking, not after teleports (teleports are instant).
 
 ## What's working / WIP
@@ -407,6 +429,8 @@ takes plain data; capture happens only in `lib/screen.grab`.
   itself (`/api/live/vnc`, `VNC_ADDR`) — no websockify, no extra port. Take control / Release via
   `lib/live_control.py` (see webapp/README.md "Live view"). Checked view-only against the real
   container; take control against a real running bot not yet tried.
+- Play schedules (PRO-102): generator, API, Schedule card and headless schedule mode built and tested (unit +
+  a local API run read back by `lib.schedule`); not yet run against a real container with `SCHEDULE=1`.
 - Bot container Start / Stop (PRO-90): web app panel → `dockerproxy` compose service (allowlist proxy, the only
   holder of the Docker socket: inspect / start / stop of `rt-<BOT_ACCOUNT>-runetools-1`, nothing else) + `lib/manual.py`
   through data/ files. Start = docker start if stopped, then RuneLite + menu; Stop = docker stop -t 30 (never

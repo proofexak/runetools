@@ -119,6 +119,22 @@ How it's wired:
 - Settings: `DOCKER_PROXY_URL` (compose: `http://dockerproxy:2375`; unset = no panel) and `BOT_CONTAINER`
   (`rt-<BOT_ACCOUNT>-runetools-1`: `BOT_ACCOUNT` in docker/.env picks the account's stack).
 
+## Play schedules
+
+Each account page has a **Schedule** card (PRO-102): the week's planned blocks (outlined, coloured per bot · launch)
+over the sessions that actually ran (grey), with planned / ran hours, how much of the plan so far was followed,
+minutes outside it and missed blocks. **Settings** sets hours a month (default 200), the timezone (the proxy's
+country — the plan is laid out in it), the activities to rotate (bot, launch, value as `VALUE` would be, weight)
+and an optional ramp-up start for a new account. **On / Off**, **Regenerate** (a new draw for the days ahead; blocks
+edited by hand stay), and a click on a future block moves or deletes it.
+
+How it's wired: `src/schedule/generate.ts` draws the blocks (pure, seeded per account), `src/schedule/store.ts`
+keeps them 14 days ahead in `schedule_blocks` (an hourly refill appends days; a profile change or Regenerate
+redraws the future) and writes `data/schedules/<account>.json` after every change — the bot container follows that
+file with `SCHEDULE=1` (docker/README.md "Schedule mode"). Routes: `GET/PUT /api/accounts/:id/schedule`,
+`POST /api/accounts/:id/schedule/regenerate`, `PATCH/DELETE /api/schedule/blocks/:id`; the feed sends
+`{type: "schedule"}`. Session times are read in the API's TZ (= the bots', docker/.env `TZ`).
+
 ## Security
 
 - The server listens on 127.0.0.1 only (in Docker it binds 0.0.0.0, published on 127.0.0.1:8778 only). It refuses
