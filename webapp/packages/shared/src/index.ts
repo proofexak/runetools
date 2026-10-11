@@ -196,13 +196,60 @@ export interface BotStatus {
   /** The app can reach Docker (DOCKER_PROXY_URL is set); false = the panel has nothing to control. */
   enabled: boolean;
   container: ContainerState;
-  /** From the container's BOT: unattended runs lib.headless, manual runs lib.manual. */
+  /** From the container's BOT (or SCHEDULE=1, bot "schedule"): unattended runs lib.headless, manual runs lib.manual. */
   mode: "manual" | "unattended" | null;
   bot: string | null;
   /** lib/manual.py's last report (data/manual_status.json); null = not running / not fresh. */
   manual: { runelite: boolean; menu: boolean; phase: string; error: string | null } | null;
   /** The start / stop the app is doing now (or did last); null = none since it started. */
   job: { action: "start" | "stop"; phase: string; error: string | null; done: boolean } | null;
+}
+
+// ── play schedules (PRO-102) ─────────────────────────────────────────────────
+// Times here are epoch seconds (UTC); the page shows them in the profile's timezone.
+
+export const ScheduleActivity = z.object({
+  bot: z.string().trim().min(1).max(64),
+  launch: z.string().trim().min(1).max(64),
+  value: z.string().trim().max(64).nullable().transform((v) => (v ? v : null)),
+  weight: z.number().min(0).max(100),
+});
+export type ScheduleActivity = z.output<typeof ScheduleActivity>;
+
+export const ScheduleProfileBody = z.object({
+  enabled: z.boolean(),
+  timezone: z.string().min(1).max(64),
+  monthlyHours: z.number().int().min(0).max(400),
+  activities: z.array(ScheduleActivity).max(12),
+  rampStart: z.iso.date().nullable(),
+});
+export type ScheduleProfileBody = z.input<typeof ScheduleProfileBody>;
+
+export interface ScheduleProfile extends z.output<typeof ScheduleProfileBody> { seed: number }
+
+export const ScheduleBlockPatch = z.object({
+  start: z.number().int().positive().optional(),
+  end: z.number().int().positive().optional(),
+  bot: z.string().trim().min(1).max(64).optional(),
+  launch: z.string().trim().min(1).max(64).optional(),
+  value: z.string().trim().max(64).nullable().optional(),
+});
+export type ScheduleBlockPatch = z.input<typeof ScheduleBlockPatch>;
+
+export interface ScheduleBlock {
+  id: number; start: number; end: number; bot: string; launch: string; value: string | null;
+  /** Changed by hand: a regenerate leaves it alone. */
+  edited: boolean;
+}
+
+/** A session of this account as it ran (end = its last event while it runs). */
+export interface ActualSession { id: number; start: number; end: number; bot: string | null; status: string }
+
+export interface ScheduleResponse {
+  profile: ScheduleProfile;
+  blocks: ScheduleBlock[];
+  actual: ActualSession[];
+  now: number;
 }
 
 // ── live feed (SSE /api/events) ──────────────────────────────────────────────
@@ -212,7 +259,8 @@ export type FeedEvent =
   | { type: "accounts" }
   | { type: "vault"; unlocked: boolean }
   | { type: "live" }                          // take control / release
-  | { type: "bot" };                          // bot container start / stop progress
+  | { type: "bot" }                           // bot container start / stop progress
+  | { type: "schedule"; account: string };   // an account's schedule changed (PRO-102)
 
 // ── bot push (POST /api/ingest, PRO-99) ──────────────────────────────────────
 

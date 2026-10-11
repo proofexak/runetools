@@ -34,7 +34,7 @@ export async function testDb(): Promise<DbHandle> {
   shared ??= openDb("pglite:memory");
   const handle = await shared;
   await handle.db.execute(sql`TRUNCATE users, auth_sessions, accounts, credentials, vault_meta, settings,
-    sessions, steps, errors, ingest_cursors RESTART IDENTITY CASCADE`);
+    sessions, steps, errors, ingest_cursors, schedule_profiles, schedule_blocks RESTART IDENTITY CASCADE`);
   return handle;
 }
 

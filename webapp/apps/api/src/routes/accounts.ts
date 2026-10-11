@@ -1,8 +1,11 @@
 import { AccountBody, AccountName } from "@runetools/shared";
+import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createAccount, deleteAccount, listAccounts, setActive, updateAccount } from "../accounts.js";
 import type { AppContext } from "../app.js";
+import { accounts } from "../db/schema.js";
+import { removeScheduleFile, writeScheduleFile } from "../schedule/store.js";
 import { ok, parse } from "../http.js";
 
 const Id = z.object({ id: z.coerce.number().int().positive() });
@@ -21,10 +24,25 @@ export async function accountRoutes(app: FastifyInstance, { db, config, bus }: A
     return { id };
   });
 
+  const nameOf = async (id: number) =>
+    (await db.select({ name: accounts.name }).from(accounts).where(eq(accounts.id, id)))[0]?.name ?? null;
+
+  /** The bot finds its schedule by account name: a rename / delete moves / removes the file. */
+  const scheduleFile = async (oldName: string | null, id: number | null) => {
+    try {
+      if (oldName) await removeScheduleFile(config.dataDir, oldName);
+      if (id !== null) await writeScheduleFile(db, config.dataDir, id);
+    } catch (err) {
+      app.log.warn({ err }, "couldn't move the account's schedule file");
+    }
+  };
+
   app.patch("/api/accounts/:id", async (req, reply) => {
     const { id } = parse(Id, req.params);
     const body = parse(Patch, req.body);
+    const before = await nameOf(id);
     await updateAccount(db, config.dataDir, id, body);
+    if (body.name !== undefined && body.name !== before) await scheduleFile(before, id);
     changed();
     // a rename re-tags history: every view of sessions changed
     if (body.name !== undefined) bus.emit({ type: "sessions", ids: [] });
@@ -32,7 +50,10 @@ export async function accountRoutes(app: FastifyInstance, { db, config, bus }: A
   });
 
   app.delete("/api/accounts/:id", async (req, reply) => {
-    await deleteAccount(db, config.dataDir, parse(Id, req.params).id);
+    const { id } = parse(Id, req.params);
+    const before = await nameOf(id);
+    await deleteAccount(db, config.dataDir, id);
+    await scheduleFile(before, null);
     changed();
     return ok(reply);
   });

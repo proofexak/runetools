@@ -10,7 +10,7 @@
  *
  * Start: container stopped → start it → wait for manual mode's first fresh report →
  * ask it to start what's missing (RuneLite, then the bot menu) → wait for its answer.
- * A container in unattended mode (BOT set) is only started: lib.headless does the rest.
+ * A container in unattended mode (BOT set, or SCHEDULE=1) is only started: lib.headless does the rest.
  * One start / stop at a time; progress goes out on the bus ({type: "bot"}).
  */
 import { randomUUID } from "node:crypto";
@@ -78,7 +78,9 @@ export class BotControl {
       if (res.status === 404) return { state: "missing", bot: null };
       if (!res.ok) return { state: "unknown", bot: null };
       const info = (await res.json()) as { State?: { Running?: boolean }; Config?: { Env?: string[] } };
-      const bot = (info.Config?.Env ?? []).find((e) => e.startsWith("BOT="))?.slice(4) || null;
+      const env = info.Config?.Env ?? [];
+      // unattended = lib.headless: BOT set, or schedule mode (SCHEDULE=1, each block names its bot)
+      const bot = env.find((e) => e.startsWith("BOT="))?.slice(4) || (env.includes("SCHEDULE=1") ? "schedule" : null);
       return { state: info.State?.Running ? "running" : "stopped", bot };
     } catch {
       return { state: "unknown", bot: null };

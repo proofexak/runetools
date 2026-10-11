@@ -27,6 +27,7 @@ import { eventRoutes } from "./routes/events.js";
 import { INGEST_ROUTE, ingestRoutes } from "./routes/ingest.js";
 import { liveRoutes } from "./routes/live.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { scheduleRoutes } from "./routes/schedule.js";
 import { statsRoutes } from "./routes/stats.js";
 import { vaultRoutes } from "./routes/vault.js";
 import type { Vault } from "./vault/vault.js";
@@ -113,6 +114,7 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
   await accountRoutes(app, ctx);
   await vaultRoutes(app, ctx);
   await settingsRoutes(app, ctx);
+  await scheduleRoutes(app, ctx);
   await eventRoutes(app, ctx);
   await ingestRoutes(app, ctx);
   await liveRoutes(app, ctx, (req) => checkOrigin(req, allowed, anyHost));

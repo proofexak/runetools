@@ -5,6 +5,7 @@ import { Bus } from "./bus.js";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
 import { Ingester } from "./ingest/ingester.js";
+import { refillAll } from "./schedule/store.js";
 import { getLogRoots } from "./settings.js";
 import { Vault } from "./vault/vault.js";
 
@@ -31,10 +32,16 @@ try {
   app.log.warn({ err }, `couldn't write ${config.dataDir}/active_account — new sessions won't be tagged`);
 }
 
+// play schedules (PRO-102): keep every account's blocks 14 days ahead and its file current
+const refillSchedules = () => refillAll(db, config.dataDir, (err) => app.log.warn({ err }, "schedule refill failed"))
+  .catch((err) => app.log.warn({ err }, "schedule refill failed"));
+const scheduleTimer = setInterval(refillSchedules, 3_600_000);
+
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
   stopping = true;
+  clearInterval(scheduleTimer);
   await ingester.stop();
   vault.lock();
   await app.close();
@@ -46,3 +53,4 @@ process.on("SIGTERM", shutdown);
 
 await app.listen({ host: config.host, port: config.port });
 ingester.start(config.pollMs);
+void refillSchedules();

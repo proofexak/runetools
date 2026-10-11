@@ -123,7 +123,7 @@ class FakeHost {
 
   tick() {
     const file = path.join(this.dataDir, "manual_status.json");
-    if (this.state !== "running" || !this.manualUp || this.env.includes("BOT=Tanning") ||
+    if (this.state !== "running" || !this.manualUp || this.env.some((e) => e === "BOT=Tanning" || e === "SCHEDULE=1") ||
         this.now - this.startedAt < this.bootMs) return;
     let handled: string | null = null;
     let phase = "idle";
@@ -193,6 +193,17 @@ describe("BotControl", () => {
     await c.running;
     const s = await c.status();
     expect(s).toMatchObject({ container: "running", mode: "unattended", bot: "Tanning", job: { phase: "done" } });
+    expect(fs.existsSync(path.join(host.dataDir, "manual_request.json"))).toBe(false);
+  });
+
+  it("a schedule-mode container (SCHEDULE=1) counts as unattended too", async () => {
+    const host = new FakeHost(tmpDir());
+    host.env = ["PATH=/x", "BOT=", "SCHEDULE=1"];
+    const c = control(host);
+    c.start();
+    await c.running;
+    const s = await c.status();
+    expect(s).toMatchObject({ container: "running", mode: "unattended", bot: "schedule", job: { phase: "done" } });
     expect(fs.existsSync(path.join(host.dataDir, "manual_request.json"))).toBe(false);
   });
 

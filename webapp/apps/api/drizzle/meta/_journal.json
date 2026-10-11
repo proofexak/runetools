@@ -22,6 +22,13 @@
       "when": 1791227062866,
       "tag": "0002_live_status",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791733377839,
+      "tag": "0003_schedules",
+      "breakpoints": true
     }
   ]
 }

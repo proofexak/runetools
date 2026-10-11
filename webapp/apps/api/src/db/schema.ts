@@ -72,6 +72,33 @@ export const settings = pgTable("settings", {
   value: jsonb("value").notNull(),
 });
 
+// ── play schedules (PRO-102) ─────────────────────────────────────────────────
+
+/** One per account that has a schedule; activities = ScheduleActivity[] (packages/shared). */
+export const scheduleProfiles = pgTable("schedule_profiles", {
+  accountId: integer("account_id").primaryKey().references(() => accounts.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  timezone: text("timezone").notNull().default("Europe/Warsaw"),
+  monthlyHours: integer("monthly_hours").notNull().default(200),
+  activities: jsonb("activities").$type<{ bot: string; launch: string; value: string | null; weight: number }[]>()
+    .notNull().default([]),
+  rampStart: date("ramp_start", { mode: "string" }),
+  seed: integer("seed").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Planned play: generated (refilled 14 days ahead) or edited by hand (edited = kept on regenerate). */
+export const scheduleBlocks = pgTable("schedule_blocks", {
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").notNull().references(() => accounts.id, { onDelete: "cascade" }),
+  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+  bot: text("bot").notNull(),
+  launch: text("launch").notNull(),
+  value: text("value"),
+  edited: boolean("edited").notNull().default(false),
+}, (t) => [index("schedule_blocks_account_start").on(t.accountId, t.startAt)]);
+
 // ── ingested session logs ────────────────────────────────────────────────────
 
 export const sessions = pgTable("sessions", {
