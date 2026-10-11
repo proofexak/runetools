@@ -12,6 +12,7 @@ import { addDays, daysBetween, monthDates, weekday, zonedDate, zonedEpoch } from
 export interface Activity { bot: string; launch: string; value: string | null; weight: number }
 
 export interface ScheduleProfileInput {
+  /** The account's stable key (the API passes its id, so a rename keeps the plan). */
   account: string;
   seed: number;
   timezone: string;
@@ -142,11 +143,12 @@ export function generateMonth(p: ScheduleProfileInput, month: string): PlannedBl
   const t = traits(p.account, p.seed);
   const dates = monthDates(month);
 
-  // days off and the week's intensity, drawn per Monday so a week split across months agrees
+  // days off and the week's intensity, drawn per Monday so a week split across months agrees —
+  // and without the seed: a habit of the account's, so a Regenerate mid-week keeps the week's days off
   const off = new Set<string>();
   const weekFactor = new Map<string, number>();
   for (let monday = addDays(dates[0]!, -weekday(dates[0]!)); monday <= dates.at(-1)!; monday = addDays(monday, 7)) {
-    const wr = rng(`${p.account}:${p.seed}:week:${monday}`);
+    const wr = rng(`${p.account}:week:${monday}`);
     const n = wr() < t.offTwoProb ? 2 : 1;
     const days = [0, 1, 2, 3, 4, 5, 6];
     for (let i = 0; i < n; i++) off.add(addDays(monday, days.splice(Math.floor(wr() * days.length), 1)[0]!));

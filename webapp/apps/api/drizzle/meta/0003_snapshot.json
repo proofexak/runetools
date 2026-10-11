@@ -1,5 +1,5 @@
 {
-  "id": "a6b6995d-debf-4a3a-8248-4d8997783987",
+  "id": "7f360060-5d8b-4e14-b4e6-06ac4cdddab0",
   "prevId": "771b29db-8cb5-456d-a5c9-b537002c4a4e",
   "version": "7",
   "dialect": "postgresql",
@@ -470,6 +470,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "planned_until": {
+          "name": "planned_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",

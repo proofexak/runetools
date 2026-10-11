@@ -84,6 +84,8 @@ export const scheduleProfiles = pgTable("schedule_profiles", {
     .notNull().default([]),
   rampStart: date("ramp_start", { mode: "string" }),
   seed: integer("seed").notNull().default(0),
+  /** Blocks are generated up to here; the hourly refill appends from it (a deleted block stays deleted). */
+  plannedUntil: timestamp("planned_until", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

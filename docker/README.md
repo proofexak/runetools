@@ -238,12 +238,17 @@ page → Schedule: hours a month, timezone, activities): put `SCHEDULE=1` in `do
 of `BOT` / `LAUNCH` / `VALUE`, then `docker/botctl <account> up`.
 
 - The web app writes the plan to `data/schedules/<account>.json`; the container re-reads it at least every minute,
-  so an edit or Regenerate needs no restart.
+  so an edit or Regenerate needs no restart — a block that's running ends early too if it's shortened, deleted or
+  the schedule is switched Off. The account must have the **same name** in the web app as here (`<account>`): that
+  name is the file the container looks for — rename it in both places.
 - Between blocks RuneLite is closed (logged out). When a block starts it logs in and runs that block's bot and
   launch; at the block's end the bot gets the soft stop (it finishes its trip), and 20 min later a hard stop if
   it's still going.
 - A crash inside a block restarts as above; one after the block's end doesn't. A bot that ends `done` sits out
-  the rest of its block. A block naming a bot or launch the menu doesn't have is skipped (`schedule_skip`).
+  the rest of its block; one that gives up (or 3 failed logins) loses that block, and after 3 lost blocks in a row
+  it idles, logged out. A block naming a bot or launch the menu doesn't have is skipped (`schedule_skip`).
+- While someone has the game (web app Take control, or paused with O / `botctl pause`) the block's end never
+  force-stops it and nothing logs it out.
 - `botctl stop` / `kill` still idle it until `botctl start`; the schedule's Off switch keeps it logged out.
 - `botctl status` / `python -m lib.logreport supervisor` show `schedule_wait`, `schedule_block`,
   `schedule_logout`, `schedule_skip`.

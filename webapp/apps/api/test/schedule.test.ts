@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { asc, eq } from "drizzle-orm";
 import { scheduleBlocks, sessions } from "../src/db/schema.js";
-import { HORIZON_DAYS } from "../src/schedule/store.js";
+import { HORIZON_DAYS, refill, saveProfile } from "../src/schedule/store.js";
+import { addDays, weekday, zonedDate, zonedEpoch } from "../src/schedule/zone.js";
 import { login, makeApp, type Client, type TestApp } from "./helpers.js";
 
 let t: TestApp;
@@ -129,5 +131,58 @@ describe("schedule", () => {
     fs.rmSync(fileOf("alt1"));
     await refillAll(t.ctx.db, t.ctx.config.dataDir);
     expect(readFile("alt1").blocks.length).toBeGreaterThan(10);
+  });
+});
+
+describe("schedule — review fixes", () => {
+  const TZ = "Europe/Warsaw";
+  const W = zonedEpoch(TZ, "2027-01-13", 15 * 3600);          // a Wednesday afternoon
+  const rows = async () => (await t.ctx.db.select().from(scheduleBlocks).where(eq(scheduleBlocks.accountId, 1))
+    .orderBy(asc(scheduleBlocks.startAt))).map((r) => ({ id: r.id, start: r.startAt.getTime() / 1000, end: r.endAt.getTime() / 1000 }));
+
+  it("a deleted block stays deleted after the hourly refill", async () => {
+    await saveProfile(t.ctx.db, 1, profile());
+    await refill(t.ctx.db, 1, { replace: true, now: W });
+    const before = await rows();
+    const last = before.at(-1)!;
+    await t.ctx.db.delete(scheduleBlocks).where(eq(scheduleBlocks.id, last.id));
+    await refill(t.ctx.db, 1, { now: W + 3600 });             // the next hourly run
+    const after = await rows();
+    expect(after.some((b) => b.start === last.start)).toBe(false);
+    await refill(t.ctx.db, 1, { now: W + 86400 });            // a day later: only the new day is added
+    const later = await rows();
+    const added = later.filter((b) => !after.some((a) => a.id === b.id));
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.every((b) => b.start >= W + HORIZON_DAYS * 86400)).toBe(true);
+  });
+
+  it("regenerate mid-day keeps today and the generator's rules", async () => {
+    await saveProfile(t.ctx.db, 1, profile());
+    await refill(t.ctx.db, 1, { replace: true, now: W });
+    const tomorrow = zonedEpoch(TZ, "2027-01-14", 0);
+    const today = (await rows()).filter((b) => b.start < tomorrow);
+    await saveProfile(t.ctx.db, 1, { ...profile(), seed: 1 });
+    await refill(t.ctx.db, 1, { replace: true, now: W });
+    const all = await rows();
+    expect(all.filter((b) => b.start < tomorrow)).toEqual(today);
+    for (let i = 1; i < all.length; i++) expect(all[i - 1]!.end).toBeLessThanOrEqual(all[i]!.start);
+    const perDay = new Map<string, number>();
+    for (const b of all) perDay.set(zonedDate(TZ, b.start), (perDay.get(zonedDate(TZ, b.start)) ?? 0) + b.end - b.start);
+    expect(Math.max(...perDay.values())).toBeLessThanOrEqual(11 * 3600);
+    for (let monday = "2027-01-18"; monday <= "2027-01-25"; monday = addDays(monday, 7)) {
+      const week = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+      expect(weekday(monday)).toBe(0);
+      expect(week.some((d) => !perDay.has(d))).toBe(true);
+    }
+  });
+
+  it("a rename doesn't change the plan", async () => {
+    await saveProfile(t.ctx.db, 1, profile());
+    await refill(t.ctx.db, 1, { replace: true, now: W });
+    const before = (await rows()).map((b) => b.start);
+    await c.send("PATCH", "/api/accounts/1", { name: "alt9" });
+    await t.ctx.db.delete(scheduleBlocks).where(eq(scheduleBlocks.accountId, 1));
+    await refill(t.ctx.db, 1, { replace: true, now: W });
+    expect((await rows()).map((b) => b.start)).toEqual(before);
   });
 });

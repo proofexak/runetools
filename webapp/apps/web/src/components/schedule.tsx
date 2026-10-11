@@ -91,7 +91,7 @@ export function ScheduleCard({ account }: { account: Account }) {
                 {profile.enabled ? "On" : "Off"}
               </Button>
               <Button size="sm" variant="outline" disabled={!profile.enabled || regenerate.isPending}
-                onClick={() => regenerate.mutate()} title="Draw a new plan for the days ahead (hand edits stay)">
+                onClick={() => regenerate.mutate()} title="Draw a new plan from tomorrow (today and blocks edited by hand stay)">
                 <RefreshCw /> Regenerate
               </Button>
             </>

@@ -16,6 +16,7 @@ import { accounts, scheduleBlocks, scheduleProfiles, sessions } from "../db/sche
 import { HttpError } from "../http.js";
 import { iso, localIso } from "../time.js";
 import { generateRange } from "./generate.js";
+import { addDays, zonedDate, zonedEpoch } from "./zone.js";
 
 export const HORIZON_DAYS = 14;
 export const DEFAULT_PROFILE: ScheduleProfile = {
@@ -69,30 +70,47 @@ export async function saveProfile(db: Db, accountId: number, body: ScheduleProfi
 }
 
 /**
- * Fills the account's blocks up to HORIZON_DAYS ahead. replace: the profile changed — every
- * future block not edited by hand is generated again; otherwise only the days past the last
- * block are added (block ids stay put). Disabled → only the replace deletes.
+ * Fills the account's blocks up to HORIZON_DAYS ahead. Hourly (append): only what lies past
+ * planned_until — a block deleted by hand never comes back. replace (the profile changed,
+ * Regenerate): future blocks not edited by hand are drawn again — from the next local midnight
+ * when today is already planned (a day is never half one draw, half another), else from now.
+ * Disabled → the replace drops the future blocks, nothing is added.
  */
 export async function refill(db: Db, accountId: number, { replace = false, now = nowEpoch() } = {}) {
-  const name = await accountName(db, accountId);
+  await accountName(db, accountId);
   const p = await getProfile(db, accountId);
+  const [row] = await db.select({ plannedUntil: scheduleProfiles.plannedUntil }).from(scheduleProfiles)
+    .where(eq(scheduleProfiles.accountId, accountId));
+  const horizon = now + HORIZON_DAYS * DAY;
   await db.transaction(async (tx) => {
     const mine = eq(scheduleBlocks.accountId, accountId);
-    if (replace) {
-      await tx.delete(scheduleBlocks)
-        .where(and(mine, gt(scheduleBlocks.startAt, toDate(now)), eq(scheduleBlocks.edited, false)));
-    }
-    if (!p.enabled) return;
-    const kept = (await tx.select({ startAt: scheduleBlocks.startAt, endAt: scheduleBlocks.endAt })
+    const kept = async () => (await tx.select({ startAt: scheduleBlocks.startAt, endAt: scheduleBlocks.endAt })
       .from(scheduleBlocks).where(and(mine, gt(scheduleBlocks.endAt, toDate(now - DAY)))))
       .map((k) => ({ start: toEpoch(k.startAt), end: toEpoch(k.endAt) }));
-    const after = replace ? now : Math.max(now, ...kept.map((k) => k.end));
-    const planned = generateRange({ ...p, account: name }, after, now + HORIZON_DAYS * DAY)
-      .filter((b) => !kept.some((k) => b.start < k.end && k.start < b.end));
-    if (planned.length === 0) return;
-    await tx.insert(scheduleBlocks).values(planned.map((b) => ({
-      accountId, startAt: toDate(b.start), endAt: toDate(b.end), bot: b.bot, launch: b.launch, value: b.value,
-    })));
+    let from: number;
+    if (replace) {
+      const today = zonedDate(p.timezone, now);
+      const midnight = zonedEpoch(p.timezone, addDays(today, 1), 0);
+      const todayPlanned = p.enabled && (await kept()).some((k) => k.end > now && k.start < midnight);
+      from = todayPlanned ? midnight : now;
+      await tx.delete(scheduleBlocks).where(and(mine, gt(scheduleBlocks.startAt, toDate(p.enabled ? from - 1 : now)),
+        eq(scheduleBlocks.edited, false)));
+    } else {
+      from = Math.max(now, row?.plannedUntil ? toEpoch(row.plannedUntil) : now);
+    }
+    if (!p.enabled) {
+      await tx.update(scheduleProfiles).set({ plannedUntil: null }).where(eq(scheduleProfiles.accountId, accountId));
+      return;
+    }
+    const keep = await kept();
+    const planned = generateRange({ ...p, account: `account-${accountId}` }, from, horizon)
+      .filter((b) => !keep.some((k) => b.start < k.end && k.start < b.end));
+    if (planned.length > 0) {
+      await tx.insert(scheduleBlocks).values(planned.map((b) => ({
+        accountId, startAt: toDate(b.start), endAt: toDate(b.end), bot: b.bot, launch: b.launch, value: b.value,
+      })));
+    }
+    await tx.update(scheduleProfiles).set({ plannedUntil: toDate(horizon) }).where(eq(scheduleProfiles.accountId, accountId));
   });
 }
 

@@ -371,17 +371,23 @@ takes plain data; capture happens only in `lib/screen.grab`.
 **Play schedules (PRO-102).** Each account plays to a generated schedule, ~200 h a month by default (research:
 https://claude.ai/code/artifact/5b50a90e-0d50-476d-9911-e547fd91a75b — playtime only flags bots at bot-level volume,
 what detectors catch is sameness, so the plan avoids identical days and round durations). The web app owns it:
-`apps/api/src/schedule/generate.ts` (pure, seeded by account name + seed + month: traits per account — bedtime,
+`apps/api/src/schedule/generate.ts` (pure, seeded by account id + seed + month — days off by account id + week
+only, so a Regenerate keeps the week's days off; traits per account — bedtime,
 weekday/weekend anchors, Weibull session shape, weekend multiplier; 1–2 days off a week; month total = target ± 5 %;
 sessions 10 min–4.5 h, never a whole number of minutes; ≤ 11 h a day; gaps 20 min–3 h; ramp from `rampStart`) →
-`schedule_blocks` (Postgres, kept 14 days ahead by an hourly refill that only appends; a profile save / Regenerate
-replaces the future blocks not edited by hand) → `data/schedules/<account>.json` (`{account, enabled, timezone,
+`schedule_blocks` (Postgres, kept 14 days ahead by an hourly refill that appends past `planned_until`, so a block
+deleted by hand stays deleted; a profile save / Regenerate redraws the future blocks not edited by hand — from the
+next local midnight when today is already planned) → `data/schedules/<account>.json` (`{account, enabled, timezone,
 written, blocks: [{id, start, end, bot, launch, value}]}`, epoch seconds, atomic, moved on an account rename). The bot
 container follows it with `SCHEDULE=1` in its account file: `lib/headless.py` re-reads the file at least every 60 s,
 closes RuneLite between blocks (`schedule_logout`), logs in for a block and runs its launch (`resolve(bot, launch,
 value)`; an unknown one → `schedule_skip`, sits the block out), soft-stops it at the block's end (`stats["stop"]`,
 the overlay's Stop: it finishes its trip) and force-stops it 20 min later if it's still running — not counted as an
-operator stop. A session that ends `done` mid-block sits out the rest of it; botctl stop / kill still idle it. The
+operator stop. The running block follows the file (`_block_end`: moved, deleted or Off → ends now). Never a force stop
+or a logout while a human has the game (live view hold) or paused it. A session that ends `done` mid-block sits out
+the rest of it; one that gives up (or 3 failed logins) loses that block only, and after 3 lost blocks in a row
+(`MAX_BLOCK_GIVE_UPS`) it idles logged out; botctl stop / kill still idle it. The web app account name must be the
+container's account (`RUNETOOLS_ACCOUNT` = the botctl account): that's the file it reads. The
 account page's Schedule card shows the week planned (outlined, per bot · launch) over what ran (sessions, grey),
 adherence, the profile (hours a month, timezone = the proxy's country, activities with weights, ramp start) and
 lets a future block be moved or deleted. Activities must start where the others end (no travel between them yet).

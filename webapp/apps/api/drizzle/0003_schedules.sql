@@ -17,6 +17,7 @@ CREATE TABLE "schedule_profiles" (
 	"activities" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"ramp_start" date,
 	"seed" integer DEFAULT 0 NOT NULL,
+	"planned_until" timestamp with time zone,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
