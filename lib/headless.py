@@ -185,6 +185,9 @@ class Supervisor:
         began = self.clock()
         stop_watch = (self.watcher(lambda: self._block_end(block), self._block_over, self._block_overrun)
                       if block else None)
+        # a bot that returns or raises before its run_session must not leave the last session's
+        # step / reason / runs behind (decide() and the alert read them)
+        self.stats.update(step="starting", reason=None, last_step=None, run=0)
         try:
             with pause.session():
                 self.start(self.stats)
@@ -345,7 +348,8 @@ class Supervisor:
             if not ok:
                 self.login_failures += 1
                 gave_up = self.login_failures >= policy.MAX_LOGIN_FAILURES
-                shot = notify.screenshot() if gave_up else None   # the failed login, before the kill
+                alerts = gave_up and (block is None or self._give_ups + 1 >= policy.MAX_BLOCK_GIVE_UPS)
+                shot = notify.screenshot() if alerts else None    # the failed login, before the kill
                 self.client.kill()
                 if gave_up and block is not None:
                     self.login_failures = 0

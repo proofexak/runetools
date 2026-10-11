@@ -19,7 +19,7 @@ is the credential and is never logged.
 
     python -m lib.checks.notify_test      # sends a test alert
 """
-import io, json, os, socket, threading, time, urllib.error, urllib.request, uuid
+import io, json, math, os, socket, threading, time, urllib.error, urllib.request, uuid
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -37,11 +37,11 @@ COLOR_RED     = 15158332
 IMAGE_NAME    = "screen.jpg"
 JPEG_QUALITY  = 70
 
-# Discord's limits (docs.discord.com/developers/resources/message); field values and the footer are
-# kept well under theirs so the embed's 6000-character total always holds with a full description
-LIMIT_CONTENT, LIMIT_USERNAME, LIMIT_TITLE, LIMIT_DESCRIPTION = 2000, 80, 256, 4096
+# Discord's limits (docs.discord.com/developers/resources/message); field values (Discord: 1024) and
+# the footer (2048) are kept well under theirs so the embed's 6000-character total always holds,
+# even with a full description: 256 + 4096 + 5 × (9 + 256) + 256 < 6000
+LIMIT_CONTENT, LIMIT_TITLE, LIMIT_DESCRIPTION = 2000, 256, 4096
 LIMIT_FIELD_VALUE, LIMIT_FOOTER = 256, 256
-EMBED_TOTAL = 6000
 
 supervised = False   # lib.headless sets it: its sessions are alerted by the supervisor, not run_session
 
@@ -87,23 +87,48 @@ class Settings:
 
 def load_settings(env, cfg):
     """Settings from a notify_config module (or None) with the environment's non-empty
-    NOTIFY_DISCORD_* winning."""
-    def get(name, default):
-        return getattr(cfg, name, default) if cfg is not None else default
+    NOTIFY_DISCORD_* winning. A value that isn't a number keeps its default."""
+    def get(name, default, kind=None):
+        value = getattr(cfg, name, default) if cfg is not None else default
+        try:
+            return kind(value) if kind else value
+        except (TypeError, ValueError):
+            return default
     url = (env.get(ENV_WEBHOOK) or "").strip() or str(get("DISCORD_WEBHOOK_URL", "") or "").strip()
     user = (env.get(ENV_USER_ID) or "").strip() or str(get("DISCORD_USER_ID", "") or "").strip()
-    return Settings(url, user, bool(get("SCREENSHOT", True)), float(get("MIN_INTERVAL", 600)),
-                    int(get("MAX_PER_HOUR", 10)))
+    return Settings(url, user, bool(get("SCREENSHOT", True)), get("MIN_INTERVAL", 600, float),
+                    get("MAX_PER_HOUR", 10, int))
+
+
+_config_warned = False
+
+
+def config_module():
+    """lib/notify_config.py, or None: missing, or broken — then logged once (launcher.jsonl,
+    where "notify_config") and the environment's settings still work."""
+    global _config_warned
+    try:
+        import lib.notify_config as cfg
+        return cfg
+    except ModuleNotFoundError as e:
+        if e.name == "lib.notify_config":
+            return None              # not set up: the environment alone
+        err = e
+    except Exception as e:           # a SyntaxError, a failing import inside it, ...
+        err = e
+    if not _config_warned:
+        _config_warned = True
+        try:
+            events.launcher_error(None, err, "notify_config")
+        except Exception:
+            pass
+    return None
 
 
 def settings():
     try:
-        try:
-            import lib.notify_config as cfg
-        except ImportError:
-            cfg = None
-        return load_settings(os.environ, cfg)
-    except Exception:          # a broken config file: no alerts rather than a broken bot
+        return load_settings(os.environ, config_module())
+    except Exception:          # never: but no alerts rather than a broken bot
         return Settings()
 
 
@@ -215,14 +240,14 @@ def _limiter_for(s):
 # ── sending ───────────────────────────────────────────────────────────────────
 
 def _retry_after(err):
-    try:
-        return float(json.loads(err.read())["retry_after"])
-    except Exception:
-        pass
-    try:
-        return float(err.headers.get("Retry-After"))
-    except Exception:
-        return 1.0
+    for read in (lambda: json.loads(err.read())["retry_after"], lambda: err.headers.get("Retry-After")):
+        try:
+            value = float(read())
+            if math.isfinite(value):
+                return value
+        except Exception:
+            pass
+    return 1.0
 
 
 def _failure(exc):
@@ -334,7 +359,7 @@ def session_ended(bot, account, params, final, reason, last_step, stats, seconds
             f = events.error_fields(error)
             reason = f"crashed: {f['type']}: {f['message']}"
         launch = ", ".join(f"{k}={v}" for k, v in (params or {}).items()) or None
-        return send(Alert(account=account, bot=bot, launch=launch, reason=reason or final,
+        return send(Alert(account=account, bot=bot, launch=launch, reason=reason,
                           last_step=last_step, seconds=seconds, runs=(stats or {}).get("run"),
                           source="menu"))
     except Exception:

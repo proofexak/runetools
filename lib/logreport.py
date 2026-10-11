@@ -200,8 +200,9 @@ def _print_stats(agg, launcher):
             print(f"   fails:   {state} {n}x ({rate:.0%} of runs of that step)")
         if a["crash_types"]:
             print("   crashes: " + ", ".join(f"{k} ({v})" for k, v in a["crash_types"].most_common()))
-    print(f"Launcher errors: {len(launcher)}")
-    for e in launcher[-5:]:
+    errors = [e for e in launcher if e.get("event") == "error"]   # not supervisor / alert events
+    print(f"Launcher errors: {len(errors)}")
+    for e in errors[-5:]:
         print(f"   {e['ts'][:19]}  {e.get('bot') or '-'}  {e.get('where')}: {e.get('type')}: {e.get('message')}")
 
 

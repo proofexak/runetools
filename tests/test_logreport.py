@@ -166,3 +166,14 @@ def test_cli_supervisor_lists_events_newest_last(tmp_path, capsys):
 def test_cli_supervisor_without_events(tmp_path, capsys):
     lr.main(["supervisor"], root=str(tmp_path))
     assert "No supervisor events" in capsys.readouterr().out
+
+
+def test_cli_stats_counts_only_launcher_errors(root, capsys):
+    import os
+    with open(os.path.join(root, "log", "launcher.jsonl"), "a") as f:     # supervisor + alert events
+        for event in ("supervisor_start", "idle", "notify", "notify_suppressed"):
+            f.write(json.dumps({"ts": "2026-09-30T15:00:00.000", "session": None, "bot": "Tanning",
+                                "event": event}) + "\n")
+    lr.main(["stats"], root=root)
+    out = capsys.readouterr().out
+    assert "Launcher errors: 1" in out and "None: None" not in out

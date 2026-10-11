@@ -442,3 +442,49 @@ def test_session_ended_never_raises(monkeypatch):
         raise RuntimeError
     monkeypatch.setattr(notify, "send", boom)
     notify.session_ended("tanner", None, {}, "stopped", None, "x", None, None)
+
+
+# ── review fixes ──────────────────────────────────────────────────────────────
+
+def test_settings_bad_numbers_fall_back_to_the_defaults():
+    class Cfg(_Cfg):
+        MIN_INTERVAL = "ten minutes"
+        MAX_PER_HOUR = None
+    s = notify.load_settings({}, Cfg)
+    assert (s.url, s.min_interval, s.max_per_hour) == ("https://file/hook", 600, 10)
+
+
+def test_broken_config_file_is_logged_once_and_the_env_still_works(tmp_path, monkeypatch):
+    import builtins, json, sys
+    real_import = builtins.__import__
+
+    def broken(name, *a, **kw):
+        if name == "lib.notify_config":
+            raise SyntaxError("invalid syntax (notify_config.py, line 3)")
+        return real_import(name, *a, **kw)
+    monkeypatch.setattr(notify, "_config_warned", False)
+    monkeypatch.delitem(sys.modules, "lib.notify_config", raising=False)
+    monkeypatch.setattr(builtins, "__import__", broken)
+    try:
+        assert notify.config_module() is None
+        assert notify.config_module() is None
+    finally:
+        monkeypatch.setattr(builtins, "__import__", real_import)
+    assert notify.load_settings({notify.ENV_WEBHOOK: "https://env/hook"}, None).url == "https://env/hook"
+    errors = [json.loads(l) for l in open(tmp_path / "log" / "launcher.jsonl")]
+    assert [(e["event"], e["where"]) for e in errors] == [("error", "notify_config")]   # once
+
+
+def test_retry_after_nan_is_not_slept():
+    op, sleeps = Opener(_http_error(429, b'{"retry_after": NaN}'), 204), []
+    assert notify.post(URL, b"", "x", op, sleeps.append) == (True, 204)
+    assert sleeps == [1.0]
+
+
+def test_session_ended_without_a_stop_reason_says_so(monkeypatch):
+    sent = []
+    monkeypatch.setattr(notify, "send", lambda alert, **kw: sent.append(alert))
+    notify.session_ended("golden_nuggets", None, {}, "stopped", None, "deposit", {"run": 3}, 60.0)
+    assert sent[0].reason is None
+    p = notify.discord_payload(sent[0], "", host="h")
+    assert p["content"] == "golden_nuggets stopped: no reason given"

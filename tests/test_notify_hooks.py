@@ -309,3 +309,25 @@ def test_setup_error_alerts(sent, monkeypatch):
     assert (alert.bot, alert.launch, alert.reason, alert.source, alert.account) == (
         "Nope", "x", "unknown BOT 'Nope'", "unattended", "Main")
     assert kw == {"screenshot": False}                    # RuneLite isn't up: nothing to see
+
+
+# ── review fixes ──────────────────────────────────────────────────────────────
+
+def test_a_bot_that_never_reached_run_session_reports_no_stale_stats(sent):
+    def returns_early(stats):            # e.g. tanner's run() refusing an uncalibrated region
+        return None
+    start, _ = bot_script(_session("stopped", "out of hides", last_step="banking", runs=40), returns_early)
+    sup, _ = make(start, FakeClient(logged_in=[False, True]))
+    sup.run_forever()
+    (alert, _), = sent
+    assert alert.reason == "gave up" and alert.last_step is None and alert.runs == 0
+
+
+def test_schedule_failed_logins_that_only_lose_a_block_take_no_screenshot(sent, monkeypatch):
+    shots = []
+    monkeypatch.setattr(notify, "screenshot", lambda: shots.append(1) or b"shot")
+    start, calls = bot_script()
+    client = FakeClient(logins=[(False, "no login screen")] * 3)
+    sup, clock, _ = scheduled(start, client, [blk(1, 0, 1000)], end_after=4)
+    sup.run_forever()
+    assert shots == [] and sent == []
