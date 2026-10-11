@@ -236,3 +236,72 @@ def find_template(frame, template, max_diff=8.0):
     if np.abs(f[v:v + th, u:u + tw] - t).mean() > max_diff:
         return None
     return int(u + tw // 2), int(v + th // 2)
+
+
+# ── Failure screenshots (PRO-91) ──────────────────────────────────────────────
+
+# outline colours (r, g, b), one per mark in turn — bright, unlike RuneLite's pure blue / magenta highlights
+MARK_COLORS = [(255, 255, 0), (0, 255, 0), (255, 128, 0), (0, 255, 255), (255, 64, 64), (255, 255, 255)]
+CROSSHAIR = 10   # px each side of a point
+
+
+def _num(v):
+    return isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, bool)
+
+
+def _pair(v):
+    return isinstance(v, (tuple, list)) and len(v) == 2 and all(_num(c) for c in v)
+
+
+def mark_shape(value):
+    """What a config value looks like on screen: ("rect", (l, t, w, h)) for a region,
+    ("point", (x, y)) for a point or a point_color (x, y, (r, g, b)), ("poly", [(x, y), ...])
+    for a polygon of 3+ points — or None for an uncalibrated one (zero size / all zeros) or
+    anything else (a colour, a dict, a number)."""
+    if not isinstance(value, (tuple, list)):
+        return None
+    if len(value) == 4 and all(_num(c) for c in value):
+        l, t, w, h = value
+        return ("rect", (l, t, w, h)) if w > 0 and h > 0 else None
+    if _pair(value) or (len(value) == 3 and _pair(value[:2]) and isinstance(value[2], (tuple, list))):
+        x, y = value[0], value[1]
+        return None if (x, y) == (0, 0) else ("point", (x, y))
+    if len(value) >= 3 and all(_pair(p) for p in value):
+        points = [(p[0], p[1]) for p in value]
+        return None if all(p == (0, 0) for p in points) else ("poly", points)
+    return None
+
+
+def draw_marks(frame, marks, title=None):
+    """Copy of a BGR frame with each (label, config value) in `marks` drawn on it — regions
+    and polygons outlined, points as a crosshair, each labelled, colours from MARK_COLORS in
+    turn — and `title` on a dark banner at the top left. Values mark_shape can't place are
+    skipped. Coordinates are the frame's own (a monitor-1 screenshot: the configs' own)."""
+    img = Image.fromarray(np.ascontiguousarray(frame[:, :, ::-1]))
+    draw = ImageDraw.Draw(img)
+    n = 0
+    for label, value in marks:
+        shape = mark_shape(value)
+        if shape is None:
+            continue
+        color = MARK_COLORS[n % len(MARK_COLORS)]
+        n += 1
+        kind, geo = shape
+        if kind == "rect":
+            l, t, w, h = geo
+            draw.rectangle([l, t, l + w - 1, t + h - 1], outline=color, width=2)
+            anchor = (l, t + h + 2)
+        elif kind == "point":
+            x, y = geo
+            draw.line([x - CROSSHAIR, y, x + CROSSHAIR, y], fill=color, width=2)
+            draw.line([x, y - CROSSHAIR, x, y + CROSSHAIR], fill=color, width=2)
+            anchor = (x + CROSSHAIR + 2, y + 2)
+        else:
+            draw.line(geo + [geo[0]], fill=color, width=2)
+            anchor = (min(p[0] for p in geo), max(p[1] for p in geo) + 2)
+        draw.text(anchor, str(label), fill=color)
+    if title:
+        box = draw.textbbox((4, 2), title)
+        draw.rectangle([0, 0, box[2] + 4, box[3] + 4], fill=(0, 0, 0))
+        draw.text((4, 2), title, fill=(255, 255, 255))
+    return np.array(img)[:, :, ::-1].copy()

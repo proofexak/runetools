@@ -221,3 +221,69 @@ def test_find_template_rejects_featureless_template():
     # an all-black template "matches" any black area — refuse to locate it
     frame = canvas(300, 200)
     assert vision.find_template(frame, canvas(24, 16)) is None
+
+
+# ── failure screenshot marks (PRO-91) ─────────────────────────────────────────
+
+@pytest.mark.parametrize("value, expected", [
+    ((10, 20, 50, 30), ("rect", (10, 20, 50, 30))),
+    ((10, 20, 0, 30), None),                       # uncalibrated region
+    ((0, 0, 0, 0), None),
+    ((40, 50), ("point", (40, 50))),
+    ((0, 0), None),                                # uncalibrated point
+    ((40, 50, (70, 61, 50)), ("point", (40, 50))), # point_color
+    ((0, 0, (0, 0, 0)), None),
+    ([(1, 2), (30, 2), (30, 40)], ("poly", [(1, 2), (30, 2), (30, 40)])),
+    ([(0, 0), (0, 0), (0, 0), (0, 0)], None),      # uncalibrated polygon
+    ({"green dragonhide": (1, 2, (3, 4, 5))}, None),
+    ("ELLIS_REGION", None),
+    (None, None),
+    (7, None),
+    ([(1, 2), (3, 4)], None),                      # two points: not an area
+])
+def test_mark_shape(value, expected):
+    assert vision.mark_shape(value) == expected
+
+
+def _bgr(frame, x, y):
+    b, g, r = frame[y, x]
+    return int(r), int(g), int(b)
+
+
+def test_draw_marks_outlines_a_rect_in_the_first_colour():
+    frame = canvas(200, 200)
+    out = vision.draw_marks(frame, [("ELLIS_REGION", (10, 20, 50, 30))])
+    first = vision.MARK_COLORS[0]
+    assert _bgr(out, 30, 20) == first        # top edge
+    assert _bgr(out, 10, 35) == first        # left edge
+    assert _bgr(out, 35, 35) == (0, 0, 0)    # inside stays as it was
+    assert _bgr(out, 150, 150) == (0, 0, 0)
+
+
+def test_draw_marks_point_crosshair_and_second_colour():
+    out = vision.draw_marks(canvas(200, 200), [("A", (10, 20, 50, 30)), ("CHARACTER", (100, 120))])
+    second = vision.MARK_COLORS[1]
+    assert _bgr(out, 100, 120) == second
+    assert _bgr(out, 108, 120) == second     # arm of the cross
+    assert _bgr(out, 100, 112) == second
+
+
+def test_draw_marks_polygon():
+    out = vision.draw_marks(canvas(200, 200), [("TANNER_AREA", [(20, 20), (120, 20), (120, 120)])])
+    assert _bgr(out, 70, 20) == vision.MARK_COLORS[0]
+
+
+def test_draw_marks_skips_uncalibrated_and_leaves_input_alone():
+    frame = canvas(100, 100, (5, 6, 7))
+    before = frame.copy()
+    out = vision.draw_marks(frame, [("X", (0, 0, 0, 0)), ("Y", (0, 0)), ("Z", "junk")])
+    assert np.array_equal(out, before)
+    assert np.array_equal(frame, before)
+    assert out is not frame
+
+
+def test_draw_marks_title_banner():
+    out = vision.draw_marks(canvas(300, 100, (255, 255, 255)), [], title="trade_ellis -> fail")
+    assert _bgr(out, 2, 2) != (255, 255, 255)     # banner behind the title
+    assert _bgr(out, 290, 90) == (255, 255, 255)
+    assert out.shape == (100, 300, 3) and out.dtype == np.uint8
