@@ -340,12 +340,15 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
 `not_found`) and a session `error` save a PNG of monitor 1 next to the session log,
 `<name>_<stamp>_<n>_<state>.png`, and the event gets `screenshot: "<file name>"`. `run_machine` takes the step's
 (`screenshots.step_fields`, after `seconds` is measured); `run_session` takes the error's (`screenshots.tag_error`
-puts the name on the exception, `events.error_fields` adds the field) — so a crash in `setup()` gets one too. Not for
+puts the name on the exception, `events.error_fields` adds the field; named after the machine's state, not
+`stats["step"]`, which Varrock relabels) — so a crash in `setup()` gets one too. Not for
 ForceStop / Ctrl+C. Drawn on it (pure `vision.draw_marks`): the time + `state -> result` and the failing state's
 `STATE_MARKS` (tanner, choc, golden_nuggets, varrock_exp declare them; `"ge.X"` / `"energy.X"` = lib/ge_config.py's /
 lib/energy_config.py's X), read from the config when the shot is taken; uncalibrated (zero) ones and names an older
 config lacks are skipped. Caps: 5 per state (a routine `not_found` loop leaves room for rarer failures), 20 per
-session; the session's error always gets one. Never raises into a bot (a failed grab/save = no field). ~0.3 s per
+session; the session's main error (handler / setup crash) always gets one — a teardown error doesn't. A handler that
+waits before returning its failure calls `screenshots.failed_now(result)` at the miss, so the shot doesn't show a
+respawned rock (the miners' retry waits). Never raises into a bot (a failed grab/save = no field). ~0.3 s per
 shot at 1080p, 1-4 MB each; log dirs are gitignored. `python -m lib.logreport session latest` lists the paths; the
 web app's session page shows them (served only from next to a known session log, behind the login). Tests: a
 `conftest` autouse fixture makes the grab fail unless the test uses `fake_screen`, so no test captures the real screen.

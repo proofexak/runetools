@@ -76,7 +76,25 @@ describe("GET /api/sessions/:id/screenshots/:file", () => {
       expect(res.statusCode).toBe(200);
       expect(res.headers["content-type"]).toBe("image/png");
       expect(res.rawPayload.equals(PNG)).toBe(true);
+      // a screenshot never changes: the browser keeps it (other /api replies stay no-store)
+      expect(res.headers["cache-control"]).toBe("private, max-age=604800, immutable");
     }
+    expect((await c.get(`/api/sessions/${id}`)).headers["cache-control"]).toBe("no-store");
+    expect((await c.get(url(id, "nope.png"))).headers["cache-control"]).toBe("no-store");
+  });
+
+  it("refuses a symlink in the log folder that points outside it", async (ctx) => {
+    const id = await session();
+    const outside = path.join(tmpDir(), "secret.png");
+    fs.writeFileSync(outside, PNG);
+    const link = path.join(root, "tanner", "log", STEP_SHOT);
+    fs.rmSync(link);
+    try {
+      fs.symlinkSync(outside, link);
+    } catch {
+      ctx.skip();   // Windows without the symlink privilege
+    }
+    expect((await c.get(url(id, STEP_SHOT))).statusCode).toBe(404);
   });
 
   it("needs the app login", async () => {

@@ -28,7 +28,9 @@ export async function statsRoutes(app: FastifyInstance, { db, config }: AppConte
     const abs = Number.isSafeInteger(n) && n > 0
       ? await screenshotFile(db, await getLogRoots(db, config), n, file) : null;
     if (!abs) throw new HttpError(404, "no such screenshot");
-    return reply.type("image/png").send(await fs.readFile(abs));
+    const png = await fs.readFile(abs);
+    // written once, never changed: the session page doesn't fetch 20 big PNGs again on every visit
+    return reply.header("cache-control", "private, max-age=604800, immutable").type("image/png").send(png);
   });
 
   app.get("/api/bots/stats", async (req): Promise<BotStatsResponse> => {

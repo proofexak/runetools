@@ -291,7 +291,9 @@ def draw_marks(frame, marks, title=None):
     """Copy of a BGR frame with each (label, config value) in `marks` drawn on it — regions
     and polygons outlined, points as a crosshair, each labelled, colours from MARK_COLORS in
     turn — and `title` on a dark banner at the top left. Values mark_shape can't place are
-    skipped. Coordinates are the frame's own (a monitor-1 screenshot: the configs' own)."""
+    skipped. Coordinates are the frame's own (a monitor-1 screenshot: the configs' own). Points
+    the bots read / click in absolute (virtual-screen) coordinates land in the same place only
+    while monitor 1 starts at (0, 0) — true on one screen and in the container."""
     img = Image.fromarray(np.ascontiguousarray(frame[:, :, ::-1]))
     draw = ImageDraw.Draw(img)
     font = _label_font()

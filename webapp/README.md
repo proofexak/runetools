@@ -68,7 +68,9 @@ in the last 15 min.
 
 Failure screenshots (PRO-91): a failing step or an error names its PNG (`screenshot`, a file next to the session
 log, written by `lib/screenshots.py`). The name is stored with the step / error row. The PNG itself is never copied:
-`GET /api/sessions/:id/screenshots/:file` reads it from the log's folder (see Security).
+`GET /api/sessions/:id/screenshots/:file` reads it from the log's folder (see Security) and lets the browser cache
+it (a screenshot never changes). Update the web app before the bots: an older app reads the lines without keeping
+the field, and doesn't read them again. Nothing deletes old PNGs: each is 1-4 MB, at most 20 a session.
 
 The active account goes the other way. The app writes it to `data/active_account`, and `lib/accounts.py` reads it at
 every session start and records it as `account` in `session_start`. `RUNETOOLS_ACCOUNT` overrides the file (one
