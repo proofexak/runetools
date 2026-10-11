@@ -14,6 +14,14 @@ FINAL_STATES      = {"stopped"}
 
 STATES = ["seek_vein", "mining", "deposit", "process_sack", "stopped"]
 
+# Config regions / points each state uses, drawn on its failure screenshot (lib/screenshots.py, PRO-91).
+STATE_MARKS = {
+    "seek_vein":    ["PAY_DIRT_REGION", "CHARACTER"],
+    "mining":       ["PAY_DIRT_REGION", "CHARACTER"],
+    "deposit":      ["HOPPER_REGION", "STRUT_REGION", "STRUT_NEAR_REGION"],
+    "process_sack": ["SACK_REGION", "SACK_BANK_REGION", "BANK_REGION", "BANK_CHECK", "DEPOSIT_ALL_BTN"],
+}
+
 TRANSITIONS = [
     {"trigger": "full",      "source": "seek_vein",    "dest": "deposit"},
     {"trigger": "ok",        "source": "seek_vein",    "dest": "mining"},

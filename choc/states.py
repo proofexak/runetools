@@ -24,6 +24,17 @@ FINAL_STATES = {"stopped"}
 
 STATES = ["start", "withdraw", "grind", "restock", "stopped"]
 
+# Config regions / points each state uses, drawn on its failure screenshot (lib/screenshots.py, PRO-91).
+# "ge.X" = lib/ge_config.py's X.
+STATE_MARKS = {
+    "withdraw": ["BANK_BOOTH_REGION", "BANK_CHECK", "CHOCOLATE_TAB", "CHOC_BANK_SLOT", "CHOC_COUNT_REGION",
+                 "DEPOSIT_BTN"],
+    "grind":    ["INVENTORY_CHECK", "KNIFE_SLOT", "CHOC_INV_SLOT", "BANK_BOOTH_REGION", "BANK_CHECK",
+                 "DEPOSIT_BTN", "CHOCOLATE_TAB", "CHOC_COUNT_REGION"],
+    "restock":  ["ge.GE_REGION", "ge.BANK_CHECK", "ge.GE_CHECK", "CHOCOLATE_TAB", "DUST_BANK_SLOT",
+                 "SELL_INV_SLOT"],
+}
+
 TRANSITIONS = [
     {"trigger": "begin",   "source": "start",    "dest": "withdraw"},
 

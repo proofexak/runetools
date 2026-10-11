@@ -9,6 +9,7 @@
  * Live status (PRO-99): state_enter sets current_state + state_since, pause_start /
  * pause_end (and the runner's pause) set / clear paused_since, heartbeat sets
  * last_heartbeat; session_end clears the state and the pause.
+ * A failing step / an error may name its screenshot (PRO-91): stored with the row.
  */
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/index.js";
@@ -22,6 +23,8 @@ const str = (v: unknown): string | null => (typeof v === "string" ? v : v == nul
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const int = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null);
 const wall = (ts: string) => ts.replace(" ", "T");
+/** A failure screenshot's file name (PRO-91): kept as logged, checked again when served. */
+const shot = (v: unknown): string | null => (typeof v === "string" && v.length <= 255 ? v : null);
 
 /** Applies events (file order) to the session of `file`; returns its id, or null if nothing to do. */
 export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Promise<number | null> {
@@ -74,7 +77,8 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
         break;
       case "step": {
         const state = str(e.state) ?? "?";
-        newSteps.push({ sessionId: 0, ts: wall(e.ts), state, result: str(e.result), seconds: num(e.seconds), run: int(e.run) });
+        newSteps.push({ sessionId: 0, ts: wall(e.ts), state, result: str(e.result), seconds: num(e.seconds), run: int(e.run),
+          screenshot: shot(e.screenshot) });
         if (s.final === null) s.lastStep = state;
         lastRun = int(e.run);
         break;
@@ -102,7 +106,7 @@ export async function applyEvents(tx: Tx, file: string, events: LogEvent[]): Pro
       case "error":
         newErrors.push({
           sessionId: 0, ts: wall(e.ts), type: str(e.type), message: str(e.message),
-          traceback: str(e.traceback), state: str(e.state), where: str(e.where),
+          traceback: str(e.traceback), state: str(e.state), where: str(e.where), screenshot: shot(e.screenshot),
         });
         s.errorCount += 1;
         break;

@@ -8,9 +8,9 @@
  */
 import {
   FAILURE_RESULTS, HEARTBEAT_WINDOW_SECONDS, LIVE_WINDOW_SECONDS, type BotStats, type DayRow, type LiveSession,
-  type Overview, type SessionDetail, type SessionRow, type SessionsQuery,
+  type Overview, type ScreenshotRow, type SessionDetail, type SessionRow, type SessionsQuery,
 } from "@runetools/shared";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { z } from "zod";
 import type { Db } from "./db/index.js";
 import { dailyActivity, errors, sessions, steps } from "./db/schema.js";
@@ -96,12 +96,13 @@ export async function sessionDetail(db: Db, id: number): Promise<SessionDetail |
     .from(sessions).where(eq(sessions.id, id));
   if (!row) return null;
   const failed = inArray(steps.result, [...FAILURE_RESULTS]);
-  const [stepRows, errorRows, stateTime] = await Promise.all([
+  const [stepRows, errorRows, stateTime, stepShots] = await Promise.all([
     // the newest MAX_STEPS, shown oldest first
-    db.select({ ts: steps.ts, state: steps.state, result: steps.result, seconds: steps.seconds, run: steps.run })
+    db.select({ ts: steps.ts, state: steps.state, result: steps.result, seconds: steps.seconds, run: steps.run,
+      screenshot: steps.screenshot })
       .from(steps).where(eq(steps.sessionId, id)).orderBy(desc(steps.id)).limit(MAX_STEPS),
     db.select({ ts: errors.ts, type: errors.type, message: errors.message, traceback: errors.traceback,
-      state: errors.state, where: errors.where })
+      state: errors.state, where: errors.where, screenshot: errors.screenshot })
       .from(errors).where(eq(errors.sessionId, id)).orderBy(asc(errors.id)),
     db.select({
       state: steps.state,
@@ -109,7 +110,15 @@ export async function sessionDetail(db: Db, id: number): Promise<SessionDetail |
       count: sql<number>`count(*)::int`,
       failures: sql<number>`(count(*) FILTER (WHERE ${failed}))::int`,
     }).from(steps).where(eq(steps.sessionId, id)).groupBy(steps.state).orderBy(desc(sql`sum(${steps.seconds})`), asc(steps.state)),
+    // every failure screenshot, also of steps older than the MAX_STEPS shown (at most 20 a session)
+    db.select({ id: steps.id, ts: steps.ts, state: steps.state, label: steps.result, file: steps.screenshot })
+      .from(steps).where(and(eq(steps.sessionId, id), isNotNull(steps.screenshot))).orderBy(asc(steps.id)),
   ]);
+  const shots: ScreenshotRow[] = [
+    ...stepShots.map((s) => ({ ts: iso(s.ts), state: s.state, label: s.label, kind: "step" as const, file: s.file! })),
+    ...errorRows.filter((e) => e.screenshot)
+      .map((e) => ({ ts: iso(e.ts), state: e.state, label: e.type, kind: "error" as const, file: e.screenshot! })),
+  ].sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
   const { file, params, pauses, ...base } = row;
   return {
     ...toRow(base as RawRow),
@@ -117,6 +126,7 @@ export async function sessionDetail(db: Db, id: number): Promise<SessionDetail |
     steps: stepRows.reverse().map((s) => ({ ...s, ts: iso(s.ts) })),
     errorList: errorRows.map((e) => ({ ...e, ts: iso(e.ts) })),
     stateTime,
+    screenshots: shots,
   };
 }
 

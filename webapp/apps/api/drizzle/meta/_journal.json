@@ -29,6 +29,13 @@
       "when": 1791742921218,
       "tag": "0003_schedules",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791745329668,
+      "tag": "0004_failure_screenshots",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,21 @@ _ACTIONS    = _WALK_TRADE + ["banking"]
 # where the hide count is read: no count (the last 1, all-but-1 keeps it) → "restock"
 _COUNTS     = ["banking", "recover", "ge_bank"]
 
+# Config regions / points each state uses, drawn on its failure screenshot (lib/screenshots.py, PRO-91).
+# "ge.X" / "energy.X" = lib/ge_config.py's / lib/energy_config.py's X.
+STATE_MARKS = {
+    "walk_to_tanner": ["TANNER_AREA", "CHARACTER", "INVENTORY_CHECK"],
+    "trade_ellis":    ["ELLIS_REGION", "TANNING_CHECK"],
+    "walk_to_bank":   ["BANK_REGION"],
+    "banking":        ["BANK_REGION", "BANK_CHECK", "DEPOSIT_BTN", "HIDE_TAB", "BANK_SLOT_1", "HIDE_COUNT_REGION",
+                       "energy.ENERGY_REGION", "energy.POTION_TAB", "energy.STAMINA_POTION_SLOT"],   # stamina top-up
+    "look_around":    ["CHARACTER"],
+    "recover":        ["AMULET_SLOT", "DOUBLE_DOORS_REGION", "TP_BANK_REGION", "TP_BOOTH_REGION", "BANK_CHECK"],
+    "ge_bank":        ["ge.GE_REGION", "ge.BANK_CHECK", "HIDE_TAB", "HIDE_COUNT_REGION"],
+    "restock":        ["ge.GE_APPROACH_REGION", "ge.GE_REGION", "ge.BANK_CHECK", "ge.GE_CHECK",
+                       "HIDE_TAB", "BANK_SLOT_2", "SELL_INV_SLOT"],
+}
+
 TRANSITIONS = [
     # "Where are you?" — GE: read the hide count at the GE bank; Al Kharid: click the booth first
     {"trigger": "begin",   "source": "start",          "dest": "ge_bank", "conditions": "at_ge"},

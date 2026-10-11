@@ -98,7 +98,8 @@ export async function buildApp(ctx: AppContext, register?: (app: FastifyInstance
 
   app.addHook("onSend", async (req, reply) => {
     reply.headers(SECURITY_HEADERS);
-    if (req.url.startsWith("/api/")) reply.header("cache-control", "no-store");
+    // no-store unless the route chose otherwise (a failure screenshot never changes)
+    if (req.url.startsWith("/api/") && !reply.hasHeader("cache-control")) reply.header("cache-control", "no-store");
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {

@@ -25,6 +25,8 @@ lib/                    universal helpers used by all bots
                          also pushes each session line to the web app (Pusher, PRO-99)
   heartbeat.py          per-session daemon thread: heartbeat every 30 s, pause_start / pause_end
   logreport.py          `python -m lib.logreport` — sessions / session <id|latest> / stats / supervisor
+  screenshots.py        failure screenshots (PRO-91): a failing step / an error saves the screen next to the
+                         session log with the state's regions drawn on it — see "Failure screenshots" below
   headless.py           unattended mode (`python -m lib.headless`, container main command when BOT
                          is set, or SCHEDULE=1): keeps RuneLite logged in, runs one bot, restarts per policy;
                          schedule mode plays each block of the account's schedule (see "Play schedules");
@@ -282,6 +284,8 @@ An uncalibrated (zero-size) `TP_BOOTH_REGION` fails recovery before the teleport
   releases shift) and the closing summary line.
 - `states.py` (table + session model, below), `actions.py` (in-game actions),
   `config.py` / `config.example.py` / `config_editor.py` (editors save via `save_attr`).
+- `STATE_MARKS` in `states.py` (optional): `{state: [config names]}` — the regions / points drawn on that state's
+  failure screenshot; `run.py` passes `marks=lib.screenshots.config_marks(STATE_MARKS, config)` to `run_session`.
 - Grouped bots (`miner/`) put one `bot.py` at the group level; launches point into sub-packages.
 - `CYCLE_START` may be one state or a set (Varrock honours Stop before either rock).
 - Action-level tests that need a config use the `with_example_config` fixture (tests/conftest.py),
@@ -321,7 +325,8 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
   so they happen even if handling an error fails. A missing `session_end` = the process was killed
   (or the overlay's Exit button was used mid-session).
 - Logging never raises into a bot (repr() for odd values, one warning if the file can't be written).
-- Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks),
+- A failing `step` and an `error` may carry `screenshot` (file name next to the log — "Failure screenshots" below).
+- Report: `python -m lib.logreport` (recent sessions), `session latest` (timeline + tracebacks + screenshots),
   `stats [--bot B] [--since YYYY-MM-DD]` (per-bot totals; failures = results `fail`/`not_found`).
 - Tests never write the real launcher log (autouse fixture points `events.ROOT` at tmp) and never
   push (it sets `RUNETOOLS_APP_URL` empty; tests that push pass `EventLog(..., push=(url, token))`).
@@ -334,6 +339,23 @@ They come from `run_session`/`run_machine` — bots only pass `bot=` and `params
 - Timestamps are naive local wall time. The web app splits days by them (its TZ must match the bots')
   and decides "running" from the file's mtime instead (no session_end + written < 90 s ago when the
   session sends heartbeats, < 15 min for older logs).
+
+**Failure screenshots (PRO-91).** A `step` with a failing result (`logreport.FAILURE_RESULTS`: `fail` /
+`not_found`) and a session `error` save a PNG of monitor 1 next to the session log,
+`<name>_<stamp>_<n>_<state>.png`, and the event gets `screenshot: "<file name>"`. `run_machine` takes the step's
+(`screenshots.step_fields`, after `seconds` is measured); `run_session` takes the error's (`screenshots.tag_error`
+puts the name on the exception, `events.error_fields` adds the field; named after the machine's state, not
+`stats["step"]`, which Varrock relabels) — so a crash in `setup()` gets one too. Not for
+ForceStop / Ctrl+C. Drawn on it (pure `vision.draw_marks`): the time + `state -> result` and the failing state's
+`STATE_MARKS` (tanner, choc, golden_nuggets, varrock_exp declare them; `"ge.X"` / `"energy.X"` = lib/ge_config.py's /
+lib/energy_config.py's X), read from the config when the shot is taken; uncalibrated (zero) ones and names an older
+config lacks are skipped. Caps: 5 per state (a routine `not_found` loop leaves room for rarer failures), 20 per
+session; the session's main error (handler / setup crash) always gets one — a teardown error doesn't. A handler that
+waits before returning its failure calls `screenshots.failed_now(result)` at the miss, so the shot doesn't show a
+respawned rock (the miners' retry waits). Never raises into a bot (a failed grab/save = no field). ~0.3 s per
+shot at 1080p, 1-4 MB each; log dirs are gitignored. `python -m lib.logreport session latest` lists the paths; the
+web app's session page shows them (served only from next to a known session log, behind the login). Tests: a
+`conftest` autouse fixture makes the grab fail unless the test uses `fake_screen`, so no test captures the real screen.
 
 **Vision / pure logic (PRO-13).** Every decision made from the screen is a pure function that
 takes plain data; capture happens only in `lib/screen.grab`.

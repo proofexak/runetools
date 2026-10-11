@@ -13,6 +13,7 @@ from transitions import MachineError
 
 import lib.events as events
 import lib.pause as pause
+import lib.screenshots as screenshots
 
 
 def run_machine(model, handlers, stats, final_states, cycle_start=None):
@@ -25,7 +26,7 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
     ForceStop (P) is not caught.
     stats["step"] is left naming the last state whose handler ran.
     Emits state_enter / step / pause / soft_stop events to the session's event
-    log, if any.
+    log, if any; a failing step's event names its screenshot (lib/screenshots.py).
     An event whose every row is blocked by its conditions raises MachineError
     (transitions itself would silently stay put and re-run the same handler).
     """
@@ -43,11 +44,13 @@ def run_machine(model, handlers, stats, final_states, cycle_start=None):
         stats["step"] = state = model.state
         if log:
             log.emit("state_enter", state=state, run=stats.get("run"))
+        screenshots.enter(state)
         started = time.time()
         event = handlers[state]()
         if log:
-            log.emit("step", state=state, result=event, seconds=round(time.time() - started, 3),
-                     run=stats.get("run"))
+            seconds = round(time.time() - started, 3)
+            log.emit("step", state=state, result=event, seconds=seconds,
+                     run=stats.get("run"), **screenshots.step_fields(state, event))
         if not model.trigger(event):
             raise MachineError(f"no transition for {event!r} from {model.state!r} "
                                f"(all conditions failed)")

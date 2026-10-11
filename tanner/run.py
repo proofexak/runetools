@@ -11,9 +11,10 @@ import tanner.config as config
 from tanner.actions import (orient_west, walk_to_tanner, trade_ellis, walk_to_bank, do_bank, look_around,
                             recover, check_ge_bank, _wait_stopped)
 import tanner.actions as actions
-from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START
+from tanner.states import build_machine, bank_event, FINAL_STATES, CYCLE_START, STATE_MARKS
 from lib.state_machine import ok_or_fail
 from lib.session import run_session
+from lib.screenshots import config_marks
 from lib.ge import run_ge_flow
 from lib.restock import Restock
 import lib.human as human
@@ -92,4 +93,5 @@ def run(stats, start_at="Al Kharid"):
         final_states = FINAL_STATES,
         cycle_start  = CYCLE_START,
         summary      = _summary,
+        marks        = config_marks(STATE_MARKS, config),
     )

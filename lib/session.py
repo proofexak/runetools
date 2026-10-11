@@ -17,6 +17,7 @@ import lib.human as human
 import lib.log as log
 import lib.notify as notify
 import lib.pause as pause
+import lib.screenshots as screenshots
 from lib.state_machine import run_machine, gate_pause
 
 _active_teardown = [None]   # the running session's teardown, for emergency_teardown()
@@ -37,7 +38,8 @@ def format_elapsed(seconds):
 
 
 def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
-                final_states, cycle_start, summary, params=None, game="OSRS", teardown=None):
+                final_states, cycle_start, summary, params=None, game="OSRS", teardown=None,
+                marks=None):
     """
     bot        — bot name recorded in the event log (e.g. "tanner")
     params     — JSON-able session parameters recorded in session_start
@@ -50,6 +52,8 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
     game       — named in the "switch to ..." hint
     teardown() — always runs after the machine stops, even on a crash
                  (e.g. release a held key); the crash still propagates
+    marks(state) -> [(name, config value)] drawn on that state's failure
+                 screenshots (lib.screenshots.config_marks(STATE_MARKS, config))
     Returns the final state ("stopped" on ForceStop). Any other exception is
     written to the event log (error + session_end "crashed"/"interrupted") and
     re-raised.
@@ -57,6 +61,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
     stamp = time.strftime("%Y%m%d_%H%M%S")
     log.setup(log_prefix, stamp=stamp)
     ev = events.start(f"{log_prefix}_{stamp}.jsonl", bot, stamp)
+    screenshots.start(f"{log_prefix}_{stamp}.jsonl", marks)
     account = accounts.active()
     ev.emit("session_start", params=params or {}, pid=os.getpid(), account=account)
     human.reset(account)
@@ -83,6 +88,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
         except BaseException as e:
             error = e
             final = "interrupted" if isinstance(e, KeyboardInterrupt) else "crashed"
+            screenshots.tag_error(e, stats.get("step"))
             ev.emit("error", where="session", state=stats.get("step"), **events.error_fields(e))
     except BaseException as escaping:
         # raised while handling the error above (e.g. a failing log write or print)
@@ -111,6 +117,7 @@ def run_session(stats, *, bot, log_prefix, intro, setup, session, handlers,
                 active_seconds=round(ended - began - ev.paused_seconds, 3),
                 paused_seconds=round(ev.paused_seconds, 3))
         events.finish()
+        screenshots.finish()
         if error is not None:
             events.mark_logged(error)
         # phone alert if the bot stopped by itself or crashed (PRO-93); never raises

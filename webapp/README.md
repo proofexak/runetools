@@ -6,7 +6,8 @@ Per-account bot stats and an encrypted login vault, in the browser:
   **Watch live** for a session on an account), hours and runs for today and the last 7 days, crashes, a 14-day
   hours-by-bot chart, today by bot, recent sessions. Everything can be filtered to one account.
 - **Sessions**: a filterable list (account, bot, status, dates). Each session's page has its step timeline, time per
-  state, failed steps and tracebacks.
+  state, failed steps and tracebacks, and the screenshot of each failed step and error (PRO-91), with the regions
+  that step uses drawn on it.
 - **Bot stats**: `python -m lib.logreport stats` as a page: runs/h, failure rate per state, recoveries/h, stop reasons
   and crash types.
 - **Accounts**: add, rename and delete accounts, and pick the one new bot sessions are tagged with. The vault stores
@@ -64,6 +65,12 @@ from the file). Bots push to `RUNETOOLS_APP_URL` (default `http://127.0.0.1:8778
 Sessions send a `heartbeat` every 30 s, so a session with no `session_end` is running while its log keeps being
 written (killed after 90 s of silence). Logs from before heartbeats keep the old rule: running if the log was written
 in the last 15 min.
+
+Failure screenshots (PRO-91): a failing step or an error names its PNG (`screenshot`, a file next to the session
+log, written by `lib/screenshots.py`). The name is stored with the step / error row. The PNG itself is never copied:
+`GET /api/sessions/:id/screenshots/:file` reads it from the log's folder (see Security) and lets the browser cache
+it (a screenshot never changes). Update the web app before the bots: an older app reads the lines without keeping
+the field, and doesn't read them again. Nothing deletes old PNGs: each is 1-4 MB, at most 20 a session.
 
 The active account goes the other way. The app writes it to `data/active_account`, and `lib/accounts.py` reads it at
 every session start and records it as `account` in `session_start`. `RUNETOOLS_ACCOUNT` overrides the file (one
@@ -153,6 +160,10 @@ file with `SCHEDULE=1` (docker/README.md "Schedule mode"). Routes: `GET/PUT /api
   bits, file mode 600) as `Authorization: Bearer …` instead, with no CSRF or Origin check, since bots send neither.
   The Host check still applies (compose adds `webapp:8778` for the bot container). It only accepts lines of a session
   log that exists under the first log folder.
+- Failure screenshots: `GET /api/sessions/:id/screenshots/:file` needs the login like every read. It serves a file
+  only if its name is a plain `*.png` name that session recorded on a step or an error, the session's log is one the
+  tailer finds under today's log folders, and the PNG's real path (symlinks resolved) sits directly in that log's
+  folder. Nothing else on the machine can be read through it.
 - Bot container Start / Stop: logged in + CSRF like every change. The app never gets the Docker socket, only the
   allowlist proxy (inspect / start / stop of the one bot container), which isn't published outside compose.
 - The bots never use the stored logins. They log in through RuneLite's saved Jagex session.

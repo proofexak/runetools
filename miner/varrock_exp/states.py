@@ -11,6 +11,14 @@ FINAL_STATES = {"stopped"}
 
 STATES = ["mine_first", "drop_first", "mine_second", "drop_second", "stopped"]
 
+# Config regions / points each state uses, drawn on its failure screenshot (lib/screenshots.py, PRO-91).
+STATE_MARKS = {
+    "mine_first":  ["ROCK_REGION"],
+    "drop_first":  ["ORE_SLOT"],
+    "mine_second": ["ROCK_REGION"],
+    "drop_second": ["ORE_SLOT"],
+}
+
 TRANSITIONS = [
     {"trigger": "ok",        "source": "mine_first",  "dest": "drop_first"},
     {"trigger": "not_found", "source": "mine_first",  "dest": "mine_first"},

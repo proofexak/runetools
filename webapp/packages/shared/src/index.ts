@@ -78,11 +78,16 @@ export interface LiveSession extends SessionRow {
   // activeSeconds here runs up to now (not the last event), unless paused
 }
 
-export interface StepRow { ts: string; state: string; result: string | null; seconds: number; run: number | null }
+/** screenshot: the failure screenshot's file name (PRO-91), next to the session log. */
+export interface StepRow {
+  ts: string; state: string; result: string | null; seconds: number; run: number | null; screenshot: string | null;
+}
 export interface ErrorRow {
   ts: string; type: string | null; message: string | null; traceback: string | null;
-  state: string | null; where: string | null;
+  state: string | null; where: string | null; screenshot: string | null;
 }
+/** A failure screenshot: a failing step's (label = its result) or an error's (label = its type). */
+export interface ScreenshotRow { ts: string; state: string | null; label: string | null; kind: "step" | "error"; file: string }
 export interface StateTime { state: string; seconds: number; count: number; failures: number }
 
 export interface SessionDetail extends SessionRow {
@@ -92,6 +97,8 @@ export interface SessionDetail extends SessionRow {
   steps: StepRow[];
   errorList: ErrorRow[];
   stateTime: StateTime[];
+  /** Every failure screenshot of the session, oldest first (steps may be cut to the latest). */
+  screenshots: ScreenshotRow[];
 }
 
 export const SessionsQuery = z.object({

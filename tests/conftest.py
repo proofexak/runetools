@@ -53,3 +53,17 @@ def _launcher_log_in_tmp(monkeypatch, tmp_path):
     monkeypatch.setattr(notify, "settings", lambda: notify.Settings())
     monkeypatch.setattr(notify, "supervised", False)
     monkeypatch.setattr(notify, "_limiter", None)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_screenshots(request, monkeypatch):
+    """A failing step or an error in a test session must not grab the real screen
+    (lib/screenshots.py): without fake_screen the grab fails, which the shooter
+    treats like any failed grab — the event just has no screenshot."""
+    if "fake_screen" in request.fixturenames:
+        return
+    import lib.screenshots as screenshots
+
+    def no_screen():
+        raise RuntimeError("no real screen in tests")
+    monkeypatch.setattr(screenshots, "grab_screen", no_screen)

@@ -1,5 +1,5 @@
-import type { SessionDetail, StepRow } from "@runetools/shared";
-import { ArrowLeft } from "lucide-react";
+import type { ScreenshotRow, SessionDetail, StepRow } from "@runetools/shared";
+import { ArrowLeft, Camera } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { ErrorNote, StatTile, StatusBadge } from "@/components/common";
@@ -14,6 +14,9 @@ import { useSession } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 const FAILURES = new Set(["fail", "not_found"]);
+
+/** A failure screenshot's URL (PRO-91): served from next to the session log, behind the login. */
+const shotUrl = (sessionId: number, file: string) => `/api/sessions/${sessionId}/screenshots/${encodeURIComponent(file)}`;
 
 export function SessionDetailPage() {
   const id = Number(useParams().id);
@@ -45,11 +48,12 @@ export function SessionDetailPage() {
               <StatTile label="Errors" value={s.errors} sub={s.lastStep ? `last step ${s.lastStep}` : undefined} />
             </div>
             {s.errorList.length > 0 && <ErrorsCard session={s} />}
+            {s.screenshots.length > 0 && <ScreenshotsCard session={s} />}
             <div className="grid gap-4 lg:grid-cols-2">
               <StateTimeCard session={s} />
               <ParamsCard session={s} />
             </div>
-            <TimelineCard steps={s.steps} />
+            <TimelineCard steps={s.steps} sessionId={s.id} />
           </div>
         </>
       )}
@@ -71,10 +75,49 @@ function ErrorsCard({ session }: { session: SessionDetail }) {
             {e.traceback && (
               <pre className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs leading-relaxed">{e.traceback.trimEnd()}</pre>
             )}
+            {e.screenshot && (
+              <div className="max-w-xl"><Shot sessionId={session.id} file={e.screenshot} caption="The screen when it happened" /></div>
+            )}
           </div>
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function ScreenshotsCard({ session }: { session: SessionDetail }) {
+  return (
+    <Card className="gap-3">
+      <CardHeader>
+        <div className="grid gap-1.5">
+          <CardTitle>Screenshots</CardTitle>
+          <CardDescription>The screen at each failed step and error, with the regions that step uses drawn on it</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {session.screenshots.map((x) => <Shot key={x.file} sessionId={session.id} file={x.file} caption={shotCaption(x)} />)}
+      </CardContent>
+    </Card>
+  );
+}
+
+function shotCaption(x: ScreenshotRow) {
+  return `${x.ts.slice(11, 19)} · ${x.state ?? "?"} → ${x.label ?? "?"}`;
+}
+
+function Shot({ sessionId, file, caption }: { sessionId: number; file: string; caption: string }) {
+  const url = shotUrl(sessionId, file);
+  return (
+    <figure className="grid min-w-0 gap-1.5">
+      <a href={url} target="_blank" rel="noreferrer" title="Open full size"
+        className="bg-muted block overflow-hidden rounded-md border hover:opacity-90">
+        <img src={url} alt={caption} loading="lazy" className="block h-auto w-full" />
+      </a>
+      <figcaption className="grid min-w-0 gap-0.5 text-xs">
+        <span className="tabular-nums">{caption}</span>
+        <span className="text-muted-foreground truncate font-mono">{file}</span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -148,7 +191,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function TimelineCard({ steps }: { steps: StepRow[] }) {
+function TimelineCard({ steps, sessionId }: { steps: StepRow[]; sessionId: number }) {
   const [onlyIssues, setOnlyIssues] = useState(false);
   const shown = onlyIssues ? steps.filter((s) => s.result !== "ok") : steps;
   return (
@@ -180,7 +223,15 @@ function TimelineCard({ steps }: { steps: StepRow[] }) {
                 <TableCell className="text-right tabular-nums">{s.run ?? "–"}</TableCell>
                 <TableCell className="font-mono text-[13px]">{s.state}</TableCell>
                 <TableCell>
-                  <Badge variant={s.result === "ok" ? "muted" : FAILURES.has(s.result ?? "") ? "destructive" : "warning"}>{s.result ?? "–"}</Badge>
+                  <span className="inline-flex items-center gap-2">
+                    <Badge variant={s.result === "ok" ? "muted" : FAILURES.has(s.result ?? "") ? "destructive" : "warning"}>{s.result ?? "–"}</Badge>
+                    {s.screenshot && (
+                      <a href={shotUrl(sessionId, s.screenshot)} target="_blank" rel="noreferrer" title="Screenshot"
+                        aria-label="Screenshot" className="text-muted-foreground hover:text-foreground">
+                        <Camera className="size-4" />
+                      </a>
+                    )}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{fmtSeconds(s.seconds)}</TableCell>
               </TableRow>

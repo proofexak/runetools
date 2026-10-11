@@ -177,3 +177,36 @@ def test_cli_stats_counts_only_launcher_errors(root, capsys):
     lr.main(["stats"], root=root)
     out = capsys.readouterr().out
     assert "Launcher errors: 1" in out and "None: None" not in out
+
+
+# ── failure screenshots (PRO-91) ──────────────────────────────────────────────
+
+SHOTS = [
+    ev("session_start", 0, params={}),
+    ev("step", 5, state="trade_ellis", result="fail", seconds=5.0, run=1,
+       screenshot="tanner_20260930_120000_1_trade_ellis.png"),
+    ev("step", 6, state="trade_ellis", result="fail", seconds=1.0, run=1),        # over the cap: none
+    ev("error", 9, where="session", state="recover", type="RuntimeError", message="x", traceback="tb",
+       screenshot="tanner_20260930_120000_2_recover.png"),
+    ev("session_end", 10, final="crashed", reason=None, last_step="recover", stats={"run": 1},
+       active_seconds=10.0, paused_seconds=0.0),
+]
+
+
+def test_summarize_collects_screenshots():
+    s = lr.summarize(SHOTS)
+    assert s["screenshots"] == [
+        ("2026-09-30T12:00:05.000", "trade_ellis", "fail", "tanner_20260930_120000_1_trade_ellis.png"),
+        ("2026-09-30T12:00:09.000", "recover", "RuntimeError", "tanner_20260930_120000_2_recover.png"),
+    ]
+    assert lr.summarize(NORMAL)["screenshots"] == []
+
+
+def test_cli_session_lists_screenshot_paths(tmp_path, capsys):
+    folder = tmp_path / "tanner" / "log"
+    _write(folder / "tanner_20260930_120000.jsonl", SHOTS)
+    lr.main(["session", "latest"], root=str(tmp_path))
+    out = capsys.readouterr().out
+    assert "screenshots:" in out
+    assert str(folder / "tanner_20260930_120000_1_trade_ellis.png") in out
+    assert str(folder / "tanner_20260930_120000_2_recover.png") in out
