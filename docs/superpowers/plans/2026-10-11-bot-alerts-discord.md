@@ -90,3 +90,22 @@ docker/README (settings table, "What it does when a session ends"), CLAUDE.md la
   embed total holds with a full 4096 description and no dynamic trimming. A user id that isn't all digits
   means no mention; without one `allowed_mentions` is `{"parse": []}` (an `@everyone` in a reason pings nobody).
 - **Container traffic:** the post goes out through the account's proxy like everything else in that container.
+
+## Review (opus reviewer) — fixed
+
+- Stale `last_step` / `runs` / `reason` when a bot returns or raises before its `run_session`: the supervisor
+  resets them before each start.
+- Screenshot only when an alert follows (schedule mode: failed logins that only lose a block grab nothing).
+- No `stop_reason` → "no reason given" (was "stopped: stopped").
+- A broken `lib/notify_config.py` (SyntaxError, a bad number) no longer switches alerts off silently: the env
+  still works, bad numbers keep their defaults, the error is logged once (launcher.jsonl, where `notify_config`).
+- `logreport stats` counts only `error` events as launcher errors (it counted supervisor and notify events).
+- A NaN `retry_after` falls back to 1 s; README wording (menu crashes, the 10-minute dedupe).
+
+## Review — not done (follow-up)
+
+- **Alerts from a container go through its proxy**, so a dead proxy (the logins fail, the supervisor gives up)
+  can't be alerted either. The fix is a relay: the bot posts to the web app (`POST /api/notify` with its bot
+  token, over runetools-net, which tun2socks leaves direct) and the web app posts to Discord from the host's
+  network, with the direct post as a fallback. That is a web app feature with its own API, auth and tests —
+  documented as a limitation here, proposed as a follow-up ticket.

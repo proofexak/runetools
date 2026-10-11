@@ -311,7 +311,7 @@ read after `docker/.env` — and holds what must differ per account ("Accounts" 
 | `BOT` / `LAUNCH` / `VALUE` | unset | unattended mode (see above), in the account file; unset = manual mode |
 | `SCHEDULE` | unset | `1` = schedule mode (the web app's plan for the account, "Schedule mode" above), in the account file |
 | `BOT_ACCOUNT` | unset | the account whose bot the web app's live view and Start / Stop control |
-| `NOTIFY_DISCORD_WEBHOOK` / `NOTIFY_DISCORD_USER_ID` | unset | phone alerts (README "Phone alerts"): the webhook URL is a password — keep it here, never in git; an account file can set its own |
+| `NOTIFY_DISCORD_WEBHOOK` / `NOTIFY_DISCORD_USER_ID` | unset | phone alerts (README "Phone alerts"): the webhook URL is a password — keep it here, never in git; an account file can set its own. Unset = `lib/notify_config.py`'s (the repo is mounted, so its `SCREENSHOT` / `MIN_INTERVAL` / `MAX_PER_HOUR` apply to every container). Posted through the account's proxy: a dead proxy can't be alerted |
 | `TZ` | `UTC` | bot container + web app: the zone the logs are written in (the app's "today") and the browser's clock — set it to the proxy's country |
 | `POSTGRES_PASSWORD` | `runetools` | web app database (only reachable on localhost) |
 

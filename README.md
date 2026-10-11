@@ -38,12 +38,18 @@ Digit templates and the energy/stamina config are gitignored (per-user calibrati
 ## Phone alerts
 
 When a bot stops and can't go on without you — out of hides, no glory charges, recovery or GE
-restock failed, a crash, or an unattended container giving up (3 failed logins, restart budget,
-missing client templates, no saved credentials) — it posts to a Discord channel: what stopped, why,
+restock failed, a menu session that crashed, or an unattended container giving up (stopped while
+logged in, 3 failed logins, crashes past the restart budget, missing client templates, no saved
+credentials) — it posts to a Discord channel: what stopped, why,
 the last step, runtime and runs, and a screenshot of the screen at that moment. It @mentions you, so
 your phone buzzes. Stopping it yourself (P, overlay Stop, `botctl stop` / `kill`), a finished job and an
-automatic restart send nothing. The same account + reason is sent at most once per 10 minutes, at most
-10 alerts an hour. A missing or broken webhook never stops a bot.
+automatic restart send nothing. The same account + reason is sent at most once per 10 minutes (so a
+repeated wait for credentials or the same stop again stays quiet for that long), at most 10 alerts an
+hour. A missing or broken webhook never stops a bot.
+
+In a container the post goes out through the account's proxy, like all its traffic: if the proxy is
+down, the logins fail, the supervisor gives up — and the alert can't get out either (it's logged as
+`notify_error`). Check `botctl <account> status` when a bot has been quiet for too long.
 
 Setup (once):
 
